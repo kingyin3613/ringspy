@@ -41,7 +41,7 @@ def test_wood_cube_precracked():
     width_early = 0.7*(r_max-r_min)/nrings # early wood ring width
     width_late = 0.3*(r_max-r_min)/nrings # late wood ring width
     log_center = (0,0) # coordinates of log center in the global system of reference
-    box_center = (0,0) # coordinates of box center in the global system of reference
+    box_center = (1.5,0) # coordinates of box center in the global system of reference
     box_size = 2.5 # cube size
 
     x_min = box_center[0] - box_size/2
