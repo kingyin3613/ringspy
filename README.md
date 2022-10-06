@@ -1,6 +1,7 @@
 # RingsPy
-[![python version](https://upload.wikimedia.org/wikipedia/commons/f/fc/Blue_Python_3.7_Shield_Badge.svg)
-![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.html)
+[![python version](https://upload.wikimedia.org/wikipedia/commons/a/a5/Blue_Python_3.8_Shield_Badge.svg)
+![PyPI version](https://badge.fury.io/py/RingsPy.svg)](https://badge.fury.io/py/RingsPy)
+![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-blue.svg)
 
 RingsPy is a Voronoi diagrams-based geometric generation tool that generates 3D meshes and models of prismatic cellular solids with radial growth rules.
 
@@ -113,7 +114,7 @@ A new folder should have been created in the `RingsPy\meshes` directory with the
 
 The following files should be generated in the `RingsPy\meshes\geoName` directory with a successful run:
 - Mesh files
-    - IGA beam file: `wood_cube_1mmIGA.txt`
+    - Non-Uniform Rational B-Splines (NURBS) beam file: `wood_cube_1mmIGA.txt`
     - connector data file: `wood_cube_1mm-mesh.txt`
     - Grain-ridge data file: `wood_cube_1mm-vertex.mesh`
     - Ridge data file: `wood_cube_1mm-ridge.mesh`
@@ -172,4 +173,9 @@ A scientific visualization application `ParaView` can directly visualize the gen
 Contributions are always welcome!
 
 If you wish to contribute code/algorithms to this project, or to propose a collaboration study, please send an email to haoyin2022@u.northwestern.edu .
+
+## License
+![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-blue.svg)
+Distributed under the GPL v3 license. Copyright 2022 Hao Yin.
+
 

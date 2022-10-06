@@ -9,11 +9,12 @@ email: haoyin2022@u.northwestern.edu
 import math
 import bisect
 import numpy as np
-import scipy.stats
 from scipy.spatial.distance import cdist
 import matplotlib.pyplot as plt
 from scipy.spatial import cKDTree
 from pathlib import Path
+import datetime
+
 
 def intersect2D(a, b):
   """
@@ -23,7 +24,6 @@ def intersect2D(a, b):
   """
   return np.array([x for x in set(tuple(x) for x in a) & set(tuple(x) for x in b)])
 
- 
 def TriangleArea2D(x1, y1, x2, y2, x3, y3):
     """
     A utility function to calculate area
@@ -31,12 +31,6 @@ def TriangleArea2D(x1, y1, x2, y2, x3, y3):
     (x2, y2) and (x3, y3)
     """
     return abs((x1 * (y2 - y3) + x2 * (y3 - y1) + x3 * (y1 - y2)) / 2.0)
-    
-def check_point_boundbox(point,log_center,r):
-    ''' Make sure this point does not protrude outside the bounding circle '''
-    within = ( math.sqrt((point[0]-log_center[0])**2 + (point[1]-log_center[1])**2) <= r )
-    
-    return within
 
 def check_isinside_boundcircle(circC,log_center,rmin,rmax):
     ''' Make sure this circle does not protrude outside the ring's bounding circle '''
@@ -187,10 +181,12 @@ def rotate_around_point_highperf(xy, radians, origin=(0, 0)):
     return qx, qy
 
 
-def CellPlacementWood(log_center,r_max,r_min,nrings,width_heart,width_early,width_late,\
-                    cellsize_early,cellsize_late,iter_max,print_interval):
-    '''packing cells in annual rings'''
-    
+def CellPlacement_Wood(log_center,r_max,r_min,nrings,width_heart,
+                       width_early,width_late,cellsize_early,cellsize_late,\
+                       iter_max,print_interval):
+    """
+    packing cells in annual rings
+    """
     # Annual ring width distribution
     width = np.concatenate(([width_heart],np.tile([width_early,width_late],nrings)))
     noise = np.random.normal(1,0.25,len(width))
@@ -198,6 +194,7 @@ def CellPlacementWood(log_center,r_max,r_min,nrings,width_heart,width_early,widt
     radius = np.concatenate(([0],np.cumsum(width)))
     
     # Generate circle seeds in each annual ring (can be parallelized in the future)
+    # circles: list = list()
     circles = []
     for ibin in range(0,nrings*2+1):
         iter = 0 
@@ -226,18 +223,53 @@ def CellPlacementWood(log_center,r_max,r_min,nrings,width_heart,width_early,widt
                         print('{:d} rings remaining; {:d} cells/particles placed.'.format(nrings*2+1-ibin,len(circles)))
             iter += 1 
         
-    circles = np.matrix(circles)
+    sites = np.array(circles)
 
     # take off out of bound Voronoi vertices
     outofbound = []
-    for i in range(0,circles.shape[0]):
-        if( ((circles[i,0]-log_center[0])**2+(circles[i,1]-log_center[1])**2) > (1.2*r_max)**2 ):
+    for i in range(0,sites.shape[0]):
+        if( ((sites[i,0]-log_center[0])**2+(sites[i,1]-log_center[1])**2) > (1.2*r_max)**2 ):
             outofbound.append(i)
-    circles = np.delete(circles,outofbound,0)
+    sites = np.delete(sites,outofbound,0)
 
-    return circles, radius
+    return sites, radius
 
 
+def CellPlacement_Honeycomb(log_center,r_max,r_min,nrings,box_center,box_size,\
+                            width_heart,width_early,width_late,\
+                            cellsize_early,cellsize_late,\
+                            cellwallthickness_early,cellwallthickness_late,\
+                            cellangle,iter_max,print_interval):
+    from hexalattice.hexalattice import create_hex_grid
+    """
+    packing cells in annual rings
+    """
+    # Annual ring width distribution
+    width = np.concatenate(([width_heart],np.tile([width_early,width_late],nrings)))
+    noise = np.random.normal(1,0.25,len(width))
+    width = np.multiply(width,noise)
+    radius = np.concatenate(([0],np.cumsum(width)))
+    
+    cellsize = (cellsize_early+cellsize_late)/2
+    nx = int(2*r_max/cellsize)
+    ny = int(2*r_max/cellsize)
+    # The hexagonal lattice sites are generated via hexalattice: https://pypi.org/project/hexalattice/
+    hex_centers, _ = create_hex_grid(nx=nx,
+                                     ny=ny,
+                                     min_diam=cellsize,
+                                     rotate_deg=cellangle,
+                                     do_plot=False)
+    sites = np.hstack((hex_centers+log_center,np.ones([hex_centers.shape[0],1])))
+    sites = np.asarray(sites)
+
+    # take off out of bound Voronoi vertices
+    outofbound = []
+    for i in range(0,sites.shape[0]):
+        if( ((sites[i,0]-log_center[0])**2+(sites[i,1]-log_center[1])**2) > (1.2*r_max)**2 ):
+            outofbound.append(i)
+    sites = np.delete(sites,outofbound,0)
+
+    return sites, radius
 
 
 def RebuildVoronoi(vor,circles,boundaries,log_center,x_min,x_max,y_min,y_max,box_center,boundaryFlag):
@@ -1369,10 +1401,14 @@ def insert_precracks(all_pts_2D,all_ridges,nridge,npt_per_layer,\
             u = np.cross((q-p),normal)/np.cross(normal,s)
             if (u >= 0) and (u <= 1):
                 precracked_elem.append(ridge)
+                
+    nconnector_t_precrack = len(precracked_elem)
+    nconnector_l_precrack = 0
 
     # Visualize the precracks in the preview plot
     plt.plot(precrack_nodes[0,0::2],precrack_nodes[0,1::2],'r-',linewidth=2)
-    return precracked_elem
+    
+    return precracked_elem, nconnector_t_precrack, nconnector_l_precrack
         
         
 def VisualizationFiles(geoName,NURBS_degree,nlayer,npt_per_layer_vtk,all_pts_2D,\
@@ -1522,109 +1558,9 @@ def VisualizationFiles(geoName,NURBS_degree,nlayer,npt_per_layer_vtk,all_pts_2D,
     
 # =============================================================================
     # Paraview Visualization File
-    woodVTKcell_types = np.concatenate((np.ones(npt_total_vtk),3*np.ones(nconnector_t),3*np.ones(nconnector_l),21*np.ones(nbeam_total_vtk),23*np.ones(nquad_total))).astype(int)
-    ncell = woodVTKcell_types.shape[0]
-    
     collocation_flag_vtk = np.concatenate((np.ones(ngrain),np.zeros(npt_per_layer_vtk*NURBS_degree-ngrain)))
     collocation_flag_vtk = np.concatenate((np.tile(collocation_flag_vtk, nconnector_t_per_beam-1),np.concatenate((np.ones(ngrain),np.zeros(npt_per_layer_vtk-ngrain)))))
     collocation_flag_vtk = np.tile(collocation_flag_vtk, nbeam_per_grain)
-    
-    vtkfile = open (Path('meshes/' + geoName + '/' + geoName + '_00001'+'.vtu'),'w')
-    
-    vtkfile.write('<VTKFile type="UnstructuredGrid" version="2.0" byte_order="LittleEndian">'+'\n')
-    vtkfile.write('<UnstructuredGrid>'+'\n')
-    vtkfile.write('<Piece NumberOfPoints="'+str(npt_total_vtk)+'"'+' '+'NumberOfCells="'+str(ncell)+'">'+'\n')
-    
-    # <Points>
-    vtkfile.write('<Points>'+'\n')
-    vtkfile.write('<DataArray type="Float64" NumberOfComponents="3" format="ascii">'+'\n')
-    for i in range(0,npt_total_vtk):
-        X,Y,Z = woodVTKvertices[i]
-        vtkfile.write(' '+'%11.8e'%X+'  '+'%11.8e'%Y+'  '+'%11.8e'%Z+'\n')
-    vtkfile.write('</DataArray>'+'\n')
-    vtkfile.write('</Points>'+'\n')
-    # </Points>
-    
-    
-    # <PointData> 
-    vtkfile.write("<"+"PointData"\
-        +" "+"Tensors="+'"'+""+'"'\
-        +" "+"Vevtors="+'"'+""+'"'\
-        +" "+"Scalars="+'"'+"IGAcollocation_flag"+'"'+">"+'\n')
-    
-    # IGA collocation flag
-    vtkfile.write("<"+"DataArray"+" "+"type="+'"'+"Float32"+'"'+" "+"Name="+'"IGAcollocation_flag" format='+'"'+"ascii"+'"'+">"+'\n')
-    for i in range(0,npt_total_vtk):
-        X = collocation_flag_vtk[i]
-        vtkfile.write('%11.8e'%X+'\n')
-    vtkfile.write("</DataArray>"+'\n')
-    vtkfile.write('</PointData>'+'\n')
-    # </PointData> 
-    
-
-    # <Cells>
-    vtkfile.write('<Cells>'+'\n')
-    
-    # Cell connectivity
-    vtkfile.write('<DataArray type="Int32" Name="connectivity" format="ascii">'+'\n')
-    for x in vertex_connectivity_vtk.astype(int):
-        vtkfile.write("%s\n" % x)
-    #vtkfile.write('\n')  
-    vtkfile.write("\n".join(" ".join(map(str, x)) for x in connector_t_connectivity_vtk.astype(int)))
-    vtkfile.write('\n')
-    vtkfile.write("\n".join(" ".join(map(str, x)) for x in connector_l_connectivity_vtk.astype(int)))
-    vtkfile.write('\n')  
-    vtkfile.write("\n".join(" ".join(map(str, x)) for x in beam_connectivity_vtk.astype(int)))
-    vtkfile.write('\n') 
-    vtkfile.write("\n".join(" ".join(map(str, x)) for x in quad_connectivity.astype(int)))
-    vtkfile.write('\n') 
-    vtkfile.write('</DataArray>'+'\n')
-    
-    # Cell offsets
-    vtkfile.write('<DataArray type="Int32" Name="offsets" format="ascii">'+'\n')
-    current_offset = 0
-    for element in vertex_connectivity_vtk:
-        element_offset = 1
-        current_offset += element_offset
-        vtkfile.write(str(current_offset)+'\n')
-    for element in connector_t_connectivity_vtk:
-        element_offset = len(element)
-        current_offset += element_offset
-        vtkfile.write(str(current_offset)+'\n')
-    for element in connector_l_connectivity_vtk:
-        element_offset = len(element)
-        current_offset += element_offset
-        vtkfile.write(str(current_offset)+'\n')
-    for element in beam_connectivity_vtk:
-        element_offset = len(element)
-        current_offset += element_offset
-        vtkfile.write(str(current_offset)+'\n')
-    for element in quad_connectivity:
-        element_offset = len(element)
-        current_offset += element_offset
-        vtkfile.write(str(current_offset)+'\n')
-    vtkfile.write('</DataArray>'+'\n')
-    
-    # Cell type
-    vtkfile.write('<DataArray type="UInt8" Name="types" format="ascii">'+'\n')
-    for i in range(0,ncell):
-        element = woodVTKcell_types[i]
-        vtkfile.write(str(element)+'\n')
-    vtkfile.write('</DataArray>'+'\n')
-    
-    vtkfile.write('</Cells>'+'\n')
-    # </Cells>
-    
-    vtkfile.write('</Piece>'+'\n')
-    #</Piece>
-    
-    vtkfile.write('</UnstructuredGrid>'+'\n')
-    #</UnstructuredGrid>
-    
-    vtkfile.write('</VTKFile>'+'\n')
-    #</VTKFile>
-    
-    vtkfile.close()
 
 # =============================================================================
     # Paraview Vertices File
@@ -2019,3 +1955,138 @@ def ModelInfo(nbeam_per_grain,fiberlength,NURBS_degree,nctrlpt_per_beam,\
     for i in range(nelem_connector_t_bot+nelem_connector_t_reg+nelem_connector_t_top,MeshData.shape[0]):
         mass += density_connector_l*props_connector_l[3]*np.linalg.norm(MeshData[i,5:8] - MeshData[i,8:11])    
     return mass
+
+
+def StlModelFile(geoName):
+    import vtk
+    import os
+    
+    vtufilename = geoName + '_conns_vol'+'.vtu'
+    cwd = os.getcwd()
+    vtupath = os.path.join(cwd,'meshes',geoName)
+    stlfilename = os.path.join(vtupath, geoName+".stl")
+    file_name = os.path.join(vtupath,vtufilename)
+    
+    # create a new 'XML Unstructured Grid Reader'
+    reader = vtk.vtkXMLUnstructuredGridReader()
+    reader.SetFileName(file_name)
+    reader.Update()
+    output = reader.GetOutputPort()
+
+    # Extract the outer (polygonal) surface.
+    surface = vtk.vtkDataSetSurfaceFilter()
+    surface.SetInputConnection(0, output)
+    surface.Update()
+    sufaceoutput = surface.GetOutputPort()
+
+    # Write the stl file to disk
+    stlWriter = vtk.vtkSTLWriter()
+    stlWriter.SetFileName(stlfilename)
+    stlWriter.SetInputConnection(sufaceoutput)
+    stlWriter.Write()
+
+
+def LogFile(geoName,iter_max,r_min,r_max,nrings,width_heart,width_early,width_late,\
+        log_center,box_shape,box_center,box_size,x_min,x_max,y_min,y_max,
+        cellsize_early,cellsize_late,cellwallthickness_early,cellwallthickness_late,\
+        merge_operation,merge_tol,precrackFlag,precrack_widths,boundaryFlag,\
+        fiberlength,theta_min,theta_max,z_min,z_max,long_connector_ratio,\
+        NURBS_degree,nctrlpt_per_beam,nconnector_t_precrack,nconnector_l_precrack,\
+        nParticles,nbeamElem,\
+        STLFlag,\
+        startTime,placementTime,voronoiTime,RebuildvorTime,BeamTime,FileTime):
+
+    # get current local time
+    current_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    
+    growth_rule = 'binary'
+    
+    # Generate log file
+    logfile = open(Path('meshes/' + geoName + '/' + geoName + '-report.log'),'w')                                      
+    logfile.write('################################################################################\n')
+    logfile.write('##             Log Created with RingsPy Mesh Generation Tool V0.1.1           ##\n')
+    logfile.write('##             Files generated at local time: ' + current_time + '             ##\n')
+    logfile.write('################################################################################\n')
+    logfile.write('\n')
+    logfile.write('GEOMETRY:\n') 
+    logfile.write('geoName:                                 ' + geoName + '\n')  
+    logfile.write('\n')
+    logfile.write('GENERATION PARAMETERS:\n')
+    logfile.write('iter_max:                                ' + str(iter_max) + '\n')
+    logfile.write('radial_growth_rule:                      ' + str(growth_rule) + '\n')
+    logfile.write('merge_operation:                         ' + merge_operation + '\n')
+    logfile.write('boundaryFlag:                            ' + boundaryFlag + '\n')
+    logfile.write('\n')
+    logfile.write('GEOMETRY PARAMETERS:\n')                   
+    logfile.write('r_min:                                   ' + str(r_min) + '\n')
+    logfile.write('r_max:                                   ' + str(r_max) + '\n')
+    logfile.write('nrings:                                  ' + str(nrings) + '\n')
+    logfile.write('width_heart:                             ' + str(width_heart) + '\n')
+    logfile.write('width_early:                             ' + str(width_early) + '\n')
+    logfile.write('width_late:                              ' + str(width_late) + '\n')
+    logfile.write('log_center:                              ' + str(log_center) + '\n')
+    logfile.write('cellsize_early:                          ' + str(cellsize_early) + '\n')
+    logfile.write('cellsize_late:                           ' + str(cellsize_late) + '\n')
+    logfile.write('cellwallthickness_early:                 ' + str(cellwallthickness_early) + '\n')
+    logfile.write('cellwallthickness_late:                  ' + str(cellwallthickness_late) + '\n')
+
+    if merge_operation in ['on','On','Y','y','Yes','yes']: 
+        logfile.write('merge_tol:                               ' + str(merge_tol) + '\n')
+
+    logfile.write('\n')
+    logfile.write('CLIPPING PARAMETERS:\n')
+    logfile.write('box_shape:                               ' + str(box_shape) + '\n')
+    logfile.write('box_center:                              ' + str(box_center) + '\n')
+    logfile.write('box_size:                                ' + str(box_size) + '\n')
+    logfile.write('precrackFlag:                            ' + precrackFlag + '\n')
+    if precrackFlag in ['on','On','Y','y','Yes','yes']:
+        logfile.write('\n')
+        logfile.write('PRECRACK INSERTION PARAMETERS:\n')
+        logfile.write('precrack_widths:                         ' + str(precrack_widths) + '\n')
+        logfile.write('nconnector_t_precrack:                   ' + str(nconnector_t_precrack) + '\n')
+        logfile.write('nconnector_l_precrack:                   ' + str(nconnector_l_precrack) + '\n')
+    logfile.write('\n')
+    logfile.write('GRAIN EXTRUSION PARAMETERS:\n')
+    logfile.write('fiberlength:                             ' + str(fiberlength) + '\n')
+    logfile.write('theta_min:                               ' + str(theta_min) + '\n')
+    logfile.write('theta_max:                               ' + str(theta_max) + '\n')
+    logfile.write('long_connector_ratio:                    ' + str(long_connector_ratio) + '\n')
+    logfile.write('NURBS_degree:                            ' + str(NURBS_degree) + '\n')
+    logfile.write('nctrlpt_per_beam:                        ' + str(nctrlpt_per_beam) + '\n')
+    logfile.write('\n')
+    logfile.write('GENERATION:\n')  
+    logfile.write('nParticles:                              ' + str(nParticles) + '\n')
+    logfile.write('nbeamElem:                               ' + str(nbeamElem) + '\n')
+    logfile.write('\n')
+    logfile.write('PERFORMANCE:\n')  
+    logfile.write('Placement Time:                          ' + str(placementTime - startTime) + '\n')
+    logfile.write('Tessellation Time:                       ' + str(voronoiTime - placementTime) + '\n')
+    logfile.write('Data Reconstruction Time:                ' + str(RebuildvorTime - voronoiTime) + '\n')
+    logfile.write('Grain Extrusion Time:                    ' + str(BeamTime - RebuildvorTime) + '\n')
+    logfile.write('File Writing Time:                       ' + str(FileTime - BeamTime) + '\n')
+    logfile.write('Total Time:                              ' + str(FileTime - startTime) + '\n')
+    logfile.write('\n')
+    logfile.write('FILE CREATION:\n')  
+    # logfile.write('Geometry File:                           ./meshes/' + geoName + '/' + geoFile + '\n')
+    logfile.write('NURBS beam File:                         ./meshes/' + geoName + '/' + geoName \
+        + 'IGA.txt\n')
+    logfile.write('Connector Data File:                     ./meshes/' + geoName + '/' + geoName \
+        + '-mesh.txt\n')
+    logfile.write('Grain-ridge Data File:                   ./meshes/' + geoName + '/' + geoName \
+        + '-vertex.mesh\n')
+    logfile.write('Ridge Data File:                         ./meshes/' + geoName + '/' + geoName \
+        + '-ridge.mesh\n')
+    logfile.write('Paraview Vertices File:                  ./meshes/' + geoName + '/' + geoName
+        + '_vertices'+'.vtu\n')
+    logfile.write('Paraview Beams File:                     ./meshes/' + geoName + '/' \
+        + geoName + '_beams'+'.vtu\n')
+    logfile.write('Paraview Connectors File:                ./meshes/' + geoName + '/' + geoName \
+        + '_conns'+'.vtu\n')
+    logfile.write('Paraview Connectors (Volume) File:       ./meshes/' + geoName + '/' + geoName \
+        + '_conns_vol'+'.vtu\n')
+    if STLFlag in ['on','On','Y','y','Yes','yes']:
+        logfile.write('3D Model File:                           ./meshes/' + geoName + '/' + geoName \
+            + '.stl\n')   
+    logfile.write('Log File:                                ./meshes/' + geoName + '/' + geoName \
+        + '-report.log\n')
+    logfile.close()
