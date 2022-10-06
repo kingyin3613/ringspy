@@ -1,0 +1,5230 @@
+# Dimension of beam elements 
+1 
+# Order of basis function 
+2 
+# Number of control points per patch 
+5 
+# Number of elements per patch 
+2 
+# Number of Patches 
+1044 
+PATCH-1 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-2 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-3 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-4 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-5 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-6 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-7 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-8 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-9 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-10 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-11 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-12 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-13 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-14 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-15 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-16 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-17 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-18 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-19 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-20 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-21 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-22 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-23 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-24 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-25 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-26 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-27 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-28 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-29 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-30 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-31 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-32 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-33 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-34 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-35 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-36 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-37 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-38 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-39 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-40 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-41 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-42 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-43 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-44 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-45 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-46 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-47 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-48 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-49 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-50 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-51 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-52 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-53 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-54 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-55 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-56 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-57 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-58 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-59 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-60 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-61 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-62 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-63 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-64 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-65 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-66 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-67 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-68 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-69 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-70 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-71 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-72 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-73 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-74 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-75 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-76 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-77 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-78 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-79 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-80 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-81 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-82 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-83 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-84 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-85 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-86 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-87 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-88 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-89 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-90 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-91 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-92 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-93 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-94 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-95 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-96 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-97 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-98 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-99 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-100 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-101 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-102 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-103 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-104 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-105 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-106 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-107 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-108 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-109 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-110 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-111 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-112 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-113 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-114 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-115 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-116 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-117 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-118 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-119 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-120 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-121 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-122 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-123 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-124 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-125 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-126 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-127 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-128 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-129 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-130 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-131 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-132 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-133 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-134 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-135 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-136 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-137 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-138 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-139 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-140 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-141 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-142 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-143 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-144 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-145 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-146 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-147 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-148 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-149 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-150 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-151 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-152 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-153 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-154 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-155 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-156 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-157 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-158 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-159 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-160 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-161 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-162 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-163 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-164 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-165 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-166 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-167 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-168 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-169 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-170 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-171 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-172 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-173 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-174 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-175 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-176 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-177 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-178 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-179 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-180 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-181 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-182 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-183 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-184 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-185 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-186 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-187 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-188 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-189 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-190 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-191 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-192 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-193 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-194 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-195 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-196 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-197 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-198 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-199 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-200 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-201 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-202 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-203 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-204 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-205 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-206 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-207 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-208 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-209 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-210 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-211 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-212 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-213 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-214 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-215 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-216 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-217 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-218 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-219 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-220 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-221 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-222 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-223 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-224 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-225 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-226 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-227 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-228 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-229 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-230 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-231 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-232 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-233 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-234 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-235 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-236 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-237 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-238 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-239 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-240 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-241 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-242 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-243 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-244 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-245 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-246 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-247 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-248 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-249 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-250 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-251 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-252 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-253 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-254 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-255 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-256 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-257 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-258 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-259 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-260 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-261 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-262 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-263 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-264 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-265 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-266 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-267 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-268 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-269 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-270 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-271 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-272 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-273 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-274 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-275 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-276 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-277 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-278 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-279 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-280 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-281 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-282 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-283 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-284 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-285 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-286 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-287 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-288 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-289 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-290 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-291 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-292 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-293 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-294 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-295 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-296 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-297 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-298 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-299 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-300 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-301 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-302 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-303 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-304 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-305 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-306 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-307 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-308 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-309 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-310 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-311 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-312 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-313 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-314 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-315 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-316 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-317 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-318 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-319 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-320 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-321 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-322 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-323 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-324 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-325 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-326 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-327 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-328 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-329 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-330 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-331 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-332 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-333 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-334 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-335 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-336 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-337 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-338 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-339 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-340 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-341 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-342 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-343 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-344 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-345 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-346 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-347 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-348 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-349 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-350 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-351 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-352 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-353 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-354 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-355 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-356 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-357 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-358 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-359 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-360 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-361 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-362 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-363 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-364 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-365 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-366 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-367 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-368 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-369 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-370 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-371 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-372 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-373 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-374 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-375 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-376 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-377 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-378 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-379 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-380 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-381 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-382 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-383 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-384 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-385 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-386 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-387 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-388 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-389 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-390 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-391 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-392 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-393 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-394 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-395 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-396 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-397 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-398 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-399 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-400 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-401 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-402 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-403 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-404 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-405 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-406 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-407 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-408 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-409 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-410 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-411 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-412 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-413 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-414 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-415 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-416 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-417 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-418 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-419 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-420 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-421 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-422 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-423 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-424 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-425 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-426 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-427 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-428 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-429 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-430 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-431 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-432 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-433 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-434 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-435 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-436 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-437 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-438 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-439 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-440 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-441 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-442 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-443 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-444 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-445 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-446 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-447 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-448 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-449 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-450 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-451 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-452 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-453 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-454 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-455 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-456 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-457 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-458 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-459 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-460 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-461 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-462 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-463 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-464 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-465 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-466 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-467 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-468 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-469 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-470 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-471 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-472 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-473 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-474 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-475 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-476 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-477 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-478 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-479 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-480 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-481 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-482 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-483 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-484 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-485 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-486 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-487 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-488 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-489 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-490 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-491 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-492 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-493 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-494 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-495 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-496 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-497 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-498 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-499 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-500 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-501 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-502 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-503 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-504 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-505 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-506 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-507 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-508 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-509 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-510 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-511 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-512 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-513 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-514 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-515 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-516 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-517 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-518 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-519 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-520 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-521 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-522 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-523 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-524 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-525 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-526 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-527 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-528 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-529 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-530 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-531 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-532 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-533 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-534 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-535 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-536 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-537 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-538 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-539 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-540 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-541 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-542 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-543 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-544 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-545 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-546 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-547 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-548 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-549 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-550 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-551 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-552 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-553 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-554 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-555 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-556 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-557 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-558 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-559 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-560 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-561 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-562 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-563 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-564 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-565 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-566 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-567 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-568 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-569 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-570 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-571 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-572 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-573 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-574 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-575 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-576 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-577 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-578 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-579 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-580 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-581 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-582 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-583 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-584 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-585 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-586 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-587 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-588 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-589 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-590 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-591 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-592 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-593 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-594 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-595 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-596 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-597 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-598 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-599 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-600 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-601 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-602 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-603 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-604 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-605 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-606 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-607 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-608 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-609 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-610 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-611 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-612 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-613 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-614 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-615 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-616 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-617 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-618 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-619 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-620 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-621 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-622 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-623 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-624 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-625 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-626 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-627 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-628 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-629 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-630 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-631 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-632 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-633 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-634 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-635 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-636 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-637 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-638 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-639 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-640 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-641 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-642 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-643 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-644 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-645 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-646 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-647 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-648 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-649 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-650 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-651 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-652 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-653 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-654 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-655 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-656 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-657 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-658 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-659 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-660 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-661 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-662 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-663 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-664 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-665 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-666 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-667 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-668 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-669 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-670 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-671 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-672 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-673 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-674 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-675 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-676 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-677 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-678 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-679 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-680 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-681 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-682 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-683 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-684 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-685 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-686 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-687 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-688 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-689 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-690 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-691 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-692 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-693 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-694 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-695 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-696 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-697 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-698 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-699 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-700 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-701 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-702 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-703 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-704 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-705 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-706 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-707 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-708 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-709 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-710 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-711 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-712 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-713 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-714 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-715 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-716 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-717 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-718 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-719 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-720 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-721 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-722 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-723 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-724 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-725 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-726 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-727 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-728 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-729 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-730 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-731 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-732 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-733 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-734 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-735 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-736 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-737 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-738 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-739 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-740 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-741 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-742 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-743 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-744 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-745 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-746 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-747 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-748 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-749 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-750 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-751 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-752 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-753 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-754 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-755 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-756 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-757 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-758 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-759 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-760 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-761 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-762 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-763 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-764 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-765 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-766 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-767 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-768 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-769 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-770 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-771 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-772 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-773 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-774 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-775 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-776 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-777 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-778 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-779 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-780 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-781 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-782 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-783 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-784 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-785 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-786 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-787 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-788 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-789 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-790 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-791 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-792 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-793 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-794 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-795 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-796 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-797 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-798 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-799 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-800 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-801 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-802 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-803 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-804 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-805 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-806 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-807 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-808 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-809 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-810 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-811 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-812 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-813 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-814 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-815 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-816 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-817 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-818 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-819 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-820 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-821 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-822 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-823 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-824 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-825 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-826 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-827 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-828 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-829 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-830 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-831 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-832 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-833 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-834 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-835 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-836 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-837 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-838 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-839 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-840 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-841 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-842 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-843 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-844 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-845 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-846 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-847 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-848 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-849 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-850 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-851 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-852 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-853 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-854 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-855 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-856 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-857 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-858 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-859 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-860 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-861 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-862 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-863 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-864 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-865 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-866 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-867 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-868 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-869 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-870 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-871 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-872 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-873 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-874 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-875 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-876 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-877 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-878 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-879 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-880 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-881 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-882 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-883 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-884 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-885 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-886 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-887 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-888 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-889 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-890 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-891 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-892 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-893 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-894 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-895 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-896 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-897 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-898 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-899 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-900 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-901 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-902 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-903 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-904 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-905 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-906 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-907 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-908 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-909 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-910 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-911 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-912 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-913 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-914 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-915 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-916 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-917 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-918 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-919 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-920 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-921 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-922 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-923 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-924 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-925 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-926 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-927 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-928 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-929 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-930 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-931 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-932 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-933 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-934 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-935 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-936 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-937 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-938 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-939 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-940 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-941 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-942 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-943 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-944 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-945 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-946 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-947 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-948 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-949 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-950 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-951 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-952 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-953 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-954 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-955 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-956 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-957 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-958 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-959 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-960 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-961 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-962 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-963 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-964 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-965 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-966 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-967 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-968 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-969 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-970 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-971 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-972 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-973 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-974 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-975 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-976 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-977 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-978 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-979 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-980 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-981 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-982 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-983 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-984 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-985 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-986 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-987 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-988 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-989 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-990 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-991 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-992 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-993 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-994 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-995 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-996 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-997 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-998 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-999 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-1000 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-1001 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-1002 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-1003 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-1004 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-1005 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-1006 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-1007 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-1008 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-1009 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-1010 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-1011 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-1012 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-1013 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-1014 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-1015 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-1016 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-1017 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-1018 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-1019 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-1020 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-1021 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-1022 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-1023 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-1024 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-1025 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-1026 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-1027 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-1028 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-1029 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-1030 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-1031 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-1032 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-1033 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-1034 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-1035 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-1036 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-1037 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-1038 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-1039 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-1040 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-1041 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-1042 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-1043 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 
+PATCH-1044 
+Size of knot vectors 
+7 
+knot vectors 
+0.000000 0.000000 0.000000 0.500000 1.000000 1.000000 1.000000 

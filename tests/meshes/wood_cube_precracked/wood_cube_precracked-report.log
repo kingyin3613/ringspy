@@ -1,0 +1,69 @@
+################################################################################
+##             Log Created with RingsPy Mesh Generation Tool V0.1.1           ##
+##             Files generated at local time: 2022-10-06 15:38:44             ##
+################################################################################
+
+GEOMETRY:
+geoName:                                 wood_cube_precracked
+
+GENERATION PARAMETERS:
+iter_max:                                200
+radial_growth_rule:                      binary
+merge_operation:                         off
+boundaryFlag:                            on
+
+GEOMETRY PARAMETERS:
+r_min:                                   0
+r_max:                                   4
+nrings:                                  4
+width_heart:                             0.3
+width_early:                             0.7
+width_late:                              0.3
+log_center:                              (0, 0)
+cellsize_early:                          0.02
+cellsize_late:                           0.01
+cellwallthickness_early:                 0.01
+cellwallthickness_late:                  0.006
+
+CLIPPING PARAMETERS:
+box_shape:                               notched+precracked square
+box_center:                              (1.5, 0)
+box_size:                                2.5
+precrackFlag:                            on
+
+PRECRACK INSERTION PARAMETERS:
+precrack_widths:                         0.02
+nconnector_t_precrack:                   1
+nconnector_l_precrack:                   0
+
+GRAIN EXTRUSION PARAMETERS:
+fiberlength:                             1.25
+theta_min:                               0
+theta_max:                               0
+long_connector_ratio:                    0.02
+NURBS_degree:                            2
+nctrlpt_per_beam:                        5
+
+GENERATION:
+nParticles:                              1567
+nbeamElem:                               2088
+
+PERFORMANCE:
+Placement Time:                          1.1835076808929443
+Tessellation Time:                       0.08196902275085449
+Data Reconstruction Time:                0.6197450160980225
+Grain Extrusion Time:                    0.06154775619506836
+File Writing Time:                       1.3199563026428223
+Total Time:                              3.266725778579712
+
+FILE CREATION:
+NURBS beam File:                         ./meshes/wood_cube_precracked/wood_cube_precrackedIGA.txt
+Connector Data File:                     ./meshes/wood_cube_precracked/wood_cube_precracked-mesh.txt
+Grain-ridge Data File:                   ./meshes/wood_cube_precracked/wood_cube_precracked-vertex.mesh
+Ridge Data File:                         ./meshes/wood_cube_precracked/wood_cube_precracked-ridge.mesh
+Paraview Vertices File:                  ./meshes/wood_cube_precracked/wood_cube_precracked_vertices.vtu
+Paraview Beams File:                     ./meshes/wood_cube_precracked/wood_cube_precracked_beams.vtu
+Paraview Connectors File:                ./meshes/wood_cube_precracked/wood_cube_precracked_conns.vtu
+Paraview Connectors (Volume) File:       ./meshes/wood_cube_precracked/wood_cube_precracked_conns_vol.vtu
+3D Model File:                           ./meshes/wood_cube_precracked/wood_cube_precracked.stl
+Log File:                                ./meshes/wood_cube_precracked/wood_cube_precracked-report.log
