@@ -30,7 +30,7 @@ def test_wood_cube():
     geoName = 'wood_cube'
     path = 'meshes'
 
-    iter_max = 500
+    iter_max = 100
     print_interval = 500
 
     # length unit: mm
@@ -42,13 +42,13 @@ def test_wood_cube():
     width_late = 0.3*(r_max-r_min)/nrings # late wood ring width
     log_center = (0,0) # coordinates of log center in the global system of reference
     box_center = (1.25,0) # coordinates of box center in the global system of reference
-    box_size = 2.5 # cube size
+    box_size = 1.0 # cube size
 
     x_min = box_center[0] - box_size/2
     x_max = box_center[0] + box_size/2 
     y_min = box_center[1] - box_size/2
     y_max = box_center[1] + box_size/2 
-    
+
     # if precracked
     x_indent_size = box_size*0.120
     y_indent_size = box_size*0.125
@@ -66,7 +66,7 @@ def test_wood_cube():
     cellwallthickness_late = 0.006
 
     merge_operation = 'on'
-    merge_tol = 0.008
+    merge_tol = 0.01
 
     precrackFlag = 'off'
     precrack_widths = 0.1
