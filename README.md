@@ -23,7 +23,7 @@ RingsPy depends on mainstream Python libraries ``numpy`` and ``scipy``, and opti
 
 ### 2. Installation check
 
-There are some unit tests in [tests](https://github.com/kingyin3613/RingsPy/tree/main/tests). You can use ``pytest`` to check whether the installation is successful by running this command:
+There are some unit tests in [tests](https://github.com/kingyin3613/RingsPy/tree/main/tests/). You can use ``pytest`` to check whether the installation is successful by running this command:
 
 ```bash
 pytest
@@ -41,7 +41,7 @@ Once all required components are installed and one is ready to begin, a path for
 The first step to generate a cellular geometry is selecting geometry and appropriate parameters. 
 
 ### 1.1. Geometry
-A template file, `test_wood_cube.py` located in the [tests](https://github.com/kingyin3613/RingsPy/tree/main/tests) directory acts as both the parameter input file, and main executable for the generation of a cubic wood specimen.
+A template file, `test_wood_cube.py` located in the [tests](https://github.com/kingyin3613/RingsPy/tree/main/tests/) directory acts as both the parameter input file, and main executable for the generation of a cubic wood specimen.
 
 *Note: The Mesh Generation Tool by now only accepts many of pre-defined boundary geometries, importing of CAD and/or other 3D model files will be implemented in subsequent versions.*
 
@@ -93,15 +93,15 @@ precrack_widths = 0.1
 
 boundaryFlag = 'on'
 stlFlag = 'on'
-
 ```
+
 - `geoName` is the geometry name, `path` is the folder where the mesh files will be generated.
 - `iter_max` is the max number of iteration for randomly placing a new non-overlapping wood cell particle in the 2D annual rings domain.
 - `print_interval` is the print interval when every n cell particles are placed in the model domain.
 - `r_min` and `r_max` are the upper and lower bounds of radii to generate 2D annual rings, `nrings` is the number of rings.
 - `width_heart`, `width_early`, and `width_late`, are annual ring widths for heartwood, earlywood, and latewood, respectively, which all together determine the morphology of the wood mesostructure.
 - `log_center`,`box_center`, and `box_size` are for locating the wood log and cutting box.
-- any `_indent`,`_precrack` parameters are related to precracked sample generation, which will be added in the next version.
+- `_indent`,`_precrack` parameters are related to precracked sample generation, which will be added in the next version.
 - `cellsize_early`,`cellsize_late`, `cellwallthickness_early`, and `cellwallthickness_late` are parameters for the earlywood and latewood cells.
 - `merge_operation` flag can be turned on/off for the merging operation, when turned on, all small wood cell ridges shorter than the threshold `merge_tol` will be merged with neighboring ridges.
 - `precrackFlag` flag is for inserting a pre-crack, for the notched specimens. So far, only a single line pre-crack with the length of `precrack_widths` is supported.
@@ -110,7 +110,7 @@ stlFlag = 'on'
 
 ![MeshGenerator](<./contents/MeshGenerator.png>)
 ### 2.1. Run Mesh Generation
-Open a Command Prompt or Terminal window and set the current directory to [tests](https://github.com/kingyin3613/RingsPy/tree/main/tests) or any other directory, then run the command:
+Open a Command Prompt or Terminal window and set the current directory to [tests](https://github.com/kingyin3613/RingsPy/tree/main/tests/) or any other directory, then run the command:
 ```
     python test_wood_cube.py
 ```
@@ -184,6 +184,7 @@ If you wish to contribute code/algorithms to this project, or to propose a colla
 
 ## License
 ![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-blue.svg)
+
 Distributed under the GPL v3 license. Copyright 2022 Hao Yin.
 
 
