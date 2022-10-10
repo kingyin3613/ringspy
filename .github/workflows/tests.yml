@@ -1,4 +1,4 @@
-name: Tests
+name: Tests on Win-MacOS-Ubuntu with Python 3.6-3.10
 
 on: [push, pull_request]
 

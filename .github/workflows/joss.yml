@@ -1,9 +1,11 @@
-name: Build JOSS paper draft
+name: JOSS pdf constructor
 
 on:
   push:
-    branches:
-    - main
+    paths:
+      - 'contents/paper.md'
+      - 'contents/paper.bib'
+      - 'contents/fig1.pdf'
 
 jobs:
   paper:
@@ -12,15 +14,17 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v2
-      - name: TeX and PDF
-        uses: docker://openjournals/paperdraft:latest
+      - name: Build draft PDF
+        uses: openjournals/openjournals-draft-action@master
         with:
-          args: '-k contents/paper.md'
-        env:
-          GIT_SHA: $GITHUB_SHA
-          JOURNAL: joss
+          journal: joss
+          # This should be the path to the paper within your repo.
+          paper-path: contents/paper.md
       - name: Upload
         uses: actions/upload-artifact@v1
         with:
           name: paper
-          path: contents/
+          # This is the output path where Pandoc will write the compiled
+          # PDF. Note, this should be the same directory as the input
+          # paper.md
+          path: contents/paper.pdf
