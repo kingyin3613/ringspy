@@ -3,6 +3,7 @@
 ![PyPI version](https://badge.fury.io/py/RingsPy.svg)](https://badge.fury.io/py/RingsPy)
 ![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-blue.svg)
 ![Tests](https://github.com/kingyin3613/RingsPy/actions/workflows/tests.yml/badge.svg)
+![codecov](https://codecov.io/gh/kingyin3613/RingsPy/branch/main/graph/badge.svg?token=4AZN3HGGET)](https://codecov.io/gh/kingyin3613/RingsPy)
 
 RingsPy is a Voronoi diagrams-based geometric generation tool that generates 3D meshes and models of prismatic cellular solids with radial growth rules.
 
@@ -96,7 +97,7 @@ stlFlag = 'on'
 ```
 
 - `geoName` is the geometry name, `path` is the folder where the mesh files will be generated.
-- `iter_max` is the max number of iteration for randomly placing a new non-overlapping wood cell particle in the 2D annual rings domain.
+- `iter_max` is the max number of iteration for randomly placing a new non-overlapping wood cell particle in the 2D annual rings domain. Generally, larger `iter_max` leads to more centroidal Voronoi cells, for more reference, see [Centroidal Voronoi Tessellation](https://en.wikipedia.org/wiki/Centroidal_Voronoi_tessellation/).
 - `print_interval` is the print interval when every n cell particles are placed in the model domain.
 - `r_min` and `r_max` are the upper and lower bounds of radii to generate 2D annual rings, `nrings` is the number of rings.
 - `width_heart`, `width_early`, and `width_late`, are annual ring widths for heartwood, earlywood, and latewood, respectively, which all together determine the morphology of the wood mesostructure.
