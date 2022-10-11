@@ -4,6 +4,7 @@
 [![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.html)
 [![Tests](https://github.com/kingyin3613/RingsPy/actions/workflows/tests.yml/badge.svg)](https://github.com/kingyin3613/RingsPy/actions/workflows/tests.yml)
 [![codecov](https://codecov.io/gh/kingyin3613/RingsPy/branch/main/graph/badge.svg?token=4AZN3HGGET)](https://codecov.io/gh/kingyin3613/RingsPy)
+[![status](https://joss.theoj.org/papers/3dd05ca1103829e7620731845b0d2472/status.svg)](https://joss.theoj.org/papers/3dd05ca1103829e7620731845b0d2472)
 
 RingsPy is a Voronoi diagrams-based geometric generation tool that generates 3D meshes and models of prismatic cellular solids with radial growth rules.
 
