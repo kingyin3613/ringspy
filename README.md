@@ -27,7 +27,7 @@ RingsPy depends on mainstream Python libraries ``numpy`` and ``scipy``, and opti
 There are some unit tests in [tests](https://github.com/kingyin3613/RingsPy/tree/main/tests/). You can use ``pytest`` to check whether the installation is successful by running this command:
 
 ```bash
-pytest
+pytest .
 ```
 
 ## Getting Started
