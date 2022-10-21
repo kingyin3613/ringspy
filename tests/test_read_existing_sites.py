@@ -20,39 +20,40 @@ import RingsPy.MeshGenTools as RPgen
 import shutil
 from pathlib import Path
 
-def test_hexalattice_tri():
+
+def test_read_existing_sites():
     # performance check only
     startTime = time.time()
     
     # ==================================================================
     # Input parameters
-    geoName = 'honeycomb_tri'
+    geoName = 'wood_cube'
     path = 'meshes'
     
-    radial_growth_rule = 'regular_hexagonal'
+    radial_growth_rule = 'test_sites.npy'   
     iter_max = 100
     print_interval = 500
     
     # Radial cell growth parameters
     # length unit: mm
     r_min = 0   # inner radius of wood log
-    r_max = 2   # outer radius of wood log
+    r_max = 4   # outer radius of wood log
     nrings = 4 # number of rings
     width_heart = 0.3*(r_max-r_min)/nrings # heart wood ring width
     width_early = 0.7*(r_max-r_min)/nrings # early wood ring width
     width_late = 0.3*(r_max-r_min)/nrings # late wood ring width
-    log_center = (0,1) # coordinates of log center in the global system of reference
+    log_center = (0,0) # coordinates of log center in the global system of reference
     
-    cellsize_early = 0.2
-    cellsize_late = 0.2
+    cellsize_early = 0.02
+    cellsize_late = 0.01
     cellwallthickness_early = 0.010
-    cellwallthickness_late = 0.010
+    cellwallthickness_late = 0.006
     
     # clipping box parameters
     boundaryFlag = 'on'
-    box_shape = 'triangle'
-    box_center = (0,0) # coordinates of box center in the global system of reference
-    box_size = 1.0 # side length
+    box_shape = 'square'
+    box_center = (1.25,0) # coordinates of box center in the global system of reference
+    box_size = 1.5 # side length
         
     # longitudinal direction parameters
     fiberlength = 0.5*box_size
@@ -62,7 +63,7 @@ def test_hexalattice_tri():
     z_max = box_size
     long_connector_ratio = 0.02 # longitudinal joint size
     
-    merge_operation = 'off'
+    merge_operation = 'on'
     merge_tol = 0.01
     
     precrackFlag = 'off'
@@ -291,4 +292,4 @@ def test_hexalattice_tri():
             startTime,placementTime,voronoiTime,RebuildvorTime,BeamTime,FileTime)
 
 if __name__ == "__main__":
-    test_hexalattice_tri()
+    test_read_existing_sites()

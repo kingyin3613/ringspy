@@ -11,9 +11,11 @@ import bisect
 import numpy as np
 from scipy.spatial.distance import cdist
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 from scipy.spatial import cKDTree
 from pathlib import Path
 import datetime
+import pkg_resources
 
 
 def intersect2D(a, b):
@@ -181,6 +183,89 @@ def rotate_around_point_highperf(xy, radians, origin=(0, 0)):
     return qx, qy
 
 
+def Clipping_Box(box_shape,box_center,box_size,boundaryFlag):
+    """
+    clipping box for the 2D Voronoi diagram
+    """
+    if box_shape in ['square','Square','SQUARE', 'cube','s']: # sqaure box
+        x_min = box_center[0] - box_size/2
+        x_max = box_center[0] + box_size/2 
+        y_min = box_center[1] - box_size/2
+        y_max = box_center[1] + box_size/2
+        
+        boundary_points = np.array([[x_min, y_min], [x_max, y_min], [x_max, y_max], [x_min, y_max]])
+        l0 = [(x_min, y_min), (x_max, y_min)]
+        l1 = [(x_max, y_min), (x_max, y_max)]
+        l2 = [(x_max, y_max), (x_min, y_max)]
+        l3 = [(x_min, y_max), (x_min, y_min)]
+        boundaries = [('bottom', l0), ('right', l1), ('top', l2), ('left', l3)]
+
+        if boundaryFlag in ['on','On','Y','y','Yes','yes']:
+            boundarylines = patches.Rectangle(boundaries[0][1][0], x_max-x_min, y_max-y_min, linewidth=2, edgecolor='k',facecolor='none')
+        else:
+            boundarylines = patches.Rectangle(boundaries[0][1][0], x_max-x_min, y_max-y_min, linewidth=2, linestyle='-.', edgecolor='k',facecolor='none')
+            
+    elif box_shape in ['triangle','Triangle','TRIANGLE','triangular','tri','^']: # Triangle box
+        x_0 = box_center[0] - box_size
+        x_1 = box_center[0]
+        x_2 = box_center[0] + box_size
+        y_0 = box_center[1]
+        y_1 = box_center[1] + box_size*np.sqrt(3)
+        boundary_points = np.array([[x_0, y_0], [x_2, y_0], [x_1, y_1]])
+        
+        l0 = [(x_0, y_0), (x_2, y_0)]
+        l1 = [(x_2, y_0), (x_1, y_1)]
+        l2 = [(x_1, y_1), (x_0, y_0)]
+        
+        boundaries = [('bottom', l0), ('top-right', l1), ('top-left', l2)]
+        
+        if boundaryFlag in ['on','On','Y','y','Yes','yes']:
+            boundarylines = patches.RegularPolygon((box_center[0]+0,box_center[1]+np.sqrt(3)/3*box_size),numVertices=3,radius=2*np.sqrt(3)/3*box_size,orientation=0,linewidth=2,edgecolor='k',facecolor='none')
+        else:
+            boundarylines = patches.RegularPolygon((box_center[0]+0,box_center[1]+np.sqrt(3)/3*box_size),numVertices=3,radius=2*np.sqrt(3)/3*box_size,orientation=0,linewidth=2,linestyle='-.',edgecolor='k',facecolor='none')
+        
+        x_min = x_0
+        x_max = x_2
+        y_min = y_0
+        y_max = y_1
+        
+    elif box_shape in ['hexagon','Hexagon','HEXAGON','hexagonal','hex','h']: # hexagonal box
+        x_0 = box_center[1] - box_size
+        x_1 = box_center[1] - box_size/2.0
+        x_2 = box_center[1] + box_size/2.0
+        x_3 = box_center[1] + box_size
+        y_0 = box_center[0] - box_size/2*np.sqrt(3)
+        y_1 = box_center[0]
+        y_2 = box_center[0] + box_size/2*np.sqrt(3)
+        
+        boundary_points = np.array([[x_1, y_0], [x_2, y_0], [x_3, y_1], [x_2, y_2], [x_1, y_2], [x_0, y_1]])
+        
+        l0 = [(x_1, y_0), (x_2, y_0)]
+        l1 = [(x_2, y_0), (x_3, y_1)]
+        l2 = [(x_3, y_1), (x_2, y_2)]
+        l3 = [(x_2, y_2), (x_1, y_2)]
+        l4 = [(x_1, y_2), (x_0, y_1)]
+        l5 = [(x_0, y_1), (x_1, y_0)]
+        
+        boundaries = [('bottom', l0), ('bottom-right', l1), ('top-right', l2), ('top', l3), ('top-left', l4), ('bottom-left', l5)]
+        
+        if boundaryFlag in ['on','On','Y','y','Yes','yes']:
+            boundarylines = patches.RegularPolygon(box_center,numVertices=6,radius=box_size,orientation=np.pi/6,linewidth=2,edgecolor='k',facecolor='none')
+        else:
+            boundarylines = patches.RegularPolygon(box_center,numVertices=6,radius=box_size,orientation=np.pi/6,linewidth=2,linestyle='-.',edgecolor='k',facecolor='none')
+        
+        x_min = x_0
+        x_max = x_3
+        y_min = y_0
+        y_max = y_2
+        
+    else:
+        print('box_shape: {:s} is not supported for the current version, please check the README for more details.'.format(box_shape))
+        print('Now exitting...')
+        exit()
+        
+    return x_min,x_max,y_min,y_max,boundaries,boundary_points,boundarylines
+    
 def CellPlacement_Wood(log_center,r_max,r_min,nrings,width_heart,
                        width_early,width_late,cellsize_early,cellsize_late,\
                        iter_max,print_interval):
@@ -239,7 +324,7 @@ def CellPlacement_Honeycomb(log_center,r_max,r_min,nrings,box_center,box_size,\
                             width_heart,width_early,width_late,\
                             cellsize_early,cellsize_late,\
                             cellwallthickness_early,cellwallthickness_late,\
-                            cellangle,iter_max,print_interval):
+                            iter_max,print_interval):
     from hexalattice.hexalattice import create_hex_grid
     """
     packing cells in annual rings
@@ -250,6 +335,7 @@ def CellPlacement_Honeycomb(log_center,r_max,r_min,nrings,box_center,box_size,\
     width = np.multiply(width,noise)
     radius = np.concatenate(([0],np.cumsum(width)))
     
+    cellangle = 0.0
     cellsize = (cellsize_early+cellsize_late)/2
     nx = int(2*r_max/cellsize)
     ny = int(2*r_max/cellsize)
@@ -272,7 +358,7 @@ def CellPlacement_Honeycomb(log_center,r_max,r_min,nrings,box_center,box_size,\
     return sites, radius
 
 
-def RebuildVoronoi(vor,circles,boundaries,log_center,x_min,x_max,y_min,y_max,box_center,boundaryFlag):
+def RebuildVoronoi(vor,circles,boundaries,log_center,x_min,x_max,y_min,y_max,box_center,box_shape,boundaryFlag):
     '''Clip Voronoi mesh by the boundaries, rebuild the new Voronoi mesh'''
     # Store indices of Voronoi vertices for each finite ridge
     finite_ridges = []
@@ -285,7 +371,7 @@ def RebuildVoronoi(vor,circles,boundaries,log_center,x_min,x_max,y_min,y_max,box
     voronoi_vertices_in = []
     voronoi_vertices_out = []
     
-    if len(boundaries) == 3:
+    if box_shape == 'triangle':
         for pointidx, simplex in zip(vor.ridge_points, vor.ridge_vertices):
             simplex = np.asarray(simplex)
             simplex = np.where(simplex == -1, -9999999999, simplex) # use a large negative number instead of -1 to represent the infinite ridge vertices 
@@ -315,7 +401,7 @@ def RebuildVoronoi(vor,circles,boundaries,log_center,x_min,x_max,y_min,y_max,box
                 elif check_isinside_boundTriangle2D(np.append(vor.vertices[simplex[simplex >= 0][0]],0),boundaries): # index of finite end Voronoi vertex of the infinite ridge
                     infinite_ridges.append(simplex)
                     infinite_ridges_pointid.append(pointidx) 
-    elif len(boundaries) == 4:
+    elif box_shape == 'square':
         for pointidx, simplex in zip(vor.ridge_points, vor.ridge_vertices):
             simplex = np.asarray(simplex)
             simplex = np.where(simplex == -1, -9999999999, simplex) # use a large negative number instead of -1 to represent the infinite ridge vertices 
@@ -345,7 +431,7 @@ def RebuildVoronoi(vor,circles,boundaries,log_center,x_min,x_max,y_min,y_max,box
                 elif check_isinside_boundbox2D(np.append(vor.vertices[simplex[simplex >= 0][0]],0),x_min,x_max,y_min,y_max): # index of finite end Voronoi vertex of the infinite ridge
                     infinite_ridges.append(simplex)
                     infinite_ridges_pointid.append(pointidx) 
-    elif len(boundaries) == 6:
+    elif box_shape == 'hexagon':
         L = y_max - y_min
         box_center = log_center
         for pointidx, simplex in zip(vor.ridge_points, vor.ridge_vertices):
@@ -379,7 +465,7 @@ def RebuildVoronoi(vor,circles,boundaries,log_center,x_min,x_max,y_min,y_max,box
                 elif check_isinside_boundHexagon2D(np.append(vor.vertices[simplex[simplex >= 0][0]],0),L,box_center): # index of finite end Voronoi vertex of the infinite ridge
                     infinite_ridges.append(simplex)
                     infinite_ridges_pointid.append(pointidx) 
-    elif len(boundaries) == 8: # grooved
+    elif box_shape == 'notched_square': # notched
         x_min = boundaries[0][1][0][0]
         x_max = boundaries[1][1][0][0]
         y_min = boundaries[0][1][0][1]
@@ -568,7 +654,7 @@ def RebuildVoronoi(vor,circles,boundaries,log_center,x_min,x_max,y_min,y_max,box
         boundary_ridges_new,nvertex,nvertices_in,nfinite_ridge,nboundary_ridge,\
             nboundary_pts,nboundary_pts_featured,voronoi_ridges,nridge
 
-def RebuildVoronoi_new(vor,circles,boundaries,log_center,x_min,x_max,y_min,y_max,box_center,merge_tol,boundaryFlag):
+def RebuildVoronoi_new(vor,circles,boundaries,log_center,x_min,x_max,y_min,y_max,box_center,box_shape,merge_tol,boundaryFlag):
     '''Clip Voronoi mesh by the boundaries, rebuild the new Voronoi mesh'''
     # Store indices of Voronoi vertices for each finite ridge
     finite_ridges = []
@@ -581,7 +667,7 @@ def RebuildVoronoi_new(vor,circles,boundaries,log_center,x_min,x_max,y_min,y_max
     voronoi_vertices_in = []
     voronoi_vertices_out = []
     
-    if len(boundaries) == 8: # grooved
+    if box_shape == 'notched_square': # notched
         
         x_min = boundaries[0][1][0][0]
         x_max = boundaries[1][1][0][0]
@@ -1917,44 +2003,1951 @@ def BezierBeamFile(geoName,NURBS_degree,nctrlpt_per_beam,\
         txtfile.write('\n')
     txtfile.close()
     
+            
+def AbaqusFile(geoName,NURBS_degree,npatch,nbeam_per_grain,woodIGAvertices,beam_connectivity,\
+               connector_t_bot_connectivity,connector_t_reg_connectivity,\
+               connector_t_top_connectivity,connector_l_connectivity,nbeamElem,\
+               nconnector_t,nconnector_l,nconnector_t_precrack,nconnector_l_precrack,\
+               fiberlength,height_connector_t,long_connector_ratio,\
+               x_max,x_min,y_max,y_min,z_coord,box_shape,box_size,\
+               cellwallthickness_early,cellwallthickness_late,\
+               merge_operation,merge_tol,\
+               precrackFlag='off',precrack_elem=[]):
     
-def ModelInfo(nbeam_per_grain,fiberlength,NURBS_degree,nctrlpt_per_beam,\
-            props_beam,props_connector_t_bot,props_connector_t_reg,\
-            props_connector_t_top,props_connector_l,iprops_beam,\
-            beam_connectivity,connector_t_bot_connectivity,\
-            connector_t_reg_connectivity,connector_t_top_connectivity,\
-            connector_l_connectivity,MeshData):
+    # IGA beam parameters
+    ninstance = 1
+    nsvars_beam = 27 # number of svars for beam
+    nsecgp = 4 # number of gauss points for beam sectional integration
+    nsvars_secgp = 16 # number of svars at each gauss point
+    iprops_beam = np.zeros(6)
+    iprops_beam[0]    = 1 # section type index
+    iprops_beam[1]    = 1 # number of instances
+    iprops_beam[2]    = nconnector_t # number of transverse connectors
+    iprops_beam[3]    = nconnector_t_precrack # number of precracked transverse connectors
+    iprops_beam[4]    = nconnector_l # number of longitudinal connectors
+    iprops_beam[5]    = nconnector_l_precrack # number of precracked longitudinal connectors
+    iprops_beam = [int(x) for x in iprops_beam] 
     
-    beam_length = fiberlength/nbeam_per_grain
-    nelem_beam = beam_connectivity.shape[0]
+    props_beam = np.zeros(16)
+    props_beam[0]     = 1.5E-9 # Wood substance density [tonne/mm^3]
+    props_beam[1]     = 1.75E+6 # Mesoscale elastic modulus [MPa]
+    props_beam[2]     = 0.3 # Beam Poisson's ratio
+    props_beam[3]     = cellwallthickness_early # Cross-sectional height [mm]
+    props_beam[4]     = cellwallthickness_early # Cross-sectional width [mm]
+    props_beam[5]     = 100 # Tensile Strength [MPa]
+    props_beam[6]     = 200 # Tensile fracture energy [mJ/mm^2]
+    props_beam[7]     = 4.1 # Shear Strength Ratio
+    props_beam[8]     = 0.2 # Softening Exponent
+    props_beam[9]     = 0.2 # Initial Friction
+    props_beam[10]    = 0.0 # Asymptotic Friction
+    props_beam[11]    = 600 # Transitional Stress [MPa]
+    props_beam[12]    = 0.0 # Tensile Unloading
+    props_beam[13]    = 0.0 # Shear Unloading
+    props_beam[14]    = 0.0 # Shear Softening
+    props_beam[15]    = 1.0 # Elastic Analysis Flag
+    
+    # Transverse connector parameters
+    nsvars_conn_t = 32  # number of svars for transverse connector
+    iprops_connector_t_bot = np.zeros(7)
+    props_connector_t_bot = np.zeros(26)
+    
+    props_connector_t_bot[0]     = 1.5E-9 # Wood substance density [tonne/mm^3]
+    props_connector_t_bot[1]     = 6.6E+8 # Mesoscale elastic modulus [MPa]
+    props_connector_t_bot[2]     = 0.25 # Shear-Normal coupling coefficient
+    props_connector_t_bot[3]     = height_connector_t # Connector height [mm]
+    props_connector_t_bot[4]     = 0 # M-Distance [mm]
+    props_connector_t_bot[5]     = -height_connector_t/2 # L-Distance [mm]
+    props_connector_t_bot[6]     = 10.0 # Tensile Strength [MPa]
+    props_connector_t_bot[7]     = 5.0 # Tensile characteristic length [mm] will be updated to # Tensile fracture energy [mJ/mm^2]
+    props_connector_t_bot[8]     = 2.6 # Shear Strength Ratio
+    props_connector_t_bot[9]     = 0.2 # Softening Exponent
+    props_connector_t_bot[10]    = 0.2 # Initial Friction
+    props_connector_t_bot[11]    = 0.0 # Asymptotic Friction
+    props_connector_t_bot[12]    = 600 # Transitional Stress [MPa]
+    props_connector_t_bot[12]    = 0.0 # Tensile Unloading
+    props_connector_t_bot[14]    = 0.0 # Shear Unloading
+    props_connector_t_bot[15]    = 0.0 # Shear Softening
+    props_connector_t_bot[16]    = 0.0 # Elastic Analysis Flag
+    props_connector_t_bot[17]    = 0.2 # Compressive Yielding Strength [MPa]
+    props_connector_t_bot[18]    = 600 # Initial Hardening Modulus Ratio
+    props_connector_t_bot[19]    = 0.0 # Transitional Strain Ratio
+    props_connector_t_bot[20]    = 0.0 # Deviatoric Strain Threshold Ratio
+    props_connector_t_bot[21]    = 0.0 # Deviatoric Damage Parameter
+    props_connector_t_bot[22]    = 0.0 # Final Hardening Modulus Ratio
+    props_connector_t_bot[23]    = 0.0 # Densification Ratio
+    props_connector_t_bot[24]    = 0.0 # Volumetric Deviatoric Coupling
+    props_connector_t_bot[25]    = 0.0 # Compressive Unloading
+    
+    iprops_connector_t_bot = [3,ninstance,nbeamElem,nconnector_t,nconnector_t_precrack,nconnector_l,nconnector_l_precrack]
+    iprops_connector_t_bot = [int(x) for x in iprops_connector_t_bot] 
+    iprops_connector_t_top = [2,ninstance,nbeamElem,nconnector_t,nconnector_t_precrack,nconnector_l,nconnector_l_precrack]
+    iprops_connector_t_top = [int(x) for x in iprops_connector_t_top] 
+    iprops_connector_t_reg = [1,ninstance,nbeamElem,nconnector_t,nconnector_t_precrack,nconnector_l,nconnector_l_precrack]
+    iprops_connector_t_reg = [int(x) for x in iprops_connector_t_reg] 
+    
+    props_connector_t_reg = np.copy(props_connector_t_bot)
+    props_connector_t_reg[3] = height_connector_t*2
+    props_connector_t_reg[5] = 0
+    props_connector_t_top = np.copy(props_connector_t_bot)
+    props_connector_t_top[5] = height_connector_t/2
+    
+    # Longitudinal connector parameters
+    nsvars_conn_l = 32  # number of svars for transverse connector
+    iprops_connector_l = np.zeros(7)
+    props_connector_l = np.zeros(24)
+    # height_connector_l = fiberlength/((nconnector_l_per_grain-1)*2)
+    
+    props_connector_l[0]     = 1.5E-9 # Wood substance density [tonne/mm^3]
+    props_connector_l[1]     = 6.0E+06 # Mesoscale elastic modulus [MPa]
+    props_connector_l[2]     = 0.25 # Shear-Normal coupling coefficient
+    props_connector_l[3]     = cellwallthickness_early*cellwallthickness_late # Connector sectional area [mm^2]
+    props_connector_l[4]     = 20 # Tensile Strength [MPa]
+    props_connector_l[5]     = long_connector_ratio*fiberlength*1.05# 0.0105 # Tensile characteristic length [mm] will be updated to # Tensile fracture energy [mJ/mm^2]
+    props_connector_l[6]     = 2.6 # Shear Strength Ratio
+    props_connector_l[7]     = 0.2 # Softening Exponent
+    props_connector_l[8]     = 0.2 # Initial Friction
+    props_connector_l[9]     = 0.0 # Asymptotic Friction
+    props_connector_l[10]    = 600 # Transitional Stress [MPa]
+    props_connector_l[11]    = 0.0 # Tensile Unloading
+    props_connector_l[12]    = 0.0 # Shear Unloading
+    props_connector_l[13]    = 0.0 # Shear Softening
+    props_connector_l[14]    = 0.0 # Elastic Analysis Flag
+    props_connector_l[15]    = 0.2 # Compressive Yielding Strength [MPa]
+    props_connector_l[16]    = 600 # Initial Hardening Modulus Ratio
+    props_connector_l[17]    = 0.0 # Transitional Strain Ratio
+    props_connector_l[18]    = 0.0 # Deviatoric Strain Threshold Ratio
+    props_connector_l[19]    = 0.0 # Deviatoric Damage Parameter
+    props_connector_l[20]    = 0.0 # Final Hardening Modulus Ratio
+    props_connector_l[21]    = 0.0 # Densification Ratio
+    props_connector_l[22]    = 0.0 # Volumetric Deviatoric Coupling
+    props_connector_l[23]    = 0.0 # Compressive Unloading
+    
+    iprops_connector_l = [1,ninstance,nbeamElem,nconnector_t,nconnector_t_precrack,nconnector_l,nconnector_l_precrack]
+    iprops_connector_l = [int(x) for x in iprops_connector_l] 
+    
+    # Strain rate effect parameters
+    props_strainrate = np.zeros(4)
+    props_strainrate[0] = 1.0 # Strain rate effect flag 
+    props_strainrate[1] = 5.0 # Physical time scaling factor
+    props_strainrate[2] = 1.0E-5 # Strain rate effect constant c0
+    props_strainrate[3] = 5.0E-2 # Strain rate effect constant c1
+    
+    
+    timestep     = 5.0E-8
+    totaltime    = 5.0E-2
+    z_min = np.min(z_coord)
+    z_max = np.max(z_coord)
+    # boundary_conditions = ['Hydrostatic']
+    boundary_conditions = ['Bottom','Top','Left','Right','Front','Back']
+    BC_velo_dof = 1 # 1-x, 2-y, 3-z
+    BC_velo_value = box_size*0.03 # mm/s
+
+    # Beam
+    nelnode = NURBS_degree + 1
+    noGPs = NURBS_degree + 1
+    if NURBS_degree == 2:
+        eltype = 201
+    elif NURBS_degree == 3:
+        eltype = 202
+    else:
+        print('Current NURBS degree is not supported. Check variable NURBS_degree.')
+        exit()
+    nelnode_connector = 2
+    eltype_connector_t = 501
+    eltype_connector_l = 601
+    
+    numnode = woodIGAvertices.shape[0]
+    nelem = beam_connectivity.shape[0]
+    nnode = beam_connectivity.shape[1]
     nelem_connector_t_bot = connector_t_bot_connectivity.shape[0]
     nelem_connector_t_reg = connector_t_reg_connectivity.shape[0]
     nelem_connector_t_top = connector_t_top_connectivity.shape[0]
     nelem_connector_l = connector_l_connectivity.shape[0]
+    nconnector_t_precrack = iprops_connector_l[4]
+    nconnector_l_precrack = iprops_connector_l[6]
+    nelem_total = nelem + nelem_connector_t_bot + nelem_connector_t_reg + nelem_connector_t_top\
+                + nelem_connector_l + nconnector_t_precrack + nconnector_l_precrack
     
-    density_beam = props_beam[0]
-    density_connector_t_bot = props_connector_t_bot[0]
-    density_connector_t_top = props_connector_t_top[0]
-    density_connector_t_reg = props_connector_t_reg[0]
-    density_connector_l = props_connector_l[0]
-    mass = 0
+    xaxis = 1
+    yaxis = 2
+    zaxis = 3
+
+    # Generate a .inp file which can be directly imported and played in Abaqus
+    meshinpfile = open(Path('meshes/' + geoName + '/' + geoName + '.inp'),'w')
+    meshinpfile.write('*HEADING'+'\n')
+    meshinpfile.write('** Job name: {0} Model name: Model-{1}\n'.format(geoName,geoName))
+    meshinpfile.write('** Generated with RingsPy Mesh Generation Tool V{}\n'.format(pkg_resources.get_distribution("RingsPy").version))
+    # PART
+    meshinpfile.write('** \n')
+    meshinpfile.write('** PARTS\n') 
+    meshinpfile.write('** \n') 
+    meshinpfile.write('*Part, name=Part-1\n')
+    meshinpfile.write('*End Part\n')
+    meshinpfile.write('** \n')
+    # ASSEMBLY
+    meshinpfile.write('** \n')
+    meshinpfile.write('** ASSEMBLY\n') 
+    meshinpfile.write('** \n') 
+    meshinpfile.write('*Assembly, name=Assembly\n')
+    meshinpfile.write('** \n') 
+    # INSTANCE
+    meshinpfile.write('*Instance, name=Part-1-1, part=Part-1\n')
+    # nodes
+    meshinpfile.write('*Node,nset=AllNodes\n')
+    for i in range(0,numnode):
+        meshinpfile.write('{:d}, {:#.9e}, {:#.9e},  {:#.9e}\n'.format(i+1,woodIGAvertices[i,0],woodIGAvertices[i,1],woodIGAvertices[i,2]))
+    # beam element connectivity 
+    count = 1
+    meshinpfile.write('*Element, type=B32,elset=AllBeams\n') 
+    for i in range(0,nelem):
+        meshinpfile.write('{:d}'.format(count))
+        count += 1
+        for j in range(0,nnode):
+            meshinpfile.write(', {:d}'.format(beam_connectivity[i,j])) 
+        meshinpfile.write('\n')
+        
+    if precrackFlag in ['on','On','Y','y','Yes','yes']:
+        connector_t_precracked_index = []
+        connector_t_precracked_connectivity = []
+        connector_l_precracked_index = []
+        connector_l_precracked_connectivity = []
+        # bottom transverse connector element connectivity 
+        meshinpfile.write('*Element, type=T3D2,elset=AllBotConns\n') 
+        for i in range(0,nelem_connector_t_bot):
+            if i in precrack_elem:
+                connector_t_precracked_index.append(count)
+                count += 1
+                connector_t_precracked_connectivity.append(connector_t_bot_connectivity[i,:])
+            else:
+                meshinpfile.write('{:d}'.format(count))
+                count += 1
+                for j in range(0,nelnode_connector):
+                    meshinpfile.write(', {:d}'.format(connector_t_bot_connectivity[i,j])) 
+                meshinpfile.write('\n')
+        # regular transverse connector element connectivity 
+        meshinpfile.write('*Element, type=T3D2,elset=AllRegConns\n') 
+        for i in range(0,nelem_connector_t_reg):
+            if i in precrack_elem:
+                connector_t_precracked_index.append(count)
+                count += 1
+                connector_t_precracked_connectivity.append(connector_t_reg_connectivity[i,:])
+            else:
+                meshinpfile.write('{:d}'.format(count))
+                count += 1
+                for j in range(0,nelnode_connector):
+                    meshinpfile.write(', {:d}'.format(connector_t_reg_connectivity[i,j])) 
+                meshinpfile.write('\n')
+        # top transverse connector element connectivity 
+        meshinpfile.write('*Element, type=T3D2,elset=AllTopConns\n') 
+        for i in range(0,nelem_connector_t_top):
+            if i in precrack_elem:
+                connector_t_precracked_index.append(count)
+                count += 1
+                connector_t_precracked_connectivity.append(connector_t_top_connectivity[i,:])
+            else:
+                meshinpfile.write('{:d}'.format(count))
+                count += 1
+                for j in range(0,nelnode_connector):
+                    meshinpfile.write(', {:d}'.format(connector_t_top_connectivity[i,j])) 
+                meshinpfile.write('\n')
+        # precracked transverse connector element connectivity 
+        meshinpfile.write('*Element, type=T3D2,elset=AllPrecrackTConns\n') 
+        for i in range(0,len(connector_t_precracked_connectivity)):
+            meshinpfile.write('{:d}'.format(connector_t_precracked_index[i]))
+            for j in range(0,nelnode_connector):
+                meshinpfile.write(', {:d}'.format(connector_t_precracked_connectivity[i][j]))
+            meshinpfile.write('\n')
+        # longitudinal connector element connectivity 
+        meshinpfile.write('*Element, type=T3D2,elset=AllLongConns\n') 
+        for i in range(0,nelem_connector_l):
+            if i in precrack_elem:
+                connector_l_precracked_index.append(count)
+                count += 1
+                connector_l_precracked_connectivity.append(connector_l_connectivity[i,:])
+            else:
+                meshinpfile.write('{:d}'.format(count))
+                count += 1
+                for j in range(0,nelnode_connector):
+                    meshinpfile.write(', {:d}'.format(connector_l_connectivity[i,j])) 
+                meshinpfile.write('\n')
+        # precracked longitudinal connector element connectivity 
+        meshinpfile.write('*Element, type=T3D2,elset=AllPrecrackLConns\n') 
+        for i in range(0,len(connector_l_precracked_connectivity)):
+            meshinpfile.write('{:d}'.format(connector_l_precracked_index[i]))
+            for j in range(0,nelnode_connector):
+                meshinpfile.write(', {:d}'.format(connector_l_precracked_connectivity[i][j]))
+            meshinpfile.write('\n')
+    else:
+        # bottom transverse connector element connectivity 
+        meshinpfile.write('*Element, type=T3D2,elset=AllBotConns\n') 
+        for i in range(0,nelem_connector_t_bot):
+            meshinpfile.write('{:d}'.format(count))
+            count += 1
+            for j in range(0,nelnode_connector):
+                meshinpfile.write(', {:d}'.format(connector_t_bot_connectivity[i,j])) 
+            meshinpfile.write('\n')
+        # regular transverse connector element connectivity 
+        meshinpfile.write('*Element, type=T3D2,elset=AllRegConns\n') 
+        for i in range(0,nelem_connector_t_reg):
+            meshinpfile.write('{:d}'.format(count))
+            count += 1
+            for j in range(0,nelnode_connector):
+                meshinpfile.write(', {:d}'.format(connector_t_reg_connectivity[i,j])) 
+            meshinpfile.write('\n')
+        # top transverse connector element connectivity 
+        meshinpfile.write('*Element, type=T3D2,elset=AllTopConns\n') 
+        for i in range(0,nelem_connector_t_top):
+            meshinpfile.write('{:d}'.format(count))
+            count += 1
+            for j in range(0,nelnode_connector):
+                meshinpfile.write(', {:d}'.format(connector_t_top_connectivity[i,j])) 
+            meshinpfile.write('\n')
+        # longitudinal connector element connectivity 
+        meshinpfile.write('*Element, type=T3D2,elset=AllLongConns\n') 
+        for i in range(0,nelem_connector_l):
+            meshinpfile.write('{:d}'.format(count))
+            count += 1
+            for j in range(0,nelnode_connector):
+                meshinpfile.write(', {:d}'.format(connector_l_connectivity[i,j])) 
+            meshinpfile.write('\n')
+
+    # Ghost mesh for easy visualization
+    count_offset = 10**(int(math.log10(count))+1) # set an offset with the order of magnitude of the max number + 1
+    count = count_offset + 1
     
-    # mass of beams
-    # for i in range(0,nelem_beam):
-    mass += nelem_beam*density_beam*props_beam[3]*props_beam[4]*beam_length
-    # mass of bot transverse connector
-    for i in range(0,nelem_connector_t_bot):
-        mass += density_connector_t_bot*props_connector_t_bot[3]*MeshData[i,11]*np.linalg.norm(MeshData[i,5:8] - MeshData[i,8:11])
-    # mass of reg transverse connector
-    for i in range(nelem_connector_t_bot,nelem_connector_t_bot+nelem_connector_t_reg):
-        mass += density_connector_t_reg*props_connector_t_reg[3]*MeshData[i,11]*np.linalg.norm(MeshData[i,5:8] - MeshData[i,8:11])
-    # mass of top transverse connector
-    for i in range(nelem_connector_t_bot+nelem_connector_t_reg,nelem_connector_t_bot+nelem_connector_t_reg+nelem_connector_t_top):
-        mass += density_connector_t_top*props_connector_t_top[3]*MeshData[i,11]*np.linalg.norm(MeshData[i,5:8] - MeshData[i,8:11])
-    # mass of longitudinal connector
-    for i in range(nelem_connector_t_bot+nelem_connector_t_reg+nelem_connector_t_top,MeshData.shape[0]):
-        mass += density_connector_l*props_connector_l[3]*np.linalg.norm(MeshData[i,5:8] - MeshData[i,8:11])    
-    return mass
+    if NURBS_degree == 2:
+        meshinpfile.write('*ELEMENT, TYPE=B32, ELSET=VisualBeams\n')
+        for i in range(0,nelem):
+            meshinpfile.write('{:d}'.format(count))
+            count += 1
+            for j in range(0,nnode):
+                meshinpfile.write(', {:d}'.format(beam_connectivity[i,j])) 
+            meshinpfile.write('\n')
+            
+    if precrackFlag in ['on','On','Y','y','Yes','yes']:
+        visual_connector_precracked_index = []
+        meshinpfile.write('*ELEMENT, TYPE=T3D2, ELSET=VisualBotConns\n')
+        for i in range(0,nelem_connector_t_bot):
+            if i in precrack_elem:
+                visual_connector_precracked_index.append(count)
+                count += 1
+            else:
+                meshinpfile.write('{:d}'.format(count))
+                count += 1
+                for j in range(0,nelnode_connector):
+                    meshinpfile.write(', {:d}'.format(connector_t_bot_connectivity[i,j])) 
+                meshinpfile.write('\n')
+        meshinpfile.write('*ELEMENT, TYPE=T3D2, ELSET=VisualRegConns\n')
+        for i in range(0,nelem_connector_t_reg):
+            if i in precrack_elem:
+                visual_connector_precracked_index.append(count)
+                count += 1
+            else:
+                meshinpfile.write('{:d}'.format(count))
+                count += 1
+                for j in range(0,nelnode_connector):
+                    meshinpfile.write(', {:d}'.format(connector_t_reg_connectivity[i,j])) 
+                meshinpfile.write('\n')
+        meshinpfile.write('*ELEMENT, TYPE=T3D2, ELSET=VisualTopConns\n')
+        for i in range(0,nelem_connector_t_top):
+            if i in precrack_elem:
+                visual_connector_precracked_index.append(count)
+                count += 1
+            else:
+                meshinpfile.write('{:d}'.format(count))
+                count += 1
+                for j in range(0,nelnode_connector):
+                    meshinpfile.write(', {:d}'.format(connector_t_top_connectivity[i,j])) 
+                meshinpfile.write('\n')
+        # precracked transverse connector element connectivity 
+        meshinpfile.write('*ELEMENT, TYPE=T3D2, ELSET=VisualPrecrackTConns\n')
+        for i in range(0,len(connector_t_precracked_connectivity)):
+            meshinpfile.write('{:d}'.format(visual_connector_precracked_index[i]))
+            for j in range(0,nelnode_connector):
+                meshinpfile.write(', {:d}'.format(connector_t_precracked_connectivity[i][j]))
+            meshinpfile.write('\n')
+        # longitudinal connector element connectivity 
+        meshinpfile.write('*Element, type=T3D2,elset=VisualLConns\n') 
+        for i in range(0,nelem_connector_l):
+            if i in precrack_elem:
+                connector_l_precracked_index.append(count)
+                count += 1
+                connector_l_precracked_connectivity.append(connector_l_connectivity[i,:])
+            else:
+                meshinpfile.write('{:d}'.format(count))
+                count += 1
+                for j in range(0,nelnode_connector):
+                    meshinpfile.write(', {:d}'.format(connector_l_connectivity[i,j])) 
+                meshinpfile.write('\n')
+        # precracked longitudinal connector element connectivity 
+        meshinpfile.write('*Element, type=T3D2,elset=VisualPrecrackLConns\n')
+        meshinpfile.write('\n')
+        # for i in range(0,len(connector_l_precracked_connectivity)):
+        #     meshinpfile.write('{:d}'.format(connector_l_precracked_index[i]))
+        #     for j in range(0,nelnode_connector):
+        #         meshinpfile.write(', {:d}'.format(connector_l_precracked_connectivity[i][j]))
+        #     meshinpfile.write('\n')      
+    else:
+        meshinpfile.write('*ELEMENT, TYPE=T3D2, ELSET=VisualBotConns\n')
+        for i in range(0,nelem_connector_t_bot):
+            meshinpfile.write('{:d}'.format(count))
+            count += 1
+            for j in range(0,nelnode_connector):
+                meshinpfile.write(', {:d}'.format(connector_t_bot_connectivity[i,j])) 
+            meshinpfile.write('\n')
+        meshinpfile.write('*ELEMENT, TYPE=T3D2, ELSET=VisualRegConns\n')
+        for i in range(0,nelem_connector_t_reg):
+            meshinpfile.write('{:d}'.format(count))
+            count += 1
+            for j in range(0,nelnode_connector):
+                meshinpfile.write(', {:d}'.format(connector_t_reg_connectivity[i,j])) 
+            meshinpfile.write('\n')
+        meshinpfile.write('*ELEMENT, TYPE=T3D2, ELSET=VisualTopConns\n')
+        for i in range(0,nelem_connector_t_top):
+            meshinpfile.write('{:d}'.format(count))
+            count += 1
+            for j in range(0,nelnode_connector):
+                meshinpfile.write(', {:d}'.format(connector_t_top_connectivity[i,j])) 
+            meshinpfile.write('\n')
+        meshinpfile.write('*ELEMENT, TYPE=T3D2, ELSET=VisualLongConns\n')
+        for i in range(0,nelem_connector_l):
+            meshinpfile.write('{:d}'.format(count))
+            count += 1
+            for j in range(0,nelnode_connector):
+                meshinpfile.write(', {:d}'.format(connector_l_connectivity[i,j])) 
+            meshinpfile.write('\n')
+            
+    meshinpfile.write('** Section: Section-1\n')
+    meshinpfile.write('*Solid Section, elset=VisualBotConns, material=VisualTConns\n')
+    meshinpfile.write('{:8.4E}\n'.format(props_connector_t_bot[3]*cellwallthickness_early))
+    meshinpfile.write('** Section: Section-2\n')
+    meshinpfile.write('*Solid Section, elset=VisualRegConns, material=VisualTConns\n')
+    meshinpfile.write('{:8.4E}\n'.format(props_connector_t_bot[3]*cellwallthickness_early))
+    meshinpfile.write('** Section: Section-3\n')
+    meshinpfile.write('*Solid Section, elset=VisualTopConns, material=VisualTConns\n')
+    meshinpfile.write('{:8.4E}\n'.format(props_connector_t_bot[3]*cellwallthickness_early))
+    meshinpfile.write('** Section: Section-11\n')
+    meshinpfile.write('*Solid Section, elset=AllBotConns, material=VisualTConns\n')
+    meshinpfile.write('{:8.4E}\n'.format(props_connector_t_bot[3]*cellwallthickness_early))
+    meshinpfile.write('** Section: Section-12\n')
+    meshinpfile.write('*Solid Section, elset=AllRegConns, material=VisualTConns\n')
+    meshinpfile.write('{:8.4E}\n'.format(props_connector_t_bot[3]*cellwallthickness_early))
+    meshinpfile.write('** Section: Section-13\n')
+    meshinpfile.write('*Solid Section, elset=AllTopConns, material=VisualTConns\n')
+    meshinpfile.write('{:8.4E}\n'.format(props_connector_t_bot[3]*cellwallthickness_early))
+    if precrackFlag in ['on','On','Y','y','Yes','yes']:
+        meshinpfile.write('** Section: Section-4\n')
+        meshinpfile.write('*Solid Section, elset=VisualPrecrackTConns, material=VisualTConns\n')
+        meshinpfile.write('{:8.4E}\n'.format(props_connector_t_bot[3]*cellwallthickness_early))
+        meshinpfile.write('** Section: Section-5\n')
+        meshinpfile.write('*Solid Section, elset=VisualLongConns, material=VisualLConns\n')
+        meshinpfile.write('{:8.4E}\n'.format(props_connector_l[3]))
+        meshinpfile.write('** Section: Section-6\n')
+        meshinpfile.write('*Solid Section, elset=VisualPrecrackLConns, material=VisualLConns\n')
+        meshinpfile.write('{:8.4E}\n'.format(props_connector_l[3]))
+        meshinpfile.write('** Section: Section-14\n')
+        meshinpfile.write('*Solid Section, elset=AllPrecrackTConns, material=VisualTConns\n')
+        meshinpfile.write('{:8.4E}\n'.format(props_connector_t_bot[3]*cellwallthickness_early))
+        meshinpfile.write('** Section: Section-15\n')
+        meshinpfile.write('*Solid Section, elset=AllLongConns, material=VisualLConns\n')
+        meshinpfile.write('{:8.4E}\n'.format(props_connector_l[3]))
+        meshinpfile.write('** Section: Section-16\n')
+        meshinpfile.write('*Solid Section, elset=AllPrecrackLConns, material=VisualLConns\n')
+        meshinpfile.write('{:8.4E}\n'.format(props_connector_l[3]))
+        if NURBS_degree == 2:
+            meshinpfile.write('** Section: Section-7  Profile: Profile-1\n')
+            meshinpfile.write('*Beam Section, elset=VisualBeams, material=VisualBeams, temperature=GRADIENTS, section=RECT\n')
+            meshinpfile.write('{:8.4E}, {:8.4E}\n'.format(props_beam[3],props_beam[4]))
+            meshinpfile.write('1.,0.,0.\n')
+            meshinpfile.write('** Section: Section-17  Profile: Profile-1\n')
+            meshinpfile.write('*Beam Section, elset=AllBeams, material=VisualBeams, temperature=GRADIENTS, section=RECT\n')
+            meshinpfile.write('{:8.4E}, {:8.4E}\n'.format(props_beam[3],props_beam[4]))
+            meshinpfile.write('1.,0.,0.\n')  
+    else:
+        meshinpfile.write('** Section: Section-4\n')
+        meshinpfile.write('*Solid Section, elset=VisualLongConns, material=VisualLConns\n')
+        meshinpfile.write('{:8.4E}\n'.format(props_connector_l[3]))
+        meshinpfile.write('** Section: Section-14\n')
+        meshinpfile.write('*Solid Section, elset=AllLongConns, material=VisualLConns\n')
+        meshinpfile.write('{:8.4E}\n'.format(props_connector_l[3]))
+        if NURBS_degree == 2:
+            meshinpfile.write('** Section: Section-5  Profile: Profile-1\n')
+            meshinpfile.write('*Beam Section, elset=VisualBeams, material=VisualBeams, temperature=GRADIENTS, section=RECT\n')
+            meshinpfile.write('{:8.4E}, {:8.4E}\n'.format(props_beam[3],props_beam[4]))
+            meshinpfile.write('1.,0.,0.\n')
+            meshinpfile.write('** Section: Section-15  Profile: Profile-1\n')
+            meshinpfile.write('*Beam Section, elset=AllBeams, material=VisualBeams, temperature=GRADIENTS, section=RECT\n')
+            meshinpfile.write('{:8.4E}, {:8.4E}\n'.format(props_beam[3],props_beam[4]))
+            meshinpfile.write('1.,0.,0.\n')
+            
+    meshinpfile.write('*End Instance\n') 
+    meshinpfile.write('** \n')
+    # NODE SETS
+    meshinpfile.write('*Nset, nset=AllNodes, instance=Part-1-1, generate\n') 
+    meshinpfile.write('{:d}, {:d}, {:d} \n'.format(1,numnode,1))
+    
+    if any(x in geoName for x in ['hydrostatic_', 'Hydrostatic_']):
+        # boundary nodes
+        if box_shape == 'square':
+            if any(item in boundary_conditions for item in ['left','Left','L']):
+                # Nodes on the left
+                LeftNodes = (np.where(woodIGAvertices[:,xaxis-1] <= x_min)[0]+1).reshape(1,-1)
+                meshinpfile.write('*Nset, nset=LeftNodes, instance=Part-1-1\n')
+                for i in range(0,math.ceil(len(LeftNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                    meshinpfile.write(''.join(','.join(map(str, LeftNodes[0][15*i:15*(i+1)])))+',\n')
+            if any(item in boundary_conditions for item in ['right','Right','R']):
+                # Nodes on the right
+                RightNodes = (np.where(woodIGAvertices[:,xaxis-1] >= x_max)[0]+1).reshape(1,-1)
+                meshinpfile.write('*Nset, Nset=RightNodes, instance=Part-1-1\n')
+                for i in range(0,math.ceil(len(RightNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                    meshinpfile.write(''.join(','.join(map(str, RightNodes[0][15*i:15*(i+1)])))+',\n')
+            if any(item in boundary_conditions for item in ['bottom','Bottom','Bot']):
+                # Nodes on the bottom
+                BottomNodes = (np.where(woodIGAvertices[:,zaxis-1] <= z_min)[0]+1).reshape(1,-1)
+                meshinpfile.write('*Nset, nset=BottomNodes, instance=Part-1-1\n')
+                for i in range(0,math.ceil(len(BottomNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                    meshinpfile.write(''.join(','.join(map(str, BottomNodes[0][15*i:15*(i+1)])))+',\n')
+            if any(item in boundary_conditions for item in ['top','Top','T']):
+                # Nodes on the top
+                TopNodes = (np.where(woodIGAvertices[:,zaxis-1] >= z_max)[0]+1).reshape(1,-1)
+                meshinpfile.write('*Nset, nset=TopNodes, instance=Part-1-1\n')
+                for i in range(0,math.ceil(len(TopNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                    meshinpfile.write(''.join(','.join(map(str, TopNodes[0][15*i:15*(i+1)])))+',\n')
+            if any(item in boundary_conditions for item in ['back','Back']):
+                # Nodes on the back
+                BackNodes = (np.where(woodIGAvertices[:,yaxis-1] <= y_min)[0]+1).reshape(1,-1)
+                meshinpfile.write('*Nset, nset=BackNodes, instance=Part-1-1\n')
+                for i in range(0,math.ceil(len(BackNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                    meshinpfile.write(''.join(','.join(map(str, BackNodes[0][15*i:15*(i+1)])))+',\n')
+            if any(item in boundary_conditions for item in ['front','Front','F']):
+                # Nodes on the front
+                FrontNodes = (np.where(woodIGAvertices[:,yaxis-1] >= y_max)[0]+1).reshape(1,-1)
+                meshinpfile.write('*Nset, nset=FrontNodes, instance=Part-1-1\n')
+                for i in range(0,math.ceil(len(FrontNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                    meshinpfile.write(''.join(','.join(map(str, FrontNodes[0][15*i:15*(i+1)])))+',\n')
+        elif box_shape == 'hexagon':      
+            if any(item in boundary_conditions for item in ['Hydrostatic','hydrostatic']):
+                offset = x_max*0.05
+                # Nodes on the bottom-left
+                BottomLeftNodes = (np.where(woodIGAvertices[:,yaxis-1] <= (-np.sqrt(3)*woodIGAvertices[:,xaxis-1] - np.sqrt(3)*x_max + offset))[0]+1).reshape(1,-1)
+                meshinpfile.write('*Nset, nset=BottomLeftNodes, instance=Part-1-1\n')
+                for i in range(0,math.ceil(len(BottomLeftNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                    meshinpfile.write(''.join(','.join(map(str, BottomLeftNodes[0][15*i:15*(i+1)])))+',\n')
+                # Nodes on the bottom-right
+                BottomRightNodes = (np.where(woodIGAvertices[:,yaxis-1] <= (np.sqrt(3)*woodIGAvertices[:,xaxis-1] - np.sqrt(3)*x_max + offset))[0]+1).reshape(1,-1)
+                meshinpfile.write('*Nset, Nset=BottomRightNodes, instance=Part-1-1\n')
+                for i in range(0,math.ceil(len(BottomRightNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                    meshinpfile.write(''.join(','.join(map(str, BottomRightNodes[0][15*i:15*(i+1)])))+',\n')
+                # Nodes on the bottom
+                BottomNodes = (np.where(woodIGAvertices[:,yaxis-1] <= y_min)[0]+1).reshape(1,-1)
+                meshinpfile.write('*Nset, nset=BottomNodes, instance=Part-1-1\n')
+                for i in range(0,math.ceil(len(BottomNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                    meshinpfile.write(''.join(','.join(map(str, BottomNodes[0][15*i:15*(i+1)])))+',\n')
+                # Nodes on the top-left
+                TopLeftNodes = (np.where(woodIGAvertices[:,yaxis-1] >= (np.sqrt(3)*woodIGAvertices[:,xaxis-1] + np.sqrt(3)*x_max - offset))[0]+1).reshape(1,-1)
+                meshinpfile.write('*Nset, nset=TopLeftNodes, instance=Part-1-1\n')
+                for i in range(0,math.ceil(len(TopLeftNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                    meshinpfile.write(''.join(','.join(map(str, TopLeftNodes[0][15*i:15*(i+1)])))+',\n')
+                # Nodes on the top-right
+                TopRightNodes = (np.where(woodIGAvertices[:,yaxis-1] >= (-np.sqrt(3)*woodIGAvertices[:,xaxis-1] + np.sqrt(3)*x_max - offset))[0]+1).reshape(1,-1)
+                meshinpfile.write('*Nset, nset=TopRightNodes, instance=Part-1-1\n')
+                for i in range(0,math.ceil(len(TopRightNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                    meshinpfile.write(''.join(','.join(map(str, TopRightNodes[0][15*i:15*(i+1)])))+',\n')
+                # Nodes on the top
+                TopNodes = (np.where(woodIGAvertices[:,yaxis-1] >= y_max)[0]+1).reshape(1,-1)
+                meshinpfile.write('*Nset, nset=TopNodes, instance=Part-1-1\n')
+                for i in range(0,math.ceil(len(TopNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                    meshinpfile.write(''.join(','.join(map(str, TopNodes[0][15*i:15*(i+1)])))+',\n')
+                    
+                # Nodes on the front
+                FrontNodes = (np.where(woodIGAvertices[:,zaxis-1] >= z_max)[0]+1).reshape(1,-1)
+                meshinpfile.write('*Nset, nset=FrontNodes, instance=Part-1-1\n')
+                for i in range(0,math.ceil(len(FrontNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                    meshinpfile.write(''.join(','.join(map(str, FrontNodes[0][15*i:15*(i+1)])))+',\n')
+                # Nodes on the back
+                BackNodes = (np.where(woodIGAvertices[:,zaxis-1] <= z_min)[0]+1).reshape(1,-1)
+                meshinpfile.write('*Nset, nset=BackNodes, instance=Part-1-1\n')
+                for i in range(0,math.ceil(len(BackNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                    meshinpfile.write(''.join(','.join(map(str, BackNodes[0][15*i:15*(i+1)])))+',\n')
+            
+    elif any(x in geoName for x in ['uniaxial_', 'Uniaxial_']):
+        # boundary nodes
+        if box_shape == 'square':
+            if any(item in boundary_conditions for item in ['left','Left','L']):
+                # Nodes on the left
+                LeftNodes = (np.where(woodIGAvertices[:,xaxis-1] <= x_min)[0]+1).reshape(1,-1)
+                meshinpfile.write('*Nset, nset=LeftNodes, instance=Part-1-1\n')
+                for i in range(0,math.ceil(len(LeftNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                    meshinpfile.write(''.join(','.join(map(str, LeftNodes[0][15*i:15*(i+1)])))+',\n')
+            if any(item in boundary_conditions for item in ['right','Right','R']):
+                # Nodes on the right
+                RightNodes = (np.where(woodIGAvertices[:,xaxis-1] >= x_max)[0]+1).reshape(1,-1)
+                meshinpfile.write('*Nset, Nset=RightNodes, instance=Part-1-1\n')
+                for i in range(0,math.ceil(len(RightNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                    meshinpfile.write(''.join(','.join(map(str, RightNodes[0][15*i:15*(i+1)])))+',\n')
+            if any(item in boundary_conditions for item in ['bottom','Bottom','Bot']):
+                # Nodes on the bottom
+                BottomNodes = (np.where(woodIGAvertices[:,zaxis-1] <= z_min)[0]+1).reshape(1,-1)
+                meshinpfile.write('*Nset, nset=BottomNodes, instance=Part-1-1\n')
+                for i in range(0,math.ceil(len(BottomNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                    meshinpfile.write(''.join(','.join(map(str, BottomNodes[0][15*i:15*(i+1)])))+',\n')
+            if any(item in boundary_conditions for item in ['top','Top','T']):
+                # Nodes on the top
+                TopNodes = (np.where(woodIGAvertices[:,zaxis-1] >= z_max)[0]+1).reshape(1,-1)
+                meshinpfile.write('*Nset, nset=TopNodes, instance=Part-1-1\n')
+                for i in range(0,math.ceil(len(TopNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                    meshinpfile.write(''.join(','.join(map(str, TopNodes[0][15*i:15*(i+1)])))+',\n')
+            if any(item in boundary_conditions for item in ['back','Back']):
+                # Nodes on the back
+                BackNodes = (np.where(woodIGAvertices[:,yaxis-1] <= y_min)[0]+1).reshape(1,-1)
+                meshinpfile.write('*Nset, nset=BackNodes, instance=Part-1-1\n')
+                for i in range(0,math.ceil(len(BackNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                    meshinpfile.write(''.join(','.join(map(str, BackNodes[0][15*i:15*(i+1)])))+',\n')
+            if any(item in boundary_conditions for item in ['front','Front','F']):
+                # Nodes on the front
+                FrontNodes = (np.where(woodIGAvertices[:,yaxis-1] >= y_max)[0]+1).reshape(1,-1)
+                meshinpfile.write('*Nset, nset=FrontNodes, instance=Part-1-1\n')
+                for i in range(0,math.ceil(len(FrontNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                    meshinpfile.write(''.join(','.join(map(str, FrontNodes[0][15*i:15*(i+1)])))+',\n')
+        elif box_shape == 'hexagon':      
+            if any(item in boundary_conditions for item in ['Hydrostatic','hydrostatic']):
+                offset = x_max*0.05
+                # Nodes on the bottom-left
+                BottomLeftNodes = (np.where(woodIGAvertices[:,yaxis-1] <= (-np.sqrt(3)*woodIGAvertices[:,xaxis-1] - np.sqrt(3)*x_max + offset))[0]+1).reshape(1,-1)
+                meshinpfile.write('*Nset, nset=BottomLeftNodes, instance=Part-1-1\n')
+                for i in range(0,math.ceil(len(BottomLeftNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                    meshinpfile.write(''.join(','.join(map(str, BottomLeftNodes[0][15*i:15*(i+1)])))+',\n')
+                # Nodes on the bottom-right
+                BottomRightNodes = (np.where(woodIGAvertices[:,yaxis-1] <= (np.sqrt(3)*woodIGAvertices[:,xaxis-1] - np.sqrt(3)*x_max + offset))[0]+1).reshape(1,-1)
+                meshinpfile.write('*Nset, Nset=BottomRightNodes, instance=Part-1-1\n')
+                for i in range(0,math.ceil(len(BottomRightNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                    meshinpfile.write(''.join(','.join(map(str, BottomRightNodes[0][15*i:15*(i+1)])))+',\n')
+                # Nodes on the bottom
+                BottomNodes = (np.where(woodIGAvertices[:,yaxis-1] <= y_min)[0]+1).reshape(1,-1)
+                meshinpfile.write('*Nset, nset=BottomNodes, instance=Part-1-1\n')
+                for i in range(0,math.ceil(len(BottomNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                    meshinpfile.write(''.join(','.join(map(str, BottomNodes[0][15*i:15*(i+1)])))+',\n')
+                # Nodes on the top-left
+                TopLeftNodes = (np.where(woodIGAvertices[:,yaxis-1] >= (np.sqrt(3)*woodIGAvertices[:,xaxis-1] + np.sqrt(3)*x_max - offset))[0]+1).reshape(1,-1)
+                meshinpfile.write('*Nset, nset=TopLeftNodes, instance=Part-1-1\n')
+                for i in range(0,math.ceil(len(TopLeftNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                    meshinpfile.write(''.join(','.join(map(str, TopLeftNodes[0][15*i:15*(i+1)])))+',\n')
+                # Nodes on the top-right
+                TopRightNodes = (np.where(woodIGAvertices[:,yaxis-1] >= (-np.sqrt(3)*woodIGAvertices[:,xaxis-1] + np.sqrt(3)*x_max - offset))[0]+1).reshape(1,-1)
+                meshinpfile.write('*Nset, nset=TopRightNodes, instance=Part-1-1\n')
+                for i in range(0,math.ceil(len(TopRightNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                    meshinpfile.write(''.join(','.join(map(str, TopRightNodes[0][15*i:15*(i+1)])))+',\n')
+                # Nodes on the top
+                TopNodes = (np.where(woodIGAvertices[:,yaxis-1] >= y_max)[0]+1).reshape(1,-1)
+                meshinpfile.write('*Nset, nset=TopNodes, instance=Part-1-1\n')
+                for i in range(0,math.ceil(len(TopNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                    meshinpfile.write(''.join(','.join(map(str, TopNodes[0][15*i:15*(i+1)])))+',\n')
+                    
+                # Nodes on the front
+                FrontNodes = (np.where(woodIGAvertices[:,zaxis-1] >= z_max)[0]+1).reshape(1,-1)
+                meshinpfile.write('*Nset, nset=FrontNodes, instance=Part-1-1\n')
+                for i in range(0,math.ceil(len(FrontNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                    meshinpfile.write(''.join(','.join(map(str, FrontNodes[0][15*i:15*(i+1)])))+',\n')
+                # Nodes on the back
+                BackNodes = (np.where(woodIGAvertices[:,zaxis-1] <= z_min)[0]+1).reshape(1,-1)
+                meshinpfile.write('*Nset, nset=BackNodes, instance=Part-1-1\n')
+                for i in range(0,math.ceil(len(BackNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                    meshinpfile.write(''.join(','.join(map(str, BackNodes[0][15*i:15*(i+1)])))+',\n')
+    else:
+        if merge_operation in ['on','On','Y','y','Yes','yes']:
+            # boundary nodes
+            if box_shape == 'square':
+                if any(item in boundary_conditions for item in ['left','Left','L']):
+                    # Nodes on the left
+                    LeftNodes = (np.where(woodIGAvertices[:,xaxis-1] <= x_min+merge_tol)[0]+1).reshape(1,-1)
+                    meshinpfile.write('*Nset, nset=LeftNodes, instance=Part-1-1\n')
+                    for i in range(0,math.ceil(len(LeftNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                        meshinpfile.write(''.join(','.join(map(str, LeftNodes[0][15*i:15*(i+1)])))+',\n')
+                if any(item in boundary_conditions for item in ['right','Right','R']):
+                    # Nodes on the right
+                    RightNodes = (np.where(woodIGAvertices[:,xaxis-1] >= x_max-merge_tol)[0]+1).reshape(1,-1)
+                    meshinpfile.write('*Nset, Nset=RightNodes, instance=Part-1-1\n')
+                    for i in range(0,math.ceil(len(RightNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                        meshinpfile.write(''.join(','.join(map(str, RightNodes[0][15*i:15*(i+1)])))+',\n')
+                if any(item in boundary_conditions for item in ['bottom','Bottom','Bot']):
+                    # Nodes on the bottom
+                    BottomNodes = (np.where(woodIGAvertices[:,zaxis-1] <= z_min+merge_tol)[0]+1).reshape(1,-1)
+                    meshinpfile.write('*Nset, nset=BottomNodes, instance=Part-1-1\n')
+                    for i in range(0,math.ceil(len(BottomNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                        meshinpfile.write(''.join(','.join(map(str, BottomNodes[0][15*i:15*(i+1)])))+',\n')
+                if any(item in boundary_conditions for item in ['top','Top','T']):
+                    # Nodes on the top
+                    TopNodes = (np.where(woodIGAvertices[:,zaxis-1] >= z_max-merge_tol)[0]+1).reshape(1,-1)
+                    meshinpfile.write('*Nset, nset=TopNodes, instance=Part-1-1\n')
+                    for i in range(0,math.ceil(len(TopNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                        meshinpfile.write(''.join(','.join(map(str, TopNodes[0][15*i:15*(i+1)])))+',\n')
+                if any(item in boundary_conditions for item in ['back','Back']):
+                    # Nodes on the back
+                    BackNodes = (np.where(woodIGAvertices[:,yaxis-1] <= y_min+merge_tol)[0]+1).reshape(1,-1)
+                    meshinpfile.write('*Nset, nset=BackNodes, instance=Part-1-1\n')
+                    for i in range(0,math.ceil(len(BackNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                        meshinpfile.write(''.join(','.join(map(str, BackNodes[0][15*i:15*(i+1)])))+',\n')
+                if any(item in boundary_conditions for item in ['front','Front','F']):
+                    # Nodes on the front
+                    FrontNodes = (np.where(woodIGAvertices[:,yaxis-1] >= y_max-merge_tol)[0]+1).reshape(1,-1)
+                    meshinpfile.write('*Nset, nset=FrontNodes, instance=Part-1-1\n')
+                    for i in range(0,math.ceil(len(FrontNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                        meshinpfile.write(''.join(','.join(map(str, FrontNodes[0][15*i:15*(i+1)])))+',\n')
+    
+            # boundary nodes
+            elif box_shape == 'notched_square':
+                # if any(item in boundary_conditions for item in ['left','Left','L']):
+                    # Nodes on the left bottom
+                    LeftBottomNodes = (np.where((woodIGAvertices[:,xaxis-1] <= x_min+merge_tol) & (woodIGAvertices[:,yaxis-1] <= 0))[0]+1).reshape(1,-1)
+                    meshinpfile.write('*Nset, nset=LeftBottomNodes, instance=Part-1-1\n')
+                    for i in range(0,math.ceil(len(LeftBottomNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                        meshinpfile.write(''.join(','.join(map(str, LeftBottomNodes[0][15*i:15*(i+1)])))+',\n')
+                    # Nodes on the left top
+                    LeftTopNodes = (np.where((woodIGAvertices[:,xaxis-1] <= x_min+merge_tol) & (woodIGAvertices[:,yaxis-1] >= 0))[0]+1).reshape(1,-1)
+                    meshinpfile.write('*Nset, nset=LeftTopNodes, instance=Part-1-1\n')
+                    for i in range(0,math.ceil(len(LeftTopNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                        meshinpfile.write(''.join(','.join(map(str, LeftTopNodes[0][15*i:15*(i+1)])))+',\n')
+                # if any(item in boundary_conditions for item in ['right','Right','R']):
+                    # Nodes on the right
+                    RightNodes = (np.where(woodIGAvertices[:,xaxis-1] >= x_max-merge_tol)[0]+1).reshape(1,-1)
+                    meshinpfile.write('*Nset, Nset=RightNodes, instance=Part-1-1\n')
+                    for i in range(0,math.ceil(len(RightNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                        meshinpfile.write(''.join(','.join(map(str, RightNodes[0][15*i:15*(i+1)])))+',\n')
+                # if any(item in boundary_conditions for item in ['bottom','Bottom','Bot']):
+                    # Nodes on the bottom
+                    BottomNodes = (np.where(woodIGAvertices[:,zaxis-1] <= z_min+merge_tol)[0]+1).reshape(1,-1)
+                    meshinpfile.write('*Nset, nset=BottomNodes, instance=Part-1-1\n')
+                    for i in range(0,math.ceil(len(BottomNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                        meshinpfile.write(''.join(','.join(map(str, BottomNodes[0][15*i:15*(i+1)])))+',\n')
+                # if any(item in boundary_conditions for item in ['top','Top','T']):
+                    # Nodes on the top
+                    TopNodes = (np.where(woodIGAvertices[:,zaxis-1] >= z_max-merge_tol)[0]+1).reshape(1,-1)
+                    meshinpfile.write('*Nset, nset=TopNodes, instance=Part-1-1\n')
+                    for i in range(0,math.ceil(len(TopNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                        meshinpfile.write(''.join(','.join(map(str, TopNodes[0][15*i:15*(i+1)])))+',\n')
+                # if any(item in boundary_conditions for item in ['back','Back']):
+                    # Nodes on the back
+                    BackNodes = (np.where(woodIGAvertices[:,yaxis-1] <= y_min+merge_tol)[0]+1).reshape(1,-1)
+                    meshinpfile.write('*Nset, nset=BackNodes, instance=Part-1-1\n')
+                    for i in range(0,math.ceil(len(BackNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                        meshinpfile.write(''.join(','.join(map(str, BackNodes[0][15*i:15*(i+1)])))+',\n')
+                # if any(item in boundary_conditions for item in ['front','Front','F']):
+                    # Nodes on the front
+                    FrontNodes = (np.where(woodIGAvertices[:,yaxis-1] >= y_max-merge_tol)[0]+1).reshape(1,-1)
+                    meshinpfile.write('*Nset, nset=FrontNodes, instance=Part-1-1\n')
+                    for i in range(0,math.ceil(len(FrontNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                        meshinpfile.write(''.join(','.join(map(str, FrontNodes[0][15*i:15*(i+1)])))+',\n')
+        else: # not merged
+            # boundary nodes
+            if box_shape == 'square':
+                if any(item in boundary_conditions for item in ['left','Left','L']):
+                    # Nodes on the left
+                    LeftNodes = (np.where(woodIGAvertices[:,xaxis-1] <= x_min)[0]+1).reshape(1,-1)
+                    meshinpfile.write('*Nset, nset=LeftNodes, instance=Part-1-1\n')
+                    for i in range(0,math.ceil(len(LeftNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                        meshinpfile.write(''.join(','.join(map(str, LeftNodes[0][15*i:15*(i+1)])))+',\n')
+                if any(item in boundary_conditions for item in ['right','Right','R']):
+                    # Nodes on the right
+                    RightNodes = (np.where(woodIGAvertices[:,xaxis-1] >= x_max)[0]+1).reshape(1,-1)
+                    meshinpfile.write('*Nset, Nset=RightNodes, instance=Part-1-1\n')
+                    for i in range(0,math.ceil(len(RightNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                        meshinpfile.write(''.join(','.join(map(str, RightNodes[0][15*i:15*(i+1)])))+',\n')
+                if any(item in boundary_conditions for item in ['bottom','Bottom','Bot']):
+                    # Nodes on the bottom
+                    BottomNodes = (np.where(woodIGAvertices[:,zaxis-1] <= z_min)[0]+1).reshape(1,-1)
+                    meshinpfile.write('*Nset, nset=BottomNodes, instance=Part-1-1\n')
+                    for i in range(0,math.ceil(len(BottomNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                        meshinpfile.write(''.join(','.join(map(str, BottomNodes[0][15*i:15*(i+1)])))+',\n')
+                if any(item in boundary_conditions for item in ['top','Top','T']):
+                    # Nodes on the top
+                    TopNodes = (np.where(woodIGAvertices[:,zaxis-1] >= z_max)[0]+1).reshape(1,-1)
+                    meshinpfile.write('*Nset, nset=TopNodes, instance=Part-1-1\n')
+                    for i in range(0,math.ceil(len(TopNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                        meshinpfile.write(''.join(','.join(map(str, TopNodes[0][15*i:15*(i+1)])))+',\n')
+                if any(item in boundary_conditions for item in ['back','Back']):
+                    # Nodes on the back
+                    BackNodes = (np.where(woodIGAvertices[:,yaxis-1] <= y_min)[0]+1).reshape(1,-1)
+                    meshinpfile.write('*Nset, nset=BackNodes, instance=Part-1-1\n')
+                    for i in range(0,math.ceil(len(BackNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                        meshinpfile.write(''.join(','.join(map(str, BackNodes[0][15*i:15*(i+1)])))+',\n')
+                if any(item in boundary_conditions for item in ['front','Front','F']):
+                    # Nodes on the front
+                    FrontNodes = (np.where(woodIGAvertices[:,yaxis-1] >= y_max)[0]+1).reshape(1,-1)
+                    meshinpfile.write('*Nset, nset=FrontNodes, instance=Part-1-1\n')
+                    for i in range(0,math.ceil(len(FrontNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                        meshinpfile.write(''.join(','.join(map(str, FrontNodes[0][15*i:15*(i+1)])))+',\n')
+    
+            # boundary nodes
+            elif box_shape == 'notched_square':
+                if any(item in boundary_conditions for item in ['left','Left','L']):
+                    # Nodes on the left bottom
+                    LeftBottomNodes = (np.where((woodIGAvertices[:,xaxis-1] <= x_min) & (woodIGAvertices[:,yaxis-1] <= 0))[0]+1).reshape(1,-1)
+                    meshinpfile.write('*Nset, nset=LeftBottomNodes, instance=Part-1-1\n')
+                    for i in range(0,math.ceil(len(LeftBottomNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                        meshinpfile.write(''.join(','.join(map(str, LeftBottomNodes[0][15*i:15*(i+1)])))+',\n')
+                    # Nodes on the left top
+                    LeftTopNodes = (np.where((woodIGAvertices[:,xaxis-1] <= x_min) & (woodIGAvertices[:,yaxis-1] >= 0))[0]+1).reshape(1,-1)
+                    meshinpfile.write('*Nset, nset=LeftTopNodes, instance=Part-1-1\n')
+                    for i in range(0,math.ceil(len(LeftTopNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                        meshinpfile.write(''.join(','.join(map(str, LeftTopNodes[0][15*i:15*(i+1)])))+',\n')
+                if any(item in boundary_conditions for item in ['right','Right','R']):
+                    # Nodes on the right
+                    RightNodes = (np.where(woodIGAvertices[:,xaxis-1] >= x_max)[0]+1).reshape(1,-1)
+                    meshinpfile.write('*Nset, Nset=RightNodes, instance=Part-1-1\n')
+                    for i in range(0,math.ceil(len(RightNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                        meshinpfile.write(''.join(','.join(map(str, RightNodes[0][15*i:15*(i+1)])))+',\n')
+                if any(item in boundary_conditions for item in ['bottom','Bottom','Bot']):
+                    # Nodes on the bottom
+                    BottomNodes = (np.where(woodIGAvertices[:,zaxis-1] <= z_min)[0]+1).reshape(1,-1)
+                    meshinpfile.write('*Nset, nset=BottomNodes, instance=Part-1-1\n')
+                    for i in range(0,math.ceil(len(BottomNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                        meshinpfile.write(''.join(','.join(map(str, BottomNodes[0][15*i:15*(i+1)])))+',\n')
+                if any(item in boundary_conditions for item in ['top','Top','T']):
+                    # Nodes on the top
+                    TopNodes = (np.where(woodIGAvertices[:,zaxis-1] >= z_max)[0]+1).reshape(1,-1)
+                    meshinpfile.write('*Nset, nset=TopNodes, instance=Part-1-1\n')
+                    for i in range(0,math.ceil(len(TopNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                        meshinpfile.write(''.join(','.join(map(str, TopNodes[0][15*i:15*(i+1)])))+',\n')
+                if any(item in boundary_conditions for item in ['back','Back']):
+                    # Nodes on the back
+                    BackNodes = (np.where(woodIGAvertices[:,yaxis-1] <= y_min)[0]+1).reshape(1,-1)
+                    meshinpfile.write('*Nset, nset=BackNodes, instance=Part-1-1\n')
+                    for i in range(0,math.ceil(len(BackNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                        meshinpfile.write(''.join(','.join(map(str, BackNodes[0][15*i:15*(i+1)])))+',\n')
+                if any(item in boundary_conditions for item in ['front','Front','F']):
+                    # Nodes on the front
+                    FrontNodes = (np.where(woodIGAvertices[:,yaxis-1] >= y_max)[0]+1).reshape(1,-1)
+                    meshinpfile.write('*Nset, nset=FrontNodes, instance=Part-1-1\n')
+                    for i in range(0,math.ceil(len(FrontNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+                        meshinpfile.write(''.join(','.join(map(str, FrontNodes[0][15*i:15*(i+1)])))+',\n')      
+    # ELEMENT SETS
+    meshinpfile.write('*Elset, elset=AllElles, instance=Part-1-1, generate\n') 
+    meshinpfile.write('{:d}, {:d}, {:d} \n'.format(1,nelem_total,1))
+    meshinpfile.write('*Elset, elset=AllVisualElle, instance=Part-1-1, generate\n') 
+    meshinpfile.write('{:d}, {:d}, {:d} \n'.format(count_offset+1,count-1,1))
+    meshinpfile.write('*End Assembly\n')
+
+    # inpfile = open(Path('meshes/' + geoName + '/' + geoName + '.inp'),'w')
+    # # inpfile = open (os.path.join(path,geoName)+'.inp','w')
+    # inpfile.write('*HEADING'+'\n')
+    # inpfile.write('** Job name: {0} Model name: Model-{1}\n'.format(geoName,geoName))
+    # inpfile.write('** Generated with RingsPy Mesh Generation Tool V{0}\n'.format(pkg_resources.get_distribution("RingsPy").version))
+    # inpfile.write('*Preprint, echo=NO, model=NO, history=NO, contact=NO\n')
+    # # PARAMETER
+    # inpfile.write('** \n')
+    # inpfile.write('*PARAMETER \n')
+    # inpfile.write('** \n')
+    # inpfile.write('********************************************************\n')
+    # inpfile.write('**                  Beam Properties                   **\n')
+    # inpfile.write('********************************************************\n')
+    # inpfile.write('** \n')
+    # inpfile.write('DensityBeam                         = {:8.4E}\n'.format(props_beam[0]))
+    # inpfile.write('ElasticModulusBeam                  = {:8.4E}\n'.format(props_beam[1]))
+    # inpfile.write('PoissonsRatioBeam                   = {:8.4E}\n'.format(props_beam[2]))
+    # inpfile.write('CrossSectionHeightBeam              = {:8.4E}\n'.format(props_beam[3]))
+    # inpfile.write('CrossSectionWidthBeam               = {:8.4E}\n'.format(props_beam[4]))
+    # inpfile.write('TensileStrengthBeam                 = {:8.4E}\n'.format(props_beam[5]))
+    # inpfile.write('TensileCharacteristicLengthBeam     = {:8.4E}\n'.format(props_beam[6]))
+    # inpfile.write('ShearStrengthRatioBeam              = {:8.4E}\n'.format(props_beam[7]))
+    # inpfile.write('SofteningExponentBeam               = {:8.4E}\n'.format(props_beam[8]))
+    # inpfile.write('InitialFrictionBeam                 = {:8.4E}\n'.format(props_beam[9]))
+    # inpfile.write('AsymptoticFrictionBeam              = {:8.4E}\n'.format(props_beam[10]))
+    # inpfile.write('TransitionalStressBeam              = {:8.4E}\n'.format(props_beam[11]))
+    # inpfile.write('TensileUnloadingBeam                = {:8.4E}\n'.format(props_beam[12]))
+    # inpfile.write('ShearUnloadingBeam                  = {:8.4E}\n'.format(props_beam[13]))
+    # inpfile.write('ShearSofteningBeam                  = {:8.4E}\n'.format(props_beam[14]))
+    # inpfile.write('ElasticAnalysisFlagBeam             = {:8.4E}\n'.format(props_beam[15]))
+    # inpfile.write('SectionTypeBeam                     = {:d}\n'.format(iprops_beam[0]))
+    # inpfile.write('** \n')
+    # inpfile.write('********************************************************\n')
+    # inpfile.write('**         Transverse Connector Properties            **\n')
+    # inpfile.write('********************************************************\n')
+    # inpfile.write('** \n')
+    # inpfile.write('DensityTConn                        = {:8.4E}\n'.format(props_connector_t_bot[0]))
+    # inpfile.write('ElasticModulusTConn                 = {:8.4E}\n'.format(props_connector_t_bot[1]))
+    # inpfile.write('ShearNormalCoeffTConn               = {:8.4E}\n'.format(props_connector_t_bot[2]))
+    # inpfile.write('CrossSectionHeightBot               = {:8.4E}\n'.format(props_connector_t_bot[3]))
+    # inpfile.write('CrossSectionHeightReg               = {:8.4E}\n'.format(props_connector_t_reg[3]))
+    # inpfile.write('CrossSectionHeightTop               = {:8.4E}\n'.format(props_connector_t_top[3]))
+    # inpfile.write('DistanceMBot                        = {:8.4E}\n'.format(props_connector_t_bot[4]))
+    # inpfile.write('DistanceMReg                        = {:8.4E}\n'.format(props_connector_t_reg[4]))
+    # inpfile.write('DistanceMTop                        = {:8.4E}\n'.format(props_connector_t_top[4]))
+    # inpfile.write('DistanceLBot                        = {:8.4E}\n'.format(props_connector_t_bot[5]))
+    # inpfile.write('DistanceLReg                        = {:8.4E}\n'.format(props_connector_t_reg[5]))
+    # inpfile.write('DistanceLTop                        = {:8.4E}\n'.format(props_connector_t_top[5]))
+    # inpfile.write('TensileStrengthTConn                = {:8.4E}\n'.format(props_connector_t_bot[6]))
+    # inpfile.write('TensileCharacteristicLengthTConn    = {:8.4E}\n'.format(props_connector_t_bot[7]))
+    # inpfile.write('ShearStrengthRatioTConn             = {:8.4E}\n'.format(props_connector_t_bot[8]))
+    # inpfile.write('SofteningExponentTConn              = {:8.4E}\n'.format(props_connector_t_bot[9]))
+    # inpfile.write('InitialFrictionTConn                = {:8.4E}\n'.format(props_connector_t_bot[10]))
+    # inpfile.write('AsymptoticFrictionTConn             = {:8.4E}\n'.format(props_connector_t_bot[11]))
+    # inpfile.write('TransitionalStressTConn             = {:8.4E}\n'.format(props_connector_t_bot[12]))
+    # inpfile.write('TensileUnloadingTConn               = {:8.4E}\n'.format(props_connector_t_bot[13]))
+    # inpfile.write('ShearUnloadingTConn                 = {:8.4E}\n'.format(props_connector_t_bot[14]))
+    # inpfile.write('ShearSofteningTConn                 = {:8.4E}\n'.format(props_connector_t_bot[15]))
+    # inpfile.write('ElasticAnalysisFlagTConn            = {:8.4E}\n'.format(props_connector_t_bot[16]))
+    # inpfile.write('CompressiveYieldingStrengthTConn    = {:8.4E}\n'.format(props_connector_t_bot[17]))
+    # inpfile.write('InitialHardeningModulusRatioTConn   = {:8.4E}\n'.format(props_connector_t_bot[18]))
+    # inpfile.write('TransitionalStrainRatioTConn        = {:8.4E}\n'.format(props_connector_t_bot[19]))
+    # inpfile.write('DeviatoricStrainThresholdRatioTConn = {:8.4E}\n'.format(props_connector_t_bot[20]))
+    # inpfile.write('DeviatoricDamageParameterTConn      = {:8.4E}\n'.format(props_connector_t_bot[21]))
+    # inpfile.write('FinalHardeningModulusRatioTConn     = {:8.4E}\n'.format(props_connector_t_bot[22]))
+    # inpfile.write('DensificationRatioTConn             = {:8.4E}\n'.format(props_connector_t_bot[23]))
+    # inpfile.write('VolumetricDeviatoricCouplingTConn   = {:8.4E}\n'.format(props_connector_t_bot[24]))
+    # inpfile.write('CompressiveUnloadingTConn           = {:8.4E}\n'.format(props_connector_t_bot[25]))
+    # inpfile.write('ConnectorTypeBot                    = {:d}\n'.format(iprops_connector_t_bot[0]))
+    # inpfile.write('ConnectorTypeReg                    = {:d}\n'.format(iprops_connector_t_reg[0]))
+    # inpfile.write('ConnectorTypeTop                    = {:d}\n'.format(iprops_connector_t_top[0]))
+    # inpfile.write('** \n')
+    # inpfile.write('********************************************************\n')
+    # inpfile.write('**         Longitudinal Connector Properties          **\n')
+    # inpfile.write('********************************************************\n')
+    # inpfile.write('** \n')
+    # inpfile.write('DensityLConn                        = {:8.4E}\n'.format(props_connector_l[0]))
+    # inpfile.write('ElasticModulusLConn                 = {:8.4E}\n'.format(props_connector_l[1]))
+    # inpfile.write('ShearNormalCoeffLConn               = {:8.4E}\n'.format(props_connector_l[2]))
+    # inpfile.write('CrossSectionAreaLConn               = {:8.4E}\n'.format(props_connector_l[3]))
+    # inpfile.write('TensileStrengthLConn                = {:8.4E}\n'.format(props_connector_l[4]))
+    # inpfile.write('TensileCharacteristicLengthLConn    = {:8.4E}\n'.format(props_connector_l[5]))
+    # inpfile.write('ShearStrengthRatioLConn             = {:8.4E}\n'.format(props_connector_l[6]))
+    # inpfile.write('SofteningExponentLConn              = {:8.4E}\n'.format(props_connector_l[7]))
+    # inpfile.write('InitialFrictionLConn                = {:8.4E}\n'.format(props_connector_l[8]))
+    # inpfile.write('AsymptoticFrictionLConn             = {:8.4E}\n'.format(props_connector_l[9]))
+    # inpfile.write('TransitionalStressLConn             = {:8.4E}\n'.format(props_connector_l[10]))
+    # inpfile.write('TensileUnloadingLConn               = {:8.4E}\n'.format(props_connector_l[11]))
+    # inpfile.write('ShearUnloadingLConn                 = {:8.4E}\n'.format(props_connector_l[12]))
+    # inpfile.write('ShearSofteningLConn                 = {:8.4E}\n'.format(props_connector_l[13]))
+    # inpfile.write('ElasticAnalysisFlagLConn            = {:8.4E}\n'.format(props_connector_l[14]))
+    # inpfile.write('CompressiveYieldingStrengthLConn    = {:8.4E}\n'.format(props_connector_l[15]))
+    # inpfile.write('InitialHardeningModulusRatioLConn   = {:8.4E}\n'.format(props_connector_l[16]))
+    # inpfile.write('TransitionalStrainRatioLConn        = {:8.4E}\n'.format(props_connector_l[17]))
+    # inpfile.write('DeviatoricStrainThresholdRatioLConn = {:8.4E}\n'.format(props_connector_l[18]))
+    # inpfile.write('DeviatoricDamageParameterLConn      = {:8.4E}\n'.format(props_connector_l[19]))
+    # inpfile.write('FinalHardeningModulusRatioLConn     = {:8.4E}\n'.format(props_connector_l[20]))
+    # inpfile.write('DensificationRatioLConn             = {:8.4E}\n'.format(props_connector_l[21]))
+    # inpfile.write('VolumetricDeviatoricCouplingLConn   = {:8.4E}\n'.format(props_connector_l[22]))
+    # inpfile.write('CompressiveUnloadingLConn           = {:8.4E}\n'.format(props_connector_l[23]))
+    # inpfile.write('ConnectorTypeLConn                  = {:d}\n'.format(iprops_connector_l[0]))
+    # inpfile.write('**\n')
+    # inpfile.write('********************************************************\n')
+    # inpfile.write('**            Strain Rate Effect Properties           **\n')
+    # inpfile.write('********************************************************\n')
+    # inpfile.write('**\n')
+    # inpfile.write('StrainRateEffectFlag                = {:8.4E}\n'.format(props_strainrate[0]))
+    # inpfile.write('PhysicalTimeScalingFactor           = {:8.4E}\n'.format(props_strainrate[1]))
+    # inpfile.write('StrainRateEffectC0                  = {:8.4E}\n'.format(props_strainrate[2]))
+    # inpfile.write('StrainRateEffectC1                  = {:8.4E}\n'.format(props_strainrate[3]))
+    # inpfile.write('**\n')
+    # inpfile.write('********************************************************\n')
+    # inpfile.write('**            Lattice Model Properties                **\n')
+    # inpfile.write('********************************************************\n')
+    # inpfile.write('**\n')
+    # inpfile.write('NumberOfInstance = {:d}\n'.format(iprops_beam[1]))
+    # inpfile.write('NumberOfBeamElem = {:d}\n'.format(nelem))
+    # inpfile.write('NumberOfConnectorT = {:d}\n'.format(iprops_beam[2]))
+    # inpfile.write('NumberOfConnectorTPrecrack = {:d}\n'.format(iprops_beam[3]))
+    # inpfile.write('NumberOfConnectorL = {:d}\n'.format(nelem_connector_l))
+    # inpfile.write('NumberOfConnectorLPrecrack = {:d}\n'.format(iprops_beam[5]))
+    # inpfile.write('NumberOfSvarsBeam = {:d}\n'.format(nsvars_beam))
+    # inpfile.write('NumberOfSvarsTConn = {:d}\n'.format(nsvars_conn_t))
+    # inpfile.write('NumberOfSvarsLConn = {:d}\n'.format(nsvars_conn_l))
+    # inpfile.write('NumberOfSGaussPt = {:d}\n'.format(nsecgp))
+    # inpfile.write('NumberOfSvarsSGaussPt = {:d}\n'.format(nsvars_secgp))
+    # inpfile.write('NumberOfBeamPerGrain = {:d}\n'.format(nbeam_per_grain))
+    # inpfile.write('**\n')
+    # inpfile.write('********************************************************\n')
+    # inpfile.write('**              Visualization Properties              **\n')
+    # inpfile.write('**     Pre-set of Visualization Svars: 1-All svars    **\n')
+    # inpfile.write('**     2-Stress only  3-Stress+IGAbeam geometry       **\n')
+    # inpfile.write('********************************************************\n')
+    # inpfile.write('** \n')
+    # inpfile.write('VisualizationSvars = 1\n')
+    # inpfile.write('StressFlag = 0\n')
+    # inpfile.write('BinaryFlag = 0\n')
+    # inpfile.write('TimeIncrement = {:8.4E}\n'.format(totaltime/100.0))
+    # inpfile.write('TotalTime = {:8.4E}\n'.format(totaltime))
+    # # PART
+    # inpfile.write('** \n')
+    # inpfile.write('** PARTS\n') 
+    # inpfile.write('** \n') 
+    # inpfile.write('*Part, name=Part-1\n')
+    # inpfile.write('*End Part\n')
+    # inpfile.write('** \n')
+    # # ASSEMBLY
+    # inpfile.write('** \n')
+    # inpfile.write('** ASSEMBLY\n') 
+    # inpfile.write('** \n') 
+    # inpfile.write('*Assembly, name=Assembly\n')
+    # inpfile.write('** \n') 
+    # # INSTANCE
+    # inpfile.write('*Instance, name=Part-1-1, part=Part-1\n')
+    # # nodes
+    # inpfile.write('*Node,nset=AllNodes\n')
+    # for i in range(0,numnode):
+    #     inpfile.write('{:d}, {:#.9e}, {:#.9e},  {:#.9e}\n'.format(i+1,woodIGAvertices[i,0],woodIGAvertices[i,1],woodIGAvertices[i,2]))
+    # # beam element
+    # inpfile.write('*USER ELEMENT, NODES={:d}, TYPE=VU{:d}, COORDINATES=3,'.format(nelnode,eltype)) 
+    # inpfile.write(' VARIABLES={:d}, I PROPERTIES={:d},'.format(noGPs*nsvars_beam,len(iprops_beam)))
+    # inpfile.write(' PROPERTIES={:d}, INTEGRATION={:d}\n'.format(len(props_beam),noGPs))
+    # inpfile.write('1, 2, 3, 4, 5, 6\n') 
+    # # transverse connector elment 
+    # inpfile.write('*USER ELEMENT, NODES={:d}, TYPE=VU{:d}, COORDINATES=3,'.format(nelnode_connector,eltype_connector_t)) 
+    # inpfile.write(' VARIABLES={:d}, I PROPERTIES={:d},'.format(nsvars_conn_t,len(iprops_connector_t_bot)))
+    # inpfile.write(' PROPERTIES={:d}, INTEGRATION={:d}\n'.format(len(props_connector_t_bot)+len(props_strainrate),1))
+    # inpfile.write('1, 2, 3, 4, 5, 6\n')
+    # # longitudinal connector elment 
+    # inpfile.write('*USER ELEMENT, NODES={:d}, TYPE=VU{:d}, COORDINATES=3,'.format(nelnode_connector,eltype_connector_l)) 
+    # inpfile.write(' VARIABLES={:d}, I PROPERTIES={:d},'.format(nsvars_conn_t,len(iprops_connector_l)))
+    # inpfile.write(' PROPERTIES={:d}, INTEGRATION={:d}\n'.format(len(props_connector_l)+len(props_strainrate),1))
+    # inpfile.write('1, 2, 3, 4, 5, 6\n')
+    # # beam element connectivity 
+    # count = 1
+    # inpfile.write('*Element, type=VU{:d},elset=AllBeams\n'.format(eltype)) 
+    # for i in range(0,nelem):
+    #     inpfile.write('{:d}'.format(count))
+    #     count += 1
+    #     # inpfile.write('{:d}'.format(i+1)) 
+    #     for j in range(0,nnode):
+    #         inpfile.write(', {:d}'.format(beam_connectivity[i,j])) 
+    #     inpfile.write('\n')
+        
+    # if precrackFlag in ['on','On','Y','y','Yes','yes']:
+    #     connector_t_precracked_index = []
+    #     connector_t_precracked_connectivity = []
+    #     # bottom transverse connector element connectivity 
+    #     inpfile.write('*Element, type=VU{:d},elset=AllBotConns\n'.format(eltype_connector_t)) 
+    #     for i in range(0,nelem_connector_t_bot):
+    #         if i in precrack_elem:
+    #             connector_t_precracked_index.append(count)
+    #             count += 1
+    #             connector_t_precracked_connectivity.append(connector_t_bot_connectivity[i,:])
+    #         else:
+    #             inpfile.write('{:d}'.format(count))
+    #             count += 1
+    #             for j in range(0,nelnode_connector):
+    #                 inpfile.write(', {:d}'.format(connector_t_bot_connectivity[i,j])) 
+    #             inpfile.write('\n')
+    #     # regular transverse connector element connectivity 
+    #     inpfile.write('*Element, type=VU{:d},elset=AllRegConns\n'.format(eltype_connector_t)) 
+    #     for i in range(0,nelem_connector_t_reg):
+    #         if i in precrack_elem:
+    #             connector_t_precracked_index.append(count)
+    #             count += 1
+    #             connector_t_precracked_connectivity.append(connector_t_reg_connectivity[i,:])
+    #         else:
+    #             inpfile.write('{:d}'.format(count))
+    #             count += 1
+    #             for j in range(0,nelnode_connector):
+    #                 inpfile.write(', {:d}'.format(connector_t_reg_connectivity[i,j])) 
+    #             inpfile.write('\n')
+    #     # top transverse connector element connectivity 
+    #     inpfile.write('*Element, type=VU{:d},elset=AllTopConns\n'.format(eltype_connector_t)) 
+    #     for i in range(0,nelem_connector_t_top):
+    #         if i in precrack_elem:
+    #             connector_t_precracked_index.append(count)
+    #             count += 1
+    #             connector_t_precracked_connectivity.append(connector_t_top_connectivity[i,:])
+    #         else:
+    #             inpfile.write('{:d}'.format(count))
+    #             count += 1
+    #             for j in range(0,nelnode_connector):
+    #                 inpfile.write(', {:d}'.format(connector_t_top_connectivity[i,j])) 
+    #             inpfile.write('\n')
+    #     # precracked transverse connector element connectivity 
+    #     inpfile.write('*Element, type=VU{:d},elset=AllPrecrackTConns\n'.format(eltype_connector_t)) 
+    #     for i in range(0,len(connector_t_precracked_connectivity)):
+    #         inpfile.write('{:d}'.format(connector_t_precracked_index[i]))
+    #         for j in range(0,nelnode_connector):
+    #             inpfile.write(', {:d}'.format(connector_t_precracked_connectivity[i][j]))
+    #         inpfile.write('\n')
+    # else:
+    #     # bottom transverse connector element connectivity 
+    #     inpfile.write('*Element, type=VU{:d},elset=AllBotConns\n'.format(eltype_connector_t)) 
+    #     for i in range(0,nelem_connector_t_bot):
+    #         # inpfile.write('{:d}'.format(i+1))
+    #         inpfile.write('{:d}'.format(count))
+    #         count += 1
+    #         for j in range(0,nelnode_connector):
+    #             inpfile.write(', {:d}'.format(connector_t_bot_connectivity[i,j])) 
+    #         inpfile.write('\n')
+    #     # regular transverse connector element connectivity 
+    #     inpfile.write('*Element, type=VU{:d},elset=AllRegConns\n'.format(eltype_connector_t)) 
+    #     for i in range(0,nelem_connector_t_reg):
+    #         # inpfile.write('{:d}'.format(i+1))
+    #         inpfile.write('{:d}'.format(count))
+    #         count += 1
+    #         for j in range(0,nelnode_connector):
+    #             inpfile.write(', {:d}'.format(connector_t_reg_connectivity[i,j])) 
+    #         inpfile.write('\n')
+    #     # top transverse connector element connectivity 
+    #     inpfile.write('*Element, type=VU{:d},elset=AllTopConns\n'.format(eltype_connector_t)) 
+    #     for i in range(0,nelem_connector_t_top):
+    #         # inpfile.write('{:d}'.format(i+1))
+    #         inpfile.write('{:d}'.format(count))
+    #         count += 1
+    #         for j in range(0,nelnode_connector):
+    #             inpfile.write(', {:d}'.format(connector_t_top_connectivity[i,j])) 
+    #         inpfile.write('\n')
+            
+    # # longitudinal connector element connectivity 
+    # inpfile.write('*Element, type=VU{:d},elset=AllLongConns\n'.format(eltype_connector_l)) 
+    # for i in range(0,nelem_connector_l):
+    #     # inpfile.write('{:d}'.format(i+1))
+    #     inpfile.write('{:d}'.format(count))
+    #     count += 1
+    #     for j in range(0,nelnode_connector):
+    #         inpfile.write(', {:d}'.format(connector_l_connectivity[i,j])) 
+    #     inpfile.write('\n')
+    # # uel properties for beams
+    # inpfile.write('*UEL PROPERTY, ELSET=AllBeams\n') 
+    # inpfile.write('<DensityBeam>,<ElasticModulusBeam>,<PoissonsRatioBeam>,<CrossSectionHeightBeam>,<CrossSectionWidthBeam>,<TensileStrengthBeam>,<TensileCharacteristicLengthBeam>,<ShearStrengthRatioBeam>,\n')
+    # inpfile.write('<SofteningExponentBeam>,<InitialFrictionBeam>,<AsymptoticFrictionBeam>,<TransitionalStressBeam>,<TensileUnloadingBeam>,<ShearUnloadingBeam>,<ShearSofteningBeam>,<ElasticAnalysisFlagBeam>,\n')
+    # inpfile.write('<SectionTypeBeam>,<NumberOfInstance>,<NumberOfConnectorT>,<NumberOfConnectorTPrecrack>,<NumberOfConnectorL>,<NumberOfConnectorLPrecrack>\n')
+    # # uel properties for bottom transverse connectors
+    # inpfile.write('*UEL PROPERTY, ELSET=AllBotConns\n')
+    # inpfile.write('<DensityTConn>,<ElasticModulusTConn>,<ShearNormalCoeffTConn>,<CrossSectionHeightBot>,<DistanceMBot>,<DistanceLBot>,<TensileStrengthTConn>,<TensileCharacteristicLengthTConn>,\n')
+    # inpfile.write('<ShearStrengthRatioTConn>,<SofteningExponentTConn>,<InitialFrictionTConn>,<AsymptoticFrictionTConn>,<TransitionalStressTConn>,<TensileUnloadingTConn>,<ShearUnloadingTConn>,<ShearSofteningTConn>,\n')
+    # inpfile.write('<ElasticAnalysisFlagTConn>,<CompressiveYieldingStrengthTConn>,<InitialHardeningModulusRatioTConn>,<TransitionalStrainRatioTConn>,<DeviatoricStrainThresholdRatioTConn>,<DeviatoricDamageParameterTConn>,<FinalHardeningModulusRatioTConn>,<DensificationRatioTConn>,\n')
+    # inpfile.write('<VolumetricDeviatoricCouplingTConn>,<CompressiveUnloadingTConn>,<StrainRateEffectFlag>,<PhysicalTimeScalingFactor>,<StrainRateEffectC0>,<StrainRateEffectC1>,<ConnectorTypeBot>,<NumberOfInstance>,\n')
+    # inpfile.write('<NumberOfBeamElem>,<NumberOfConnectorT>,<NumberOfConnectorTPrecrack>,<NumberOfConnectorL>,<NumberOfConnectorLPrecrack>\n')
+    # # uel properties for regular transverse connectors
+    # inpfile.write('*UEL PROPERTY, ELSET=AllRegConns\n') 
+    # inpfile.write('<DensityTConn>,<ElasticModulusTConn>,<ShearNormalCoeffTConn>,<CrossSectionHeightReg>,<DistanceMReg>,<DistanceLReg>,<TensileStrengthTConn>,<TensileCharacteristicLengthTConn>,\n')
+    # inpfile.write('<ShearStrengthRatioTConn>,<SofteningExponentTConn>,<InitialFrictionTConn>,<AsymptoticFrictionTConn>,<TransitionalStressTConn>,<TensileUnloadingTConn>,<ShearUnloadingTConn>,<ShearSofteningTConn>,\n')
+    # inpfile.write('<ElasticAnalysisFlagTConn>,<CompressiveYieldingStrengthTConn>,<InitialHardeningModulusRatioTConn>,<TransitionalStrainRatioTConn>,<DeviatoricStrainThresholdRatioTConn>,<DeviatoricDamageParameterTConn>,<FinalHardeningModulusRatioTConn>,<DensificationRatioTConn>,\n')
+    # inpfile.write('<VolumetricDeviatoricCouplingTConn>,<CompressiveUnloadingTConn>,<StrainRateEffectFlag>,<PhysicalTimeScalingFactor>,<StrainRateEffectC0>,<StrainRateEffectC1>,<ConnectorTypeReg>,<NumberOfInstance>,\n')
+    # inpfile.write('<NumberOfBeamElem>,<NumberOfConnectorT>,<NumberOfConnectorTPrecrack>,<NumberOfConnectorL>,<NumberOfConnectorLPrecrack>\n')
+    # # uel properties for top transverse connectors
+    # inpfile.write('*UEL PROPERTY, ELSET=AllTopConns\n') 
+    # inpfile.write('<DensityTConn>,<ElasticModulusTConn>,<ShearNormalCoeffTConn>,<CrossSectionHeightTop>,<DistanceMTop>,<DistanceLTop>,<TensileStrengthTConn>,<TensileCharacteristicLengthTConn>,\n')
+    # inpfile.write('<ShearStrengthRatioTConn>,<SofteningExponentTConn>,<InitialFrictionTConn>,<AsymptoticFrictionTConn>,<TransitionalStressTConn>,<TensileUnloadingTConn>,<ShearUnloadingTConn>,<ShearSofteningTConn>,\n')
+    # inpfile.write('<ElasticAnalysisFlagTConn>,<CompressiveYieldingStrengthTConn>,<InitialHardeningModulusRatioTConn>,<TransitionalStrainRatioTConn>,<DeviatoricStrainThresholdRatioTConn>,<DeviatoricDamageParameterTConn>,<FinalHardeningModulusRatioTConn>,<DensificationRatioTConn>,\n')
+    # inpfile.write('<VolumetricDeviatoricCouplingTConn>,<CompressiveUnloadingTConn>,<StrainRateEffectFlag>,<PhysicalTimeScalingFactor>,<StrainRateEffectC0>,<StrainRateEffectC1>,<ConnectorTypeTop>,<NumberOfInstance>,\n')
+    # inpfile.write('<NumberOfBeamElem>,<NumberOfConnectorT>,<NumberOfConnectorTPrecrack>,<NumberOfConnectorL>,<NumberOfConnectorLPrecrack>\n')
+    # # uel properties for precracked transverse connectors
+    # inpfile.write('*UEL PROPERTY, ELSET=AllPrecrackTConns\n') 
+    # inpfile.write('<DensityTConn>,0.0E+0,<ShearNormalCoeffTConn>,<CrossSectionHeightTop>,<DistanceMTop>,<DistanceLTop>,<TensileStrengthTConn>,<TensileCharacteristicLengthTConn>,\n')
+    # inpfile.write('<ShearStrengthRatioTConn>,<SofteningExponentTConn>,<InitialFrictionTConn>,<AsymptoticFrictionTConn>,<TransitionalStressTConn>,<TensileUnloadingTConn>,<ShearUnloadingTConn>,<ShearSofteningTConn>,\n')
+    # inpfile.write('<ElasticAnalysisFlagTConn>,<CompressiveYieldingStrengthTConn>,<InitialHardeningModulusRatioTConn>,<TransitionalStrainRatioTConn>,<DeviatoricStrainThresholdRatioTConn>,<DeviatoricDamageParameterTConn>,<FinalHardeningModulusRatioTConn>,<DensificationRatioTConn>,\n')
+    # inpfile.write('<VolumetricDeviatoricCouplingTConn>,<CompressiveUnloadingTConn>,<StrainRateEffectFlag>,<PhysicalTimeScalingFactor>,<StrainRateEffectC0>,<StrainRateEffectC1>,<ConnectorTypeBot>,<NumberOfInstance>,\n')
+    # inpfile.write('<NumberOfBeamElem>,<NumberOfConnectorT>,<NumberOfConnectorTPrecrack>,<NumberOfConnectorL>,<NumberOfConnectorLPrecrack>\n')
+    # # uel properties for longitudinal connectors
+    # inpfile.write('*UEL PROPERTY, ELSET=AllLongConns\n')
+    # inpfile.write('<DensityLConn>,<ElasticModulusLConn>,<ShearNormalCoeffLConn>,<CrossSectionAreaLConn>,<TensileStrengthLConn>,<TensileCharacteristicLengthLConn>,<ShearStrengthRatioLConn>,<SofteningExponentLConn>,\n') 
+    # inpfile.write('<InitialFrictionLConn>,<AsymptoticFrictionLConn>,<TransitionalStressLConn>,<TensileUnloadingLConn>,<ShearUnloadingLConn>,<ShearSofteningLConn>,<ElasticAnalysisFlagLConn>,<CompressiveYieldingStrengthLConn>,\n') 
+    # inpfile.write('<InitialHardeningModulusRatioLConn>,<TransitionalStrainRatioLConn>,<DeviatoricStrainThresholdRatioLConn>,<DeviatoricDamageParameterLConn>,<FinalHardeningModulusRatioLConn>,<DensificationRatioLConn>,<VolumetricDeviatoricCouplingLConn>,<CompressiveUnloadingLConn>,\n') 
+    # inpfile.write('<StrainRateEffectFlag>,<PhysicalTimeScalingFactor>,<StrainRateEffectC0>,<StrainRateEffectC1>,<ConnectorTypeLConn>,<NumberOfInstance>,<NumberOfBeamElem>,<NumberOfConnectorT>,\n') 
+    # inpfile.write('<NumberOfConnectorTPrecrack>,<NumberOfConnectorL>,<NumberOfConnectorLPrecrack>\n')
+    # # uel properties for precracked longitudinal connectors
+    # inpfile.write('*UEL PROPERTY, ELSET=AllPrecrackLConns\n') 
+    # inpfile.write('<DensityLConn>,0.0E+0,<ShearNormalCoeffLConn>,<CrossSectionAreaLConn>,<TensileStrengthLConn>,<TensileCharacteristicLengthLConn>,<ShearStrengthRatioLConn>,<SofteningExponentLConn>,\n')
+    # inpfile.write('<InitialFrictionLConn>,<AsymptoticFrictionLConn>,<TransitionalStressLConn>,<TensileUnloadingLConn>,<ShearUnloadingLConn>,<ShearSofteningLConn>,<ElasticAnalysisFlagLConn>,<CompressiveYieldingStrengthLConn>,\n') 
+    # inpfile.write('<InitialHardeningModulusRatioLConn>,<TransitionalStrainRatioLConn>,<DeviatoricStrainThresholdRatioLConn>,<DeviatoricDamageParameterLConn>,<FinalHardeningModulusRatioLConn>,<DensificationRatioLConn>,<VolumetricDeviatoricCouplingLConn>,<CompressiveUnloadingLConn>,\n') 
+    # inpfile.write('<StrainRateEffectFlag>,<PhysicalTimeScalingFactor>,<StrainRateEffectC0>,<StrainRateEffectC1>,<ConnectorTypeLConn>,<NumberOfInstance>,<NumberOfBeamElem>,<NumberOfConnectorT>,\n') 
+    # inpfile.write('<NumberOfConnectorTPrecrack>,<NumberOfConnectorL>,<NumberOfConnectorLPrecrack>\n')
+    # # Ghost mesh for easy visualization
+    # # count_offset = 10**(int(math.log10(count)))
+    # count_offset = 10**(int(math.log10(count))+1) # set an offset with the order of magnitude of the max number + 1
+    # count = count_offset+1 # set an offset with the same order of magnitude
+    
+    # if NURBS_degree == 2:
+    #     inpfile.write('*ELEMENT, TYPE=B32, ELSET=VisualBeams\n')
+    #     for i in range(0,nelem):
+    #         inpfile.write('{:d}'.format(count))
+    #         count += 1
+    #         for j in range(0,nnode):
+    #             inpfile.write(', {:d}'.format(beam_connectivity[i,j])) 
+    #         inpfile.write('\n')
+            
+    # if precrackFlag in ['on','On','Y','y','Yes','yes']:
+    #     visual_connector_precracked_index = []
+    #     inpfile.write('*ELEMENT, TYPE=T3D2, ELSET=VisualBotConns\n')
+    #     for i in range(0,nelem_connector_t_bot):
+    #         if i in precrack_elem:
+    #             visual_connector_precracked_index.append(count)
+    #             count += 1
+    #         else:
+    #             inpfile.write('{:d}'.format(count))
+    #             count += 1
+    #             for j in range(0,nelnode_connector):
+    #                 inpfile.write(', {:d}'.format(connector_t_bot_connectivity[i,j])) 
+    #             inpfile.write('\n')
+    #     inpfile.write('*ELEMENT, TYPE=T3D2, ELSET=VisualRegConns\n')
+    #     for i in range(0,nelem_connector_t_reg):
+    #         if i in precrack_elem:
+    #             visual_connector_precracked_index.append(count)
+    #             count += 1
+    #         else:
+    #             inpfile.write('{:d}'.format(count))
+    #             count += 1
+    #             for j in range(0,nelnode_connector):
+    #                 inpfile.write(', {:d}'.format(connector_t_reg_connectivity[i,j])) 
+    #             inpfile.write('\n')
+    #     inpfile.write('*ELEMENT, TYPE=T3D2, ELSET=VisualTopConns\n')
+    #     for i in range(0,nelem_connector_t_top):
+    #         if i in precrack_elem:
+    #             visual_connector_precracked_index.append(count)
+    #             count += 1
+    #         else:
+    #             inpfile.write('{:d}'.format(count))
+    #             count += 1
+    #             for j in range(0,nelnode_connector):
+    #                 inpfile.write(', {:d}'.format(connector_t_top_connectivity[i,j])) 
+    #             inpfile.write('\n')
+    #     # precracked transverse connector element connectivity 
+    #     inpfile.write('*ELEMENT, TYPE=T3D2, ELSET=VisualPrecrackTConns\n')
+    #     for i in range(0,len(connector_t_precracked_connectivity)):
+    #         inpfile.write('{:d}'.format(visual_connector_precracked_index[i]))
+    #         for j in range(0,nelnode_connector):
+    #             inpfile.write(', {:d}'.format(connector_t_precracked_connectivity[i][j]))
+    #         inpfile.write('\n')
+    #     # longitudinal connector element connectivity 
+    #     inpfile.write('*Element, type=T3D2,elset=VisualLongConns\n') 
+    #     for i in range(0,nelem_connector_l):
+    #         if i in precrack_elem:
+    #             connector_l_precracked_index.append(count)
+    #             count += 1
+    #             connector_l_precracked_connectivity.append(connector_l_connectivity[i,:])
+    #         else:
+    #             inpfile.write('{:d}'.format(count))
+    #             count += 1
+    #             for j in range(0,nelnode_connector):
+    #                 inpfile.write(', {:d}'.format(connector_l_connectivity[i,j])) 
+    #             inpfile.write('\n')
+    #     # precracked longitudinal connector element connectivity 
+    #     inpfile.write('*Element, type=T3D2,elset=VisualPrecrackLConns\n') 
+    #     inpfile.write('\n')
+    #     # for i in range(0,len(connector_l_precracked_connectivity)):
+    #     #     inpfile.write('{:d}'.format(connector_l_precracked_index[i]))
+    #     #     for j in range(0,nelnode_connector):
+    #     #         inpfile.write(', {:d}'.format(connector_l_precracked_connectivity[i][j]))
+    #     #     inpfile.write('\n')      
+    # else:
+    #     inpfile.write('*ELEMENT, TYPE=T3D2, ELSET=VisualBotConns\n')
+    #     for i in range(0,nelem_connector_t_bot):
+    #         inpfile.write('{:d}'.format(count))
+    #         count += 1
+    #         for j in range(0,nelnode_connector):
+    #             inpfile.write(', {:d}'.format(connector_t_bot_connectivity[i,j])) 
+    #         inpfile.write('\n')
+    #     inpfile.write('*ELEMENT, TYPE=T3D2, ELSET=VisualRegConns\n')
+    #     for i in range(0,nelem_connector_t_reg):
+    #         inpfile.write('{:d}'.format(count))
+    #         count += 1
+    #         for j in range(0,nelnode_connector):
+    #             inpfile.write(', {:d}'.format(connector_t_reg_connectivity[i,j])) 
+    #         inpfile.write('\n')
+    #     inpfile.write('*ELEMENT, TYPE=T3D2, ELSET=VisualTopConns\n')
+    #     for i in range(0,nelem_connector_t_top):
+    #         inpfile.write('{:d}'.format(count))
+    #         count += 1
+    #         for j in range(0,nelnode_connector):
+    #             inpfile.write(', {:d}'.format(connector_t_top_connectivity[i,j])) 
+    #         inpfile.write('\n')
+    #     inpfile.write('*ELEMENT, TYPE=T3D2, ELSET=VisualLongConns\n')
+    #     for i in range(0,nelem_connector_l):
+    #         inpfile.write('{:d}'.format(count))
+    #         count += 1
+    #         for j in range(0,nelnode_connector):
+    #             inpfile.write(', {:d}'.format(connector_l_connectivity[i,j])) 
+    #         inpfile.write('\n')
+            
+    # inpfile.write('** Section: Section-1\n')
+    # inpfile.write('*Solid Section, elset=VisualBotConns, material=VisualTConns\n')
+    # inpfile.write('{:8.4E}\n'.format(props_connector_t_bot[3]*cellwallthickness_early))
+    # inpfile.write('** Section: Section-2\n')
+    # inpfile.write('*Solid Section, elset=VisualRegConns, material=VisualTConns\n')
+    # inpfile.write('{:8.4E}\n'.format(props_connector_t_bot[3]*cellwallthickness_early))
+    # inpfile.write('** Section: Section-3\n')
+    # inpfile.write('*Solid Section, elset=VisualTopConns, material=VisualTConns\n')
+    # inpfile.write('{:8.4E}\n'.format(props_connector_t_bot[3]*cellwallthickness_early))
+    # if precrackFlag in ['on','On','Y','y','Yes','yes']:
+    #     inpfile.write('** Section: Section-4\n')
+    #     inpfile.write('*Solid Section, elset=VisualPrecrackTConns, material=VisualTConns\n')
+    #     inpfile.write('{:8.4E}\n'.format(props_connector_t_bot[3]*cellwallthickness_early))
+    #     inpfile.write('** Section: Section-5\n')
+    #     inpfile.write('*Solid Section, elset=VisualLongConns, material=VisualLConns\n')
+    #     inpfile.write('{:8.4E}\n'.format(props_connector_l[3]))
+    #     inpfile.write('** Section: Section-6\n')
+    #     inpfile.write('*Solid Section, elset=VisualPrecrackLConns, material=VisualLConns\n')
+    #     inpfile.write('{:8.4E}\n'.format(props_connector_l[3]))
+    #     if NURBS_degree == 2:
+    #         inpfile.write('** Section: Section-7  Profile: Profile-1\n')
+    #         inpfile.write('*Beam Section, elset=VisualBeams, material=VisualBeams, temperature=GRADIENTS, section=RECT\n')
+    #         inpfile.write('{:8.4E}, {:8.4E}\n'.format(props_beam[3],props_beam[4]))
+    #         inpfile.write('1.,0.,0.\n')
+    # else:
+    #     inpfile.write('** Section: Section-4\n')
+    #     inpfile.write('*Solid Section, elset=VisualLongConns, material=VisualLConns\n')
+    #     inpfile.write('{:8.4E}\n'.format(props_connector_l[3]))
+    #     if NURBS_degree == 2:
+    #         inpfile.write('** Section: Section-5  Profile: Profile-1\n')
+    #         inpfile.write('*Beam Section, elset=VisualBeams, material=VisualBeams, temperature=GRADIENTS, section=RECT\n')
+    #         inpfile.write('{:8.4E}, {:8.4E}\n'.format(props_beam[3],props_beam[4]))
+    #         inpfile.write('1.,0.,0.\n')
+        
+    # inpfile.write('*End Instance\n') 
+    # inpfile.write('** \n')
+    # # NODE SETS
+    # inpfile.write('*Nset, nset=AllNodes, instance=Part-1-1, generate\n') 
+    # inpfile.write('{:d}, {:d}, {:d} \n'.format(1,numnode,1))
+    
+    # if any(x in geoName for x in ['hydrostatic_', 'Hydrostatic_']):
+    #     # boundary nodes
+    #     if box_shape == 'square':
+    #         if any(item in boundary_conditions for item in ['left','Left','L']):
+    #             # Nodes on the left
+    #             LeftNodes = (np.where(woodIGAvertices[:,xaxis-1] <= x_min)[0]+1).reshape(1,-1)
+    #             inpfile.write('*Nset, nset=LeftNodes, instance=Part-1-1\n')
+    #             for i in range(0,math.ceil(len(LeftNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                 inpfile.write(''.join(','.join(map(str, LeftNodes[0][15*i:15*(i+1)])))+',\n')
+    #         if any(item in boundary_conditions for item in ['right','Right','R']):
+    #             # Nodes on the right
+    #             RightNodes = (np.where(woodIGAvertices[:,xaxis-1] >= x_max)[0]+1).reshape(1,-1)
+    #             inpfile.write('*Nset, Nset=RightNodes, instance=Part-1-1\n')
+    #             for i in range(0,math.ceil(len(RightNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                 inpfile.write(''.join(','.join(map(str, RightNodes[0][15*i:15*(i+1)])))+',\n')
+    #         if any(item in boundary_conditions for item in ['bottom','Bottom','Bot']):
+    #             # Nodes on the bottom
+    #             BottomNodes = (np.where(woodIGAvertices[:,zaxis-1] <= z_min)[0]+1).reshape(1,-1)
+    #             inpfile.write('*Nset, nset=BottomNodes, instance=Part-1-1\n')
+    #             for i in range(0,math.ceil(len(BottomNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                 inpfile.write(''.join(','.join(map(str, BottomNodes[0][15*i:15*(i+1)])))+',\n')
+    #         if any(item in boundary_conditions for item in ['top','Top','T']):
+    #             # Nodes on the top
+    #             TopNodes = (np.where(woodIGAvertices[:,zaxis-1] >= z_max)[0]+1).reshape(1,-1)
+    #             inpfile.write('*Nset, nset=TopNodes, instance=Part-1-1\n')
+    #             for i in range(0,math.ceil(len(TopNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                 inpfile.write(''.join(','.join(map(str, TopNodes[0][15*i:15*(i+1)])))+',\n')
+    #         if any(item in boundary_conditions for item in ['back','Back']):
+    #             # Nodes on the back
+    #             BackNodes = (np.where(woodIGAvertices[:,yaxis-1] <= y_min)[0]+1).reshape(1,-1)
+    #             inpfile.write('*Nset, nset=BackNodes, instance=Part-1-1\n')
+    #             for i in range(0,math.ceil(len(BackNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                 inpfile.write(''.join(','.join(map(str, BackNodes[0][15*i:15*(i+1)])))+',\n')
+    #         if any(item in boundary_conditions for item in ['front','Front','F']):
+    #             # Nodes on the front
+    #             FrontNodes = (np.where(woodIGAvertices[:,yaxis-1] >= y_max)[0]+1).reshape(1,-1)
+    #             inpfile.write('*Nset, nset=FrontNodes, instance=Part-1-1\n')
+    #             for i in range(0,math.ceil(len(FrontNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                 inpfile.write(''.join(','.join(map(str, FrontNodes[0][15*i:15*(i+1)])))+',\n')
+    #     elif box_shape == 'hexagon':      
+    #         if any(item in boundary_conditions for item in ['Hydrostatic','hydrostatic']):
+    #             offset = x_max*0.05
+    #             # Nodes on the bottom-left
+    #             BottomLeftNodes = (np.where(woodIGAvertices[:,yaxis-1] <= (-np.sqrt(3)*woodIGAvertices[:,xaxis-1] - np.sqrt(3)*x_max + offset))[0]+1).reshape(1,-1)
+    #             # BottomLeftNodes = (np.where((woodIGAvertices[:,xaxis-1]**2 + woodIGAvertices[:,yaxis-1]**2) >= 725.0**2)[0]+1).reshape(1,-1)
+    #             # BottomLeftNodes = (np.where(((woodIGAvertices[:,xaxis-1]**2 + woodIGAvertices[:,yaxis-1]**2) >= y_max**2) &\
+    #             #                             (woodIGAvertices[:,xaxis-1] < x_min/2) &\
+    #             #                             (woodIGAvertices[:,yaxis-1] < 0))[0]+1).reshape(1,-1)
+    #             inpfile.write('*Nset, nset=BottomLeftNodes, instance=Part-1-1\n')
+    #             for i in range(0,math.ceil(len(BottomLeftNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                 inpfile.write(''.join(','.join(map(str, BottomLeftNodes[0][15*i:15*(i+1)])))+',\n')
+    #             # Nodes on the bottom-right
+    #             BottomRightNodes = (np.where(woodIGAvertices[:,yaxis-1] <= (np.sqrt(3)*woodIGAvertices[:,xaxis-1] - np.sqrt(3)*x_max + offset))[0]+1).reshape(1,-1)
+    #             # BottomRightNodes = (np.where(((woodIGAvertices[:,xaxis-1]**2 + woodIGAvertices[:,yaxis-1]**2) >= y_max**2) &\
+    #             #                             (woodIGAvertices[:,xaxis-1] > x_max/2) &\
+    #             #                             (woodIGAvertices[:,yaxis-1] < 0))[0]+1).reshape(1,-1)
+    #             inpfile.write('*Nset, Nset=BottomRightNodes, instance=Part-1-1\n')
+    #             for i in range(0,math.ceil(len(BottomRightNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                 inpfile.write(''.join(','.join(map(str, BottomRightNodes[0][15*i:15*(i+1)])))+',\n')
+    #             # Nodes on the bottom
+    #             BottomNodes = (np.where(woodIGAvertices[:,yaxis-1] <= y_min)[0]+1).reshape(1,-1)
+    #             inpfile.write('*Nset, nset=BottomNodes, instance=Part-1-1\n')
+    #             for i in range(0,math.ceil(len(BottomNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                 inpfile.write(''.join(','.join(map(str, BottomNodes[0][15*i:15*(i+1)])))+',\n')
+    #             # Nodes on the top-left
+    #             TopLeftNodes = (np.where(woodIGAvertices[:,yaxis-1] >= (np.sqrt(3)*woodIGAvertices[:,xaxis-1] + np.sqrt(3)*x_max - offset))[0]+1).reshape(1,-1)
+    #             # TopLeftNodes = (np.where(((woodIGAvertices[:,xaxis-1]**2 + woodIGAvertices[:,yaxis-1]**2) >= y_max**2) &\
+    #             #                             (woodIGAvertices[:,xaxis-1] < x_min/2) &\
+    #             #                             (woodIGAvertices[:,yaxis-1] > 0))[0]+1).reshape(1,-1)
+    #             inpfile.write('*Nset, nset=TopLeftNodes, instance=Part-1-1\n')
+    #             for i in range(0,math.ceil(len(TopLeftNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                 inpfile.write(''.join(','.join(map(str, TopLeftNodes[0][15*i:15*(i+1)])))+',\n')
+    #             # Nodes on the top-right
+    #             TopRightNodes = (np.where(woodIGAvertices[:,yaxis-1] >= (-np.sqrt(3)*woodIGAvertices[:,xaxis-1] + np.sqrt(3)*x_max - offset))[0]+1).reshape(1,-1)
+    #             # TopRightNodes = (np.where(((woodIGAvertices[:,xaxis-1]**2 + woodIGAvertices[:,yaxis-1]**2) >= y_max**2) &\
+    #             #                             (woodIGAvertices[:,xaxis-1] > x_max/2) &\
+    #             #                             (woodIGAvertices[:,yaxis-1] > 0))[0]+1).reshape(1,-1)
+    #             inpfile.write('*Nset, nset=TopRightNodes, instance=Part-1-1\n')
+    #             for i in range(0,math.ceil(len(TopRightNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                 inpfile.write(''.join(','.join(map(str, TopRightNodes[0][15*i:15*(i+1)])))+',\n')
+    #             # Nodes on the top
+    #             TopNodes = (np.where(woodIGAvertices[:,yaxis-1] >= y_max)[0]+1).reshape(1,-1)
+    #             inpfile.write('*Nset, nset=TopNodes, instance=Part-1-1\n')
+    #             for i in range(0,math.ceil(len(TopNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                 inpfile.write(''.join(','.join(map(str, TopNodes[0][15*i:15*(i+1)])))+',\n')
+                    
+    #             # Nodes on the front
+    #             FrontNodes = (np.where(woodIGAvertices[:,zaxis-1] >= z_max)[0]+1).reshape(1,-1)
+    #             inpfile.write('*Nset, nset=FrontNodes, instance=Part-1-1\n')
+    #             for i in range(0,math.ceil(len(FrontNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                 inpfile.write(''.join(','.join(map(str, FrontNodes[0][15*i:15*(i+1)])))+',\n')
+    #             # Nodes on the back
+    #             BackNodes = (np.where(woodIGAvertices[:,zaxis-1] <= z_min)[0]+1).reshape(1,-1)
+    #             inpfile.write('*Nset, nset=BackNodes, instance=Part-1-1\n')
+    #             for i in range(0,math.ceil(len(BackNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                 inpfile.write(''.join(','.join(map(str, BackNodes[0][15*i:15*(i+1)])))+',\n')
+            
+    # elif any(x in geoName for x in ['uniaxial_', 'Uniaxial_']):
+    #     # boundary nodes
+    #     if box_shape == 'square':
+    #         if any(item in boundary_conditions for item in ['left','Left','L']):
+    #             # Nodes on the left
+    #             LeftNodes = (np.where(woodIGAvertices[:,xaxis-1] <= x_min)[0]+1).reshape(1,-1)
+    #             inpfile.write('*Nset, nset=LeftNodes, instance=Part-1-1\n')
+    #             for i in range(0,math.ceil(len(LeftNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                 inpfile.write(''.join(','.join(map(str, LeftNodes[0][15*i:15*(i+1)])))+',\n')
+    #         if any(item in boundary_conditions for item in ['right','Right','R']):
+    #             # Nodes on the right
+    #             RightNodes = (np.where(woodIGAvertices[:,xaxis-1] >= x_max)[0]+1).reshape(1,-1)
+    #             inpfile.write('*Nset, Nset=RightNodes, instance=Part-1-1\n')
+    #             for i in range(0,math.ceil(len(RightNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                 inpfile.write(''.join(','.join(map(str, RightNodes[0][15*i:15*(i+1)])))+',\n')
+    #         if any(item in boundary_conditions for item in ['bottom','Bottom','Bot']):
+    #             # Nodes on the bottom
+    #             BottomNodes = (np.where(woodIGAvertices[:,zaxis-1] <= z_min)[0]+1).reshape(1,-1)
+    #             inpfile.write('*Nset, nset=BottomNodes, instance=Part-1-1\n')
+    #             for i in range(0,math.ceil(len(BottomNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                 inpfile.write(''.join(','.join(map(str, BottomNodes[0][15*i:15*(i+1)])))+',\n')
+    #         if any(item in boundary_conditions for item in ['top','Top','T']):
+    #             # Nodes on the top
+    #             TopNodes = (np.where(woodIGAvertices[:,zaxis-1] >= z_max)[0]+1).reshape(1,-1)
+    #             inpfile.write('*Nset, nset=TopNodes, instance=Part-1-1\n')
+    #             for i in range(0,math.ceil(len(TopNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                 inpfile.write(''.join(','.join(map(str, TopNodes[0][15*i:15*(i+1)])))+',\n')
+    #         if any(item in boundary_conditions for item in ['back','Back']):
+    #             # Nodes on the back
+    #             BackNodes = (np.where(woodIGAvertices[:,yaxis-1] <= y_min)[0]+1).reshape(1,-1)
+    #             inpfile.write('*Nset, nset=BackNodes, instance=Part-1-1\n')
+    #             for i in range(0,math.ceil(len(BackNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                 inpfile.write(''.join(','.join(map(str, BackNodes[0][15*i:15*(i+1)])))+',\n')
+    #         if any(item in boundary_conditions for item in ['front','Front','F']):
+    #             # Nodes on the front
+    #             FrontNodes = (np.where(woodIGAvertices[:,yaxis-1] >= y_max)[0]+1).reshape(1,-1)
+    #             inpfile.write('*Nset, nset=FrontNodes, instance=Part-1-1\n')
+    #             for i in range(0,math.ceil(len(FrontNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                 inpfile.write(''.join(','.join(map(str, FrontNodes[0][15*i:15*(i+1)])))+',\n')
+    #     elif box_shape == 'hexagon':      
+    #         if any(item in boundary_conditions for item in ['Hydrostatic','hydrostatic']):
+    #             offset = x_max*0.05
+    #             # Nodes on the bottom-left
+    #             BottomLeftNodes = (np.where(woodIGAvertices[:,yaxis-1] <= (-np.sqrt(3)*woodIGAvertices[:,xaxis-1] - np.sqrt(3)*x_max + offset))[0]+1).reshape(1,-1)
+    #             # BottomLeftNodes = (np.where((woodIGAvertices[:,xaxis-1]**2 + woodIGAvertices[:,yaxis-1]**2) >= 725.0**2)[0]+1).reshape(1,-1)
+    #             # BottomLeftNodes = (np.where(((woodIGAvertices[:,xaxis-1]**2 + woodIGAvertices[:,yaxis-1]**2) >= y_max**2) &\
+    #             #                             (woodIGAvertices[:,xaxis-1] < x_min/2) &\
+    #             #                             (woodIGAvertices[:,yaxis-1] < 0))[0]+1).reshape(1,-1)
+    #             inpfile.write('*Nset, nset=BottomLeftNodes, instance=Part-1-1\n')
+    #             for i in range(0,math.ceil(len(BottomLeftNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                 inpfile.write(''.join(','.join(map(str, BottomLeftNodes[0][15*i:15*(i+1)])))+',\n')
+    #             # Nodes on the bottom-right
+    #             BottomRightNodes = (np.where(woodIGAvertices[:,yaxis-1] <= (np.sqrt(3)*woodIGAvertices[:,xaxis-1] - np.sqrt(3)*x_max + offset))[0]+1).reshape(1,-1)
+    #             # BottomRightNodes = (np.where(((woodIGAvertices[:,xaxis-1]**2 + woodIGAvertices[:,yaxis-1]**2) >= y_max**2) &\
+    #             #                             (woodIGAvertices[:,xaxis-1] > x_max/2) &\
+    #             #                             (woodIGAvertices[:,yaxis-1] < 0))[0]+1).reshape(1,-1)
+    #             inpfile.write('*Nset, Nset=BottomRightNodes, instance=Part-1-1\n')
+    #             for i in range(0,math.ceil(len(BottomRightNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                 inpfile.write(''.join(','.join(map(str, BottomRightNodes[0][15*i:15*(i+1)])))+',\n')
+    #             # Nodes on the bottom
+    #             BottomNodes = (np.where(woodIGAvertices[:,yaxis-1] <= y_min)[0]+1).reshape(1,-1)
+    #             inpfile.write('*Nset, nset=BottomNodes, instance=Part-1-1\n')
+    #             for i in range(0,math.ceil(len(BottomNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                 inpfile.write(''.join(','.join(map(str, BottomNodes[0][15*i:15*(i+1)])))+',\n')
+    #             # Nodes on the top-left
+    #             TopLeftNodes = (np.where(woodIGAvertices[:,yaxis-1] >= (np.sqrt(3)*woodIGAvertices[:,xaxis-1] + np.sqrt(3)*x_max - offset))[0]+1).reshape(1,-1)
+    #             # TopLeftNodes = (np.where(((woodIGAvertices[:,xaxis-1]**2 + woodIGAvertices[:,yaxis-1]**2) >= y_max**2) &\
+    #             #                             (woodIGAvertices[:,xaxis-1] < x_min/2) &\
+    #             #                             (woodIGAvertices[:,yaxis-1] > 0))[0]+1).reshape(1,-1)
+    #             inpfile.write('*Nset, nset=TopLeftNodes, instance=Part-1-1\n')
+    #             for i in range(0,math.ceil(len(TopLeftNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                 inpfile.write(''.join(','.join(map(str, TopLeftNodes[0][15*i:15*(i+1)])))+',\n')
+    #             # Nodes on the top-right
+    #             TopRightNodes = (np.where(woodIGAvertices[:,yaxis-1] >= (-np.sqrt(3)*woodIGAvertices[:,xaxis-1] + np.sqrt(3)*x_max - offset))[0]+1).reshape(1,-1)
+    #             # TopRightNodes = (np.where(((woodIGAvertices[:,xaxis-1]**2 + woodIGAvertices[:,yaxis-1]**2) >= y_max**2) &\
+    #             #                             (woodIGAvertices[:,xaxis-1] > x_max/2) &\
+    #             #                             (woodIGAvertices[:,yaxis-1] > 0))[0]+1).reshape(1,-1)
+    #             inpfile.write('*Nset, nset=TopRightNodes, instance=Part-1-1\n')
+    #             for i in range(0,math.ceil(len(TopRightNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                 inpfile.write(''.join(','.join(map(str, TopRightNodes[0][15*i:15*(i+1)])))+',\n')
+    #             # Nodes on the top
+    #             TopNodes = (np.where(woodIGAvertices[:,yaxis-1] >= y_max)[0]+1).reshape(1,-1)
+    #             inpfile.write('*Nset, nset=TopNodes, instance=Part-1-1\n')
+    #             for i in range(0,math.ceil(len(TopNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                 inpfile.write(''.join(','.join(map(str, TopNodes[0][15*i:15*(i+1)])))+',\n')
+                    
+    #             # Nodes on the front
+    #             FrontNodes = (np.where(woodIGAvertices[:,zaxis-1] >= z_max)[0]+1).reshape(1,-1)
+    #             inpfile.write('*Nset, nset=FrontNodes, instance=Part-1-1\n')
+    #             for i in range(0,math.ceil(len(FrontNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                 inpfile.write(''.join(','.join(map(str, FrontNodes[0][15*i:15*(i+1)])))+',\n')
+    #             # Nodes on the back
+    #             BackNodes = (np.where(woodIGAvertices[:,zaxis-1] <= z_min)[0]+1).reshape(1,-1)
+    #             inpfile.write('*Nset, nset=BackNodes, instance=Part-1-1\n')
+    #             for i in range(0,math.ceil(len(BackNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                 inpfile.write(''.join(','.join(map(str, BackNodes[0][15*i:15*(i+1)])))+',\n')
+    # else:
+    #     if merge_operation in ['on','On','Y','y','Yes','yes']:
+    #         # boundary nodes
+    #         if box_shape == 'square':
+    #             if any(item in boundary_conditions for item in ['left','Left','L']):
+    #                 # Nodes on the left
+    #                 LeftNodes = (np.where(woodIGAvertices[:,xaxis-1] <= x_min+merge_tol)[0]+1).reshape(1,-1)
+    #                 inpfile.write('*Nset, nset=LeftNodes, instance=Part-1-1\n')
+    #                 for i in range(0,math.ceil(len(LeftNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                     inpfile.write(''.join(','.join(map(str, LeftNodes[0][15*i:15*(i+1)])))+',\n')
+    #             if any(item in boundary_conditions for item in ['right','Right','R']):
+    #                 # Nodes on the right
+    #                 RightNodes = (np.where(woodIGAvertices[:,xaxis-1] >= x_max-merge_tol)[0]+1).reshape(1,-1)
+    #                 inpfile.write('*Nset, Nset=RightNodes, instance=Part-1-1\n')
+    #                 for i in range(0,math.ceil(len(RightNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                     inpfile.write(''.join(','.join(map(str, RightNodes[0][15*i:15*(i+1)])))+',\n')
+    #             if any(item in boundary_conditions for item in ['bottom','Bottom','Bot']):
+    #                 # Nodes on the bottom
+    #                 BottomNodes = (np.where(woodIGAvertices[:,zaxis-1] <= z_min+merge_tol)[0]+1).reshape(1,-1)
+    #                 inpfile.write('*Nset, nset=BottomNodes, instance=Part-1-1\n')
+    #                 for i in range(0,math.ceil(len(BottomNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                     inpfile.write(''.join(','.join(map(str, BottomNodes[0][15*i:15*(i+1)])))+',\n')
+    #             if any(item in boundary_conditions for item in ['top','Top','T']):
+    #                 # Nodes on the top
+    #                 TopNodes = (np.where(woodIGAvertices[:,zaxis-1] >= z_max-merge_tol)[0]+1).reshape(1,-1)
+    #                 inpfile.write('*Nset, nset=TopNodes, instance=Part-1-1\n')
+    #                 for i in range(0,math.ceil(len(TopNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                     inpfile.write(''.join(','.join(map(str, TopNodes[0][15*i:15*(i+1)])))+',\n')
+    #             if any(item in boundary_conditions for item in ['back','Back']):
+    #                 # Nodes on the back
+    #                 BackNodes = (np.where(woodIGAvertices[:,yaxis-1] <= y_min+merge_tol)[0]+1).reshape(1,-1)
+    #                 inpfile.write('*Nset, nset=BackNodes, instance=Part-1-1\n')
+    #                 for i in range(0,math.ceil(len(BackNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                     inpfile.write(''.join(','.join(map(str, BackNodes[0][15*i:15*(i+1)])))+',\n')
+    #             if any(item in boundary_conditions for item in ['front','Front','F']):
+    #                 # Nodes on the front
+    #                 FrontNodes = (np.where(woodIGAvertices[:,yaxis-1] >= y_max-merge_tol)[0]+1).reshape(1,-1)
+    #                 inpfile.write('*Nset, nset=FrontNodes, instance=Part-1-1\n')
+    #                 for i in range(0,math.ceil(len(FrontNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                     inpfile.write(''.join(','.join(map(str, FrontNodes[0][15*i:15*(i+1)])))+',\n')
+    
+    #         # boundary nodes
+    #         elif box_shape == 'notched_square':
+    #             # if any(item in boundary_conditions for item in ['left','Left','L']):
+    #                 # Nodes on the left bottom
+    #                 LeftBottomNodes = (np.where((woodIGAvertices[:,xaxis-1] <= x_min+merge_tol) & (woodIGAvertices[:,yaxis-1] <= 0))[0]+1).reshape(1,-1)
+    #                 inpfile.write('*Nset, nset=LeftBottomNodes, instance=Part-1-1\n')
+    #                 for i in range(0,math.ceil(len(LeftBottomNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                     inpfile.write(''.join(','.join(map(str, LeftBottomNodes[0][15*i:15*(i+1)])))+',\n')
+    #                 # Nodes on the left top
+    #                 LeftTopNodes = (np.where((woodIGAvertices[:,xaxis-1] <= x_min+merge_tol) & (woodIGAvertices[:,yaxis-1] >= 0))[0]+1).reshape(1,-1)
+    #                 inpfile.write('*Nset, nset=LeftTopNodes, instance=Part-1-1\n')
+    #                 for i in range(0,math.ceil(len(LeftTopNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                     inpfile.write(''.join(','.join(map(str, LeftTopNodes[0][15*i:15*(i+1)])))+',\n')
+    #             # if any(item in boundary_conditions for item in ['right','Right','R']):
+    #                 # Nodes on the right
+    #                 RightNodes = (np.where(woodIGAvertices[:,xaxis-1] >= x_max-merge_tol)[0]+1).reshape(1,-1)
+    #                 inpfile.write('*Nset, Nset=RightNodes, instance=Part-1-1\n')
+    #                 for i in range(0,math.ceil(len(RightNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                     inpfile.write(''.join(','.join(map(str, RightNodes[0][15*i:15*(i+1)])))+',\n')
+    #             # if any(item in boundary_conditions for item in ['bottom','Bottom','Bot']):
+    #                 # Nodes on the bottom
+    #                 BottomNodes = (np.where(woodIGAvertices[:,zaxis-1] <= z_min+merge_tol)[0]+1).reshape(1,-1)
+    #                 inpfile.write('*Nset, nset=BottomNodes, instance=Part-1-1\n')
+    #                 for i in range(0,math.ceil(len(BottomNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                     inpfile.write(''.join(','.join(map(str, BottomNodes[0][15*i:15*(i+1)])))+',\n')
+    #             # if any(item in boundary_conditions for item in ['top','Top','T']):
+    #                 # Nodes on the top
+    #                 TopNodes = (np.where(woodIGAvertices[:,zaxis-1] >= z_max-merge_tol)[0]+1).reshape(1,-1)
+    #                 inpfile.write('*Nset, nset=TopNodes, instance=Part-1-1\n')
+    #                 for i in range(0,math.ceil(len(TopNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                     inpfile.write(''.join(','.join(map(str, TopNodes[0][15*i:15*(i+1)])))+',\n')
+    #             # if any(item in boundary_conditions for item in ['back','Back']):
+    #                 # Nodes on the back
+    #                 BackNodes = (np.where(woodIGAvertices[:,yaxis-1] <= y_min+merge_tol)[0]+1).reshape(1,-1)
+    #                 inpfile.write('*Nset, nset=BackNodes, instance=Part-1-1\n')
+    #                 for i in range(0,math.ceil(len(BackNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                     inpfile.write(''.join(','.join(map(str, BackNodes[0][15*i:15*(i+1)])))+',\n')
+    #             # if any(item in boundary_conditions for item in ['front','Front','F']):
+    #                 # Nodes on the front
+    #                 FrontNodes = (np.where(woodIGAvertices[:,yaxis-1] >= y_max-merge_tol)[0]+1).reshape(1,-1)
+    #                 inpfile.write('*Nset, nset=FrontNodes, instance=Part-1-1\n')
+    #                 for i in range(0,math.ceil(len(FrontNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                     inpfile.write(''.join(','.join(map(str, FrontNodes[0][15*i:15*(i+1)])))+',\n')
+    #     else: # not merged
+    #         # boundary nodes
+    #         if box_shape == 'square':
+    #             if any(item in boundary_conditions for item in ['left','Left','L']):
+    #                 # Nodes on the left
+    #                 LeftNodes = (np.where(woodIGAvertices[:,xaxis-1] <= x_min)[0]+1).reshape(1,-1)
+    #                 inpfile.write('*Nset, nset=LeftNodes, instance=Part-1-1\n')
+    #                 for i in range(0,math.ceil(len(LeftNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                     inpfile.write(''.join(','.join(map(str, LeftNodes[0][15*i:15*(i+1)])))+',\n')
+    #             if any(item in boundary_conditions for item in ['right','Right','R']):
+    #                 # Nodes on the right
+    #                 RightNodes = (np.where(woodIGAvertices[:,xaxis-1] >= x_max)[0]+1).reshape(1,-1)
+    #                 inpfile.write('*Nset, Nset=RightNodes, instance=Part-1-1\n')
+    #                 for i in range(0,math.ceil(len(RightNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                     inpfile.write(''.join(','.join(map(str, RightNodes[0][15*i:15*(i+1)])))+',\n')
+    #             if any(item in boundary_conditions for item in ['bottom','Bottom','Bot']):
+    #                 # Nodes on the bottom
+    #                 BottomNodes = (np.where(woodIGAvertices[:,zaxis-1] <= z_min)[0]+1).reshape(1,-1)
+    #                 inpfile.write('*Nset, nset=BottomNodes, instance=Part-1-1\n')
+    #                 for i in range(0,math.ceil(len(BottomNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                     inpfile.write(''.join(','.join(map(str, BottomNodes[0][15*i:15*(i+1)])))+',\n')
+    #             if any(item in boundary_conditions for item in ['top','Top','T']):
+    #                 # Nodes on the top
+    #                 TopNodes = (np.where(woodIGAvertices[:,zaxis-1] >= z_max)[0]+1).reshape(1,-1)
+    #                 inpfile.write('*Nset, nset=TopNodes, instance=Part-1-1\n')
+    #                 for i in range(0,math.ceil(len(TopNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                     inpfile.write(''.join(','.join(map(str, TopNodes[0][15*i:15*(i+1)])))+',\n')
+    #             if any(item in boundary_conditions for item in ['back','Back']):
+    #                 # Nodes on the back
+    #                 BackNodes = (np.where(woodIGAvertices[:,yaxis-1] <= y_min)[0]+1).reshape(1,-1)
+    #                 inpfile.write('*Nset, nset=BackNodes, instance=Part-1-1\n')
+    #                 for i in range(0,math.ceil(len(BackNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                     inpfile.write(''.join(','.join(map(str, BackNodes[0][15*i:15*(i+1)])))+',\n')
+    #             if any(item in boundary_conditions for item in ['front','Front','F']):
+    #                 # Nodes on the front
+    #                 FrontNodes = (np.where(woodIGAvertices[:,yaxis-1] >= y_max)[0]+1).reshape(1,-1)
+    #                 inpfile.write('*Nset, nset=FrontNodes, instance=Part-1-1\n')
+    #                 for i in range(0,math.ceil(len(FrontNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                     inpfile.write(''.join(','.join(map(str, FrontNodes[0][15*i:15*(i+1)])))+',\n')
+    
+    #         # boundary nodes
+    #         elif box_shape == 'notched_square':
+    #             if any(item in boundary_conditions for item in ['left','Left','L']):
+    #                 # Nodes on the left bottom
+    #                 LeftBottomNodes = (np.where((woodIGAvertices[:,xaxis-1] <= x_min) & (woodIGAvertices[:,yaxis-1] <= 0))[0]+1).reshape(1,-1)
+    #                 inpfile.write('*Nset, nset=LeftBottomNodes, instance=Part-1-1\n')
+    #                 for i in range(0,math.ceil(len(LeftBottomNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                     inpfile.write(''.join(','.join(map(str, LeftBottomNodes[0][15*i:15*(i+1)])))+',\n')
+    #                 # Nodes on the left top
+    #                 LeftTopNodes = (np.where((woodIGAvertices[:,xaxis-1] <= x_min) & (woodIGAvertices[:,yaxis-1] >= 0))[0]+1).reshape(1,-1)
+    #                 inpfile.write('*Nset, nset=LeftTopNodes, instance=Part-1-1\n')
+    #                 for i in range(0,math.ceil(len(LeftTopNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                     inpfile.write(''.join(','.join(map(str, LeftTopNodes[0][15*i:15*(i+1)])))+',\n')
+    #             if any(item in boundary_conditions for item in ['right','Right','R']):
+    #                 # Nodes on the right
+    #                 RightNodes = (np.where(woodIGAvertices[:,xaxis-1] >= x_max)[0]+1).reshape(1,-1)
+    #                 inpfile.write('*Nset, Nset=RightNodes, instance=Part-1-1\n')
+    #                 for i in range(0,math.ceil(len(RightNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                     inpfile.write(''.join(','.join(map(str, RightNodes[0][15*i:15*(i+1)])))+',\n')
+    #             if any(item in boundary_conditions for item in ['bottom','Bottom','Bot']):
+    #                 # Nodes on the bottom
+    #                 BottomNodes = (np.where(woodIGAvertices[:,zaxis-1] <= z_min)[0]+1).reshape(1,-1)
+    #                 inpfile.write('*Nset, nset=BottomNodes, instance=Part-1-1\n')
+    #                 for i in range(0,math.ceil(len(BottomNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                     inpfile.write(''.join(','.join(map(str, BottomNodes[0][15*i:15*(i+1)])))+',\n')
+    #             if any(item in boundary_conditions for item in ['top','Top','T']):
+    #                 # Nodes on the top
+    #                 TopNodes = (np.where(woodIGAvertices[:,zaxis-1] >= z_max)[0]+1).reshape(1,-1)
+    #                 inpfile.write('*Nset, nset=TopNodes, instance=Part-1-1\n')
+    #                 for i in range(0,math.ceil(len(TopNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                     inpfile.write(''.join(','.join(map(str, TopNodes[0][15*i:15*(i+1)])))+',\n')
+    #             if any(item in boundary_conditions for item in ['back','Back']):
+    #                 # Nodes on the back
+    #                 BackNodes = (np.where(woodIGAvertices[:,yaxis-1] <= y_min)[0]+1).reshape(1,-1)
+    #                 inpfile.write('*Nset, nset=BackNodes, instance=Part-1-1\n')
+    #                 for i in range(0,math.ceil(len(BackNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                     inpfile.write(''.join(','.join(map(str, BackNodes[0][15*i:15*(i+1)])))+',\n')
+    #             if any(item in boundary_conditions for item in ['front','Front','F']):
+    #                 # Nodes on the front
+    #                 FrontNodes = (np.where(woodIGAvertices[:,yaxis-1] >= y_max)[0]+1).reshape(1,-1)
+    #                 inpfile.write('*Nset, nset=FrontNodes, instance=Part-1-1\n')
+    #                 for i in range(0,math.ceil(len(FrontNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
+    #                     inpfile.write(''.join(','.join(map(str, FrontNodes[0][15*i:15*(i+1)])))+',\n')      
+    # # ELEMENT SETS
+    # inpfile.write('*Elset, elset=AllElles, instance=Part-1-1, generate\n') 
+    # inpfile.write('{:d}, {:d}, {:d} \n'.format(1,nelem_total,1))
+    # inpfile.write('*Elset, elset=AllVisualElle, instance=Part-1-1, generate\n') 
+    # inpfile.write('{:d}, {:d}, {:d} \n'.format(count_offset+1,count-1,1))
+    # inpfile.write('*End Assembly\n')
+    # # AMPLITUDES
+    # inpfile.write('** \n') 
+    # inpfile.write('*Amplitude, name=Amp-1, time=TOTAL TIME, definition=SMOOTH STEP \n') 
+    # inpfile.write('{:8.2E}, {:8.2E}, {:8.2E}, {:8.2E}, {:8.2E}, {:8.2E} \n'.format(0., 0., 0.2*totaltime, 1.0, totaltime, 1.0))
+    # # MATERIALS
+    # inpfile.write('**\n')
+    # inpfile.write('** MATERIALS\n')
+    # inpfile.write('**\n')
+    # inpfile.write('*Material, name=VisualTConns\n')
+    # inpfile.write('*Density\n')
+    # inpfile.write('<DensityTConn>,\n')
+    # inpfile.write('*Depvar\n')
+    # inpfile.write('<NumberOfSvarsTConn>\n')
+    # inpfile.write('1, SigN, SigN\n')
+    # inpfile.write('2, SigM, SigM\n')
+    # inpfile.write('3, SigL, SigL\n')
+    # inpfile.write('4, EpsN, EpsN\n')
+    # inpfile.write('5, EpsM, EpsM\n')
+    # inpfile.write('6, EpsL, EpsL\n')
+    # inpfile.write('7, ENx, ENx\n')
+    # inpfile.write('8, ENy, ENy\n')
+    # inpfile.write('9, ENz, ENz\n')
+    # inpfile.write('10, EMx, EMx\n')
+    # inpfile.write('11, EMy, EMy\n')
+    # inpfile.write('12, EMz, EMz\n')
+    # inpfile.write('13, ELx, ELx\n')
+    # inpfile.write('14, ELy, ELy\n')
+    # inpfile.write('15, ELz, ELz\n')
+    # inpfile.write('16, Width, Width\n')
+    # inpfile.write('17, Height, Height\n')
+    # inpfile.write('18, Length, Length\n')
+    # inpfile.write('19, EpsNmax, EpsNmax\n')
+    # inpfile.write('20, EpsTmax, EpsTmax\n')
+    # inpfile.write('21, ft, ft\n')
+    # inpfile.write('22, kpost, kpost\n')
+    # inpfile.write('23, wN, wN\n')
+    # inpfile.write('24, wM, wM\n')
+    # inpfile.write('25, wL, wL\n')
+    # inpfile.write('26, wtotal, wtotal\n')
+    # inpfile.write('27, EpsNmin, EpsNmin\n')
+    # inpfile.write('28, EpsV, EpsV\n')
+    # inpfile.write('29, Ed, Ed\n')
+    # inpfile.write('30, Edrate, Edrate\n')
+    # inpfile.write('31, Etd, Etd\n')
+    # inpfile.write('32, Etdrate, Etdrate\n')
+    # inpfile.write('*User Material, constants=1\n')
+    # inpfile.write('0.,\n')
+    # #
+    # inpfile.write('*Material, name=VisualLConns\n')
+    # inpfile.write('*Density\n')
+    # inpfile.write('<DensityLConn>,\n')
+    # inpfile.write('*Depvar\n')
+    # inpfile.write('<NumberOfSvarsLConn>\n')
+    # inpfile.write('1, SigN, SigN\n')
+    # inpfile.write('2, SigM, SigM\n')
+    # inpfile.write('3, SigL, SigL\n')
+    # inpfile.write('4, EpsN, EpsN\n')
+    # inpfile.write('5, EpsM, EpsM\n')
+    # inpfile.write('6, EpsL, EpsL\n')
+    # inpfile.write('7, ENx, ENx\n')
+    # inpfile.write('8, ENy, ENy\n')
+    # inpfile.write('9, ENz, ENz\n')
+    # inpfile.write('10, EMx, EMx\n')
+    # inpfile.write('11, EMy, EMy\n')
+    # inpfile.write('12, EMz, EMz\n')
+    # inpfile.write('13, ELx, ELx\n')
+    # inpfile.write('14, ELy, ELy\n')
+    # inpfile.write('15, ELz, ELz\n')
+    # inpfile.write('16, Width, Width\n')
+    # inpfile.write('17, Height, Height\n')
+    # inpfile.write('18, Length, Length\n')
+    # inpfile.write('19, EpsNmax, EpsNmax\n')
+    # inpfile.write('20, EpsTmax, EpsTmax\n')
+    # inpfile.write('21, ft, ft\n')
+    # inpfile.write('22, kpost, kpost\n')
+    # inpfile.write('23, wN, wN\n')
+    # inpfile.write('24, wM, wM\n')
+    # inpfile.write('25, wL, wL\n')
+    # inpfile.write('26, wtotal, wtotal\n')
+    # inpfile.write('27, EpsNmin, EpsNmin\n')
+    # inpfile.write('28, EpsV, EpsV\n')
+    # inpfile.write('29, Ed, Ed\n')
+    # inpfile.write('30, Edrate, Edrate\n')
+    # inpfile.write('31, Etd, Etd\n')
+    # inpfile.write('32, Etdrate, Etdrate\n')
+    # inpfile.write('*User Material, constants=1\n')
+    # inpfile.write('0.,\n')
+    # if NURBS_degree == 2:
+    #     inpfile.write('*Material, name=VisualBeams\n')
+    #     inpfile.write('*Density\n')
+    #     inpfile.write('<DensityBeam>,\n')
+    #     inpfile.write('*Depvar\n')
+    #     inpfile.write('<NumberOfSvarsBeam>\n')
+    #     inpfile.write('1, Nt, Nt\n')
+    #     inpfile.write('2, Qn, Qn\n')
+    #     inpfile.write('3, Qb, Qb\n')
+    #     inpfile.write('4, Mt, Mt\n')
+    #     inpfile.write('5, Mn, Mn\n')
+    #     inpfile.write('6, Mb, Mb\n')
+    #     inpfile.write('7, eps0tt, eps0tt\n')
+    #     inpfile.write('8, gma0tn, gma0tn\n')
+    #     inpfile.write('9, gma0tb, gma0tb\n')
+    #     inpfile.write('10, chit, chit\n')
+    #     inpfile.write('11, chin, chin\n')
+    #     inpfile.write('12, chib, chib\n')
+    #     inpfile.write('13, gpx, gpx\n')
+    #     inpfile.write('14, gpy, gpy\n')
+    #     inpfile.write('15, gpz, gpz\n')
+    #     inpfile.write('16, tx, tx\n')
+    #     inpfile.write('17, ty, ty\n')
+    #     inpfile.write('18, tz, tz\n')
+    #     inpfile.write('19, nx, nx\n')
+    #     inpfile.write('20, ny, ny\n')
+    #     inpfile.write('21, nz, nz\n')
+    #     inpfile.write('22, bx, bx\n')
+    #     inpfile.write('23, by, by\n')
+    #     inpfile.write('24, bz, bz\n')
+    #     inpfile.write('25, kappa, kappa\n')
+    #     inpfile.write('26, tau, tau\n')
+    #     inpfile.write('27, Blength, Blength\n')
+    #     inpfile.write('*User Material, constants=1\n')
+    #     inpfile.write('0.,\n')
+        
+    # # BOUNDARY CONDITIONS
+    # inpfile.write('** \n')  
+    # inpfile.write('** BOUNDARY CONDITIONS\n') 
+    # inpfile.write('** \n')  
+    # inpfile.write('** Name: BC-Fixed Type: Displacement/Rotation\n') 
+    # inpfile.write('*Boundary\n')
+    # if 'hydrostatic_' in geoName:
+    #     if 'free' in geoName:
+    #         inpfile.write('LeftNodes, 1, 1\n')
+    #         inpfile.write('LeftNodes, 4, 4\n')
+    #         inpfile.write('LeftNodes, 5, 5\n')
+    #         inpfile.write('LeftNodes, 6, 6\n')
+            
+    #         inpfile.write('BottomNodes, 4, 4\n')
+    #         inpfile.write('BottomNodes, 5, 5\n')
+    #         inpfile.write('BottomNodes, 6, 6\n')
+    #         inpfile.write('TopNodes, 4, 4\n')
+    #         inpfile.write('TopNodes, 5, 5\n')
+    #         inpfile.write('TopNodes, 6, 6\n')
+    #         inpfile.write('BottomLeftNodes, 4, 4\n')
+    #         inpfile.write('BottomLeftNodes, 5, 5\n')
+    #         inpfile.write('BottomLeftNodes, 6, 6\n')
+    #         inpfile.write('BottomRightNodes, 4, 4\n')
+    #         inpfile.write('BottomRightNodes, 5, 5\n')
+    #         inpfile.write('BottomRightNodes, 6, 6\n')
+    #         inpfile.write('TopLeftNodes, 4, 4\n')
+    #         inpfile.write('TopLeftNodes, 5, 5\n')
+    #         inpfile.write('TopLeftNodes, 6, 6\n')
+    #         inpfile.write('TopRightNodes, 4, 4\n')
+    #         inpfile.write('TopRightNodes, 5, 5\n')
+    #         inpfile.write('TopRightNodes, 6, 6\n')
+    #     elif 'free' in geoName:
+    #         inpfile.write('AllNodes, 4, 6\n')
+            
+    # elif 'uniaxial_' in geoName:
+    #     if 'free' in geoName:
+    #         inpfile.write('LeftNodes, 1, 1\n')
+    #         inpfile.write('LeftNodes, 4, 4\n')
+    #         inpfile.write('LeftNodes, 5, 5\n')
+    #         inpfile.write('LeftNodes, 6, 6\n')
+            
+    #         inpfile.write('BottomNodes, 4, 4\n')
+    #         inpfile.write('BottomNodes, 5, 5\n')
+    #         inpfile.write('BottomNodes, 6, 6\n')
+    #         inpfile.write('TopNodes, 4, 4\n')
+    #         inpfile.write('TopNodes, 5, 5\n')
+    #         inpfile.write('TopNodes, 6, 6\n')
+    #         inpfile.write('BottomLeftNodes, 4, 4\n')
+    #         inpfile.write('BottomLeftNodes, 5, 5\n')
+    #         inpfile.write('BottomLeftNodes, 6, 6\n')
+    #         inpfile.write('BottomRightNodes, 4, 4\n')
+    #         inpfile.write('BottomRightNodes, 5, 5\n')
+    #         inpfile.write('BottomRightNodes, 6, 6\n')
+    #         inpfile.write('TopLeftNodes, 4, 4\n')
+    #         inpfile.write('TopLeftNodes, 5, 5\n')
+    #         inpfile.write('TopLeftNodes, 6, 6\n')
+    #         inpfile.write('TopRightNodes, 4, 4\n')
+    #         inpfile.write('TopRightNodes, 5, 5\n')
+    #         inpfile.write('TopRightNodes, 6, 6\n')
+    #     elif 'free' in geoName:
+    #         inpfile.write('AllNodes, 4, 6\n')
+    # else:   
+    #     inpfile.write('LeftNodes, 4, 6\n')
+    #     inpfile.write('RightNodes, 4, 6\n')
+    #     inpfile.write('BottomNodes, 4, 6\n')
+    #     inpfile.write('TopNodes, 4, 6\n')
+    #     inpfile.write('FrontNodes, 4, 6\n')
+    #     inpfile.write('BackNodes, 4, 6\n')
+
+    # inpfile.write('** ------------------------------------------------------- \n') 
+    # inpfile.write('** \n')  
+    # inpfile.write('** STEP: Load\n') 
+    # inpfile.write('** \n')  
+    # inpfile.write('*Step, name=Load, nlgeom=NO\n') 
+    # inpfile.write('*Dynamic, Explicit, DIRECT USER CONTROL\n') 
+    # inpfile.write('{:8.4e}, {:8.4e} \n'.format(timestep, totaltime))
+    # inpfile.write('*Bulk Viscosity\n') 
+    # inpfile.write('0.06, 1.2\n')
+    # inpfile.write('** Mass Scaling: Semi-Automatic\n')
+    # inpfile.write('**               Whole Model\n')
+    # inpfile.write('*Fixed Mass Scaling, dt={:8.4e}, type=below min\n'.format(timestep))
+    # inpfile.write('** \n')  
+    # inpfile.write('** BOUNDARY CONDITIONS\n') 
+    # inpfile.write('** \n')  
+    # inpfile.write('** Name: BC-velo Type: Velocity/Angular velocity\n') 
+    
+    # if 'hydrostatic_' in geoName:
+    #     inpfile.write('*Boundary, type=VELOCITY, amp=Amp-1\n')
+    #     inpfile.write('TopNodes, 2, 2, {:e}\n'.format(BC_velo_value))
+    #     inpfile.write('BottomNodes, 2, 2, {:e}\n'.format(-BC_velo_value))
+    #     inpfile.write('TopRightNodes, 1, 1, {:e}\n'.format(BC_velo_value*np.cos(np.pi/6)))
+    #     inpfile.write('TopRightNodes, 2, 2, {:e}\n'.format(BC_velo_value*np.sin(np.pi/6)))
+    #     inpfile.write('BottomRightNodes, 1, 1, {:e}\n'.format(BC_velo_value*np.cos(-np.pi/6)))
+    #     inpfile.write('BottomRightNodes, 2, 2, {:e}\n'.format(BC_velo_value*np.sin(-np.pi/6)))
+    #     inpfile.write('TopLeftNodes, 1, 1, {:e}\n'.format(BC_velo_value*np.cos(np.pi - np.pi/6)))
+    #     inpfile.write('TopLeftNodes, 2, 2, {:e}\n'.format(BC_velo_value*np.sin(np.pi - np.pi/6)))
+    #     inpfile.write('BottomLeftNodes, 1, 1, {:e}\n'.format(BC_velo_value*np.cos(np.pi + np.pi/6)))
+    #     inpfile.write('BottomLeftNodes, 2, 2, {:e}\n'.format(BC_velo_value*np.sin(np.pi + np.pi/6)))   
+    
+    # elif 'uniaxial_' in geoName:
+    #     inpfile.write('*Boundary, type=VELOCITY, amp=Amp-1\n')
+    #     inpfile.write('TopNodes, 2, 2, {:e}\n'.format(BC_velo_value))
+    #     inpfile.write('BottomNodes, 2, 2, {:e}\n'.format(-BC_velo_value))
+    #     inpfile.write('TopRightNodes, 1, 1, {:e}\n'.format(BC_velo_value*np.cos(np.pi/6)))
+    #     inpfile.write('TopRightNodes, 2, 2, {:e}\n'.format(BC_velo_value*np.sin(np.pi/6)))
+    #     inpfile.write('BottomRightNodes, 1, 1, {:e}\n'.format(BC_velo_value*np.cos(-np.pi/6)))
+    #     inpfile.write('BottomRightNodes, 2, 2, {:e}\n'.format(BC_velo_value*np.sin(-np.pi/6)))
+    #     inpfile.write('TopLeftNodes, 1, 1, {:e}\n'.format(BC_velo_value*np.cos(np.pi - np.pi/6)))
+    #     inpfile.write('TopLeftNodes, 2, 2, {:e}\n'.format(BC_velo_value*np.sin(np.pi - np.pi/6)))
+    #     inpfile.write('BottomLeftNodes, 1, 1, {:e}\n'.format(BC_velo_value*np.cos(np.pi + np.pi/6)))
+    #     inpfile.write('BottomLeftNodes, 2, 2, {:e}\n'.format(BC_velo_value*np.sin(np.pi + np.pi/6)))   
+        
+    # # OUTPUT
+    # inpfile.write('** \n') 
+    # inpfile.write('** OUTPUT REQUESTS\n') 
+    # inpfile.write('** \n') 
+    # inpfile.write('*Output, Field, Number interval=100\n') 
+    # inpfile.write('*Node Output, Nset=AllNodes\n') 
+    # inpfile.write('U, V, A, RF \n')
+    # inpfile.write('*Element Output, elset=AllVisualElle, directions=NO\n')
+    # inpfile.write('SDV\n')
+    # inpfile.write('**\n') 
+    # inpfile.write('** HISTORY OUTPUT: H-Output-1\n') 
+    # inpfile.write('**\n') 
+    # inpfile.write('*Output, history, time interval={:8.4e}\n'.format(totaltime/100.0)) 
+    # inpfile.write('*Energy Output\n') 
+    # inpfile.write('ETOTAL, ALLWK, ALLKE\n') 
+    # inpfile.write('**\n') 
+    # inpfile.write('** HISTORY OUTPUT: H-Output-2\n') 
+    # inpfile.write('**\n') 
+    # inpfile.write('*Output, history, time interval={:8.4e}\n'.format(totaltime/100.0)) 
+    # inpfile.write('*Energy Output, elset=AllElles\n') 
+    # inpfile.write('ALLIE\n') 
+    # inpfile.write('*End Step') 
+    # inpfile.close()
+
+
+def ReadSavedSites(radial_growth_rule):
+    """Search in the current directory and all directories above it 
+    for a file of a particular name.
+
+    Arguments:
+    ---------
+    filename :: string, the filename to look for.
+
+    Returns
+    -------
+    pathlib.Path, the location of the first file found or
+    None, if none was found
+    """
+    
+    # filename, filetype = radial_growth_rule.split(".",1)
+    sitefile = radial_growth_rule
+    radiusfile = radial_growth_rule.strip().replace("_sites", '_radius')
+    
+    d = Path.cwd()
+    root = Path(d.root)
+
+    while d != root:
+        site_attempt = d / sitefile
+        radius_attempt = d / radiusfile
+        if site_attempt.exists() and site_attempt.exists():
+            print('Sites info from file: {:s} has been loaded.'.format(str(site_attempt)))
+            return np.load(site_attempt), np.load(radius_attempt)
+        d = d.parent
+        
+    return None
 
 
 def StlModelFile(geoName):
@@ -1993,18 +3986,16 @@ def LogFile(geoName,iter_max,r_min,r_max,nrings,width_heart,width_early,width_la
         fiberlength,theta_min,theta_max,z_min,z_max,long_connector_ratio,\
         NURBS_degree,nctrlpt_per_beam,nconnector_t_precrack,nconnector_l_precrack,\
         nParticles,nbeamElem,\
-        STLFlag,\
+        stlFlag,inpFlag,inpType,radial_growth_rule,\
         startTime,placementTime,voronoiTime,RebuildvorTime,BeamTime,FileTime):
 
     # get current local time
     current_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     
-    growth_rule = 'binary'
-    
     # Generate log file
     logfile = open(Path('meshes/' + geoName + '/' + geoName + '-report.log'),'w')                                      
     logfile.write('################################################################################\n')
-    logfile.write('##             Log Created with RingsPy Mesh Generation Tool V0.1.1           ##\n')
+    logfile.write('##             Log Created with RingsPy Mesh Generation Tool V' + pkg_resources.get_distribution("RingsPy").version + '           ##\n')
     logfile.write('##             Files generated at local time: ' + current_time + '             ##\n')
     logfile.write('################################################################################\n')
     logfile.write('\n')
@@ -2013,7 +4004,7 @@ def LogFile(geoName,iter_max,r_min,r_max,nrings,width_heart,width_early,width_la
     logfile.write('\n')
     logfile.write('GENERATION PARAMETERS:\n')
     logfile.write('iter_max:                                ' + str(iter_max) + '\n')
-    logfile.write('radial_growth_rule:                      ' + str(growth_rule) + '\n')
+    logfile.write('radial_growth_rule:                      ' + str(radial_growth_rule) + '\n')
     logfile.write('merge_operation:                         ' + merge_operation + '\n')
     logfile.write('boundaryFlag:                            ' + boundaryFlag + '\n')
     logfile.write('\n')
@@ -2067,8 +4058,9 @@ def LogFile(geoName,iter_max,r_min,r_max,nrings,width_heart,width_early,width_la
     logfile.write('Total Time:                              ' + str(FileTime - startTime) + '\n')
     logfile.write('\n')
     logfile.write('FILE CREATION:\n')  
-    # logfile.write('Geometry File:                           ./meshes/' + geoName + '/' + geoFile + '\n')
-    logfile.write('NURBS beam File:                         ./meshes/' + geoName + '/' + geoName \
+    logfile.write('Cross-sectional Image File:              ./meshes/' + geoName + '/' + geoName \
+        + '.png\n')
+    logfile.write('NURBS Beam File:                         ./meshes/' + geoName + '/' + geoName \
         + 'IGA.txt\n')
     logfile.write('Connector Data File:                     ./meshes/' + geoName + '/' + geoName \
         + '-mesh.txt\n')
@@ -2077,6 +4069,7 @@ def LogFile(geoName,iter_max,r_min,r_max,nrings,width_heart,width_early,width_la
     logfile.write('Ridge Data File:                         ./meshes/' + geoName + '/' + geoName \
         + '-ridge.mesh\n')
     logfile.write('Paraview Vertices File:                  ./meshes/' + geoName + '/' + geoName
+                  
         + '_vertices'+'.vtu\n')
     logfile.write('Paraview Beams File:                     ./meshes/' + geoName + '/' \
         + geoName + '_beams'+'.vtu\n')
@@ -2084,9 +4077,13 @@ def LogFile(geoName,iter_max,r_min,r_max,nrings,width_heart,width_early,width_la
         + '_conns'+'.vtu\n')
     logfile.write('Paraview Connectors (Volume) File:       ./meshes/' + geoName + '/' + geoName \
         + '_conns_vol'+'.vtu\n')
-    if STLFlag in ['on','On','Y','y','Yes','yes']:
+    if stlFlag in ['on','On','Y','y','Yes','yes']:
         logfile.write('3D Model File:                           ./meshes/' + geoName + '/' + geoName \
-            + '.stl\n')   
+            + '.stl\n')
+    if inpFlag in ['on','On','Y','y','Yes','yes']:
+        if inpType in ['abaqus','Abaqus','ABQ','abq','ABAQUS','Abq']:
+            logfile.write('Abaqus Input File:                       ./meshes/' + geoName + '/' + geoName \
+            + '.inp\n') 
     logfile.write('Log File:                                ./meshes/' + geoName + '/' + geoName \
         + '-report.log\n')
     logfile.close()
