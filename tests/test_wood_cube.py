@@ -20,7 +20,6 @@ import RingsPy.MeshGenTools as RPgen
 import shutil
 from pathlib import Path
 
-
 def test_wood_cube():
     # performance check only
     startTime = time.time()

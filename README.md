@@ -105,7 +105,7 @@ inpType = 'Abaqus'
 
 - `geoName` is the geometry name, `path` is the folder where the mesh files will be generated.
 - `radial_growth_rule` is the radial growth rule for cell placement. When a file name with extension`.npy` is specified, a saved cell data file will be loaded (for v0.3.x, choose one of these rules: `wood_binary`, `regular_hexagonal`, or a file name with extension `.npy`).
-- `iter_max` is the max number of iteration for randomly placing new non-overlapping cell particles in the 2D toroidal cell placement region. Noticing that, larger `iter_max` leads to more centroidal Voronoi cells, for more reference, see wiki [Centroidal Voronoi Tessellation](https://en.wikipedia.org/wiki/Centroidal_Voronoi_tessellation/).
+- `iter_max` is the max number of iteration for randomly placing new non-overlapping cell particles in the 2D toroidal cell placement region. Noticing that, larger `iter_max` leads to more centroidal Voronoi cells, for more reference, see Wiki [Centroidal Voronoi Tessellation](https://en.wikipedia.org/wiki/Centroidal_Voronoi_tessellation/).
 - `print_interval` is the print interval when every n cell particles are placed in the placement region.
 - `r_min` and `r_max` are the upper and lower bounds of radii of toroidal cell placement region, `nrings` is the number of rings.
 - `width_heart`, `width_early`, and `width_late`, are ring widths for heartwood, earlywood, and latewood, respectively, which all together determine the morphology of the cellular structure.
@@ -196,7 +196,7 @@ A scientific visualization application `ParaView` can directly visualize the gen
 ![ModelVisualization](<./contents/ModelVisualization.png>)
 
 ### 4. (Optional) Numerical Simulation
-The mesh generation tool can also prepare the input files for the numerical simulations of the cellular solid in other softwares. By now (version 0.3.0), the input file format, `.inp`, that is used in a finite element method (FEM) software `Abaqus` is supported, if the INP flag is on. `Abaqus` is a commerical software suite for integrated computer-aided engineering (CAE) and finite element analysis, own by Dassault Systèmes. One may refer to the Wiki [https://en.wikipedia.org/wiki/Abaqus](https://en.wikipedia.org/wiki/Abaqus) for more about `Abaqus`, and to [Introduction](https://bertoldi.seas.harvard.edu/files/bertoldi/files/abaqusinputfilemanualv1.pdf?m=1444417191) for the introduction of Abaqus input files.
+The mesh generation tool can also prepare the input files for the numerical simulations of the cellular solid in other softwares. By now (version 0.3.0), the input file format, `.inp`, that is used in a finite element method (FEM) software `Abaqus` is supported, if the INP flag is on. `Abaqus` is a commerical software suite for integrated computer-aided engineering (CAE) and finite element analysis, own by Dassault Systèmes. One may refer to its [Wiki](https://en.wikipedia.org/wiki/Abaqus) for more about `Abaqus`, and to [Introduction](https://bertoldi.seas.harvard.edu/files/bertoldi/files/abaqusinputfilemanualv1.pdf?m=1444417191) for the introduction of Abaqus input files.
 
 All steps for the model setup can be accomplished through manually coding the Abaqus input file in a text editor. The method used in the example procedure shown below requires access to the Abaqus GUI.
 
