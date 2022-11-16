@@ -154,7 +154,7 @@ def test_wood_cube():
         [voronoi_vertices,finite_ridges,boundary_points,finite_ridges_new,\
          boundary_ridges_new,nvertex,nvertices_in,nfinite_ridge,nboundary_ridge,\
          nboundary_pts,nboundary_pts_featured,voronoi_ridges,nridge] = \
-            RPgen.RebuildVoronoi_new(vor,sites,boundaries,log_center,x_min,x_max,y_min,y_max,box_center,box_shape,merge_tol,boundaryFlag)
+            RPgen.RebuildVoronoi_merge(vor,sites,boundaries,log_center,x_min,x_max,y_min,y_max,box_center,box_shape,merge_tol,boundaryFlag)
         
         RebuildvorTime = time.time() 
         print('Voronoi tessellation rebuilt and merged in {:.3f} seconds'.format(RebuildvorTime - voronoiTime))

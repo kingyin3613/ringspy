@@ -1,6 +1,7 @@
 # RingsPy
 [![Python 3](https://img.shields.io/static/v1?label=Python&logo=Python&color=3776AB&message=3)](https://www.python.org/)
 [![PyPI version](https://badge.fury.io/py/RingsPy.svg)](https://badge.fury.io/py/RingsPy)
+[![Anaconda-Server Badge](https://anaconda.org/conda-forge/ringspy/badges/version.svg)](https://anaconda.org/conda-forge/ringspy)
 [![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.html)
 [![Tests](https://github.com/kingyin3613/RingsPy/actions/workflows/tests.yml/badge.svg)](https://github.com/kingyin3613/RingsPy/actions/workflows/tests.yml)
 [![codecov](https://codecov.io/gh/kingyin3613/RingsPy/branch/main/graph/badge.svg?token=4AZN3HGGET)](https://codecov.io/gh/kingyin3613/RingsPy)
@@ -11,7 +12,7 @@ RingsPy is a Voronoi diagrams-based geometric generation tool that generates 3D 
 ## Dependencies and Installation
 
 ### 1. pip install
-To install RingsPy, one may use:
+To install RingsPy, one may use `pip`:
 ```bash
 pip install RingsPy
 ``` 
@@ -21,6 +22,10 @@ pip install git+https://github.com/kingyin3613/RingsPy.git
 ``` 
 to get updates beyond the latest release. 
 
+If you are on Linux or Mac, you can also use `conda-forge` channel:
+```bash
+conda install -c conda-forge ringspy
+``` 
 RingsPy depends on mainstream Python libraries ``numpy`` and ``scipy``, and optionally depends on library ``hexalattice``, if the regular hexagonal lattice (e.g. honeycomb) is wanted; also ``vtk``, if the 3D STL files are also wanted.
 
 ### 2. Installation Check

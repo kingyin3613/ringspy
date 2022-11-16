@@ -319,7 +319,13 @@ def CellPlacement_Wood(log_center,r_max,r_min,nrings,width_heart,
 
     return sites, radius
 
-
+RPgen.CellPlacement_Honeycomb(log_center,r_max,r_min,nrings,\
+                            box_center,box_size,width_heart,\
+                            width_early,width_late,\
+                            cellsize_early,cellsize_late,\
+                            cellwallthickness_early,cellwallthickness_late,\
+                            iter_max,print_interval)
+                            
 def CellPlacement_Honeycomb(log_center,r_max,r_min,nrings,box_center,box_size,\
                             width_heart,width_early,width_late,\
                             cellsize_early,cellsize_late,\
@@ -327,7 +333,7 @@ def CellPlacement_Honeycomb(log_center,r_max,r_min,nrings,box_center,box_size,\
                             iter_max,print_interval):
     from hexalattice.hexalattice import create_hex_grid
     """
-    packing cells in annual rings
+    packing cells in hexagonal grids
     """
     # Annual ring width distribution
     width = np.concatenate(([width_heart],np.tile([width_early,width_late],nrings)))
@@ -654,8 +660,8 @@ def RebuildVoronoi(vor,circles,boundaries,log_center,x_min,x_max,y_min,y_max,box
         boundary_ridges_new,nvertex,nvertices_in,nfinite_ridge,nboundary_ridge,\
             nboundary_pts,nboundary_pts_featured,voronoi_ridges,nridge
 
-def RebuildVoronoi_new(vor,circles,boundaries,log_center,x_min,x_max,y_min,y_max,box_center,box_shape,merge_tol,boundaryFlag):
-    '''Clip Voronoi mesh by the boundaries, rebuild the new Voronoi mesh'''
+def RebuildVoronoi_merge(vor,circles,boundaries,log_center,x_min,x_max,y_min,y_max,box_center,box_shape,merge_tol,boundaryFlag):
+    '''Clip Voronoi mesh by the boundaries, merge short Voronoi ridges, and rebuild the new Voronoi mesh'''
     # Store indices of Voronoi vertices for each finite ridge
     finite_ridges = []
     finite_ridges_pointid = []
@@ -3936,7 +3942,7 @@ def ReadSavedSites(radial_growth_rule):
     sitefile = radial_growth_rule
     radiusfile = radial_growth_rule.strip().replace("_sites", '_radius')
     
-    d = Path.cwd()
+    d = Path(__file__).parent #Path.cwd()
     root = Path(d.root)
 
     while d != root:
