@@ -319,13 +319,7 @@ def CellPlacement_Wood(log_center,r_max,r_min,nrings,width_heart,
 
     return sites, radius
 
-RPgen.CellPlacement_Honeycomb(log_center,r_max,r_min,nrings,\
-                            box_center,box_size,width_heart,\
-                            width_early,width_late,\
-                            cellsize_early,cellsize_late,\
-                            cellwallthickness_early,cellwallthickness_late,\
-                            iter_max,print_interval)
-                            
+
 def CellPlacement_Honeycomb(log_center,r_max,r_min,nrings,box_center,box_size,\
                             width_heart,width_early,width_late,\
                             cellsize_early,cellsize_late,\
