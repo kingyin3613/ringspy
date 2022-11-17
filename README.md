@@ -10,7 +10,7 @@
 RingsPy is a Voronoi diagrams-based geometric generation tool that generates 3D meshes and models of prismatic cellular solids with radial growth rules.
 
 ## Dependencies and Installation
-
+RingsPy depends on mainstream Python libraries ``numpy`` and ``scipy``, and optionally depends on library ``hexalattice``, if the regular hexagonal lattice (e.g. honeycomb) is wanted; also ``vtk``, if the 3D STL files are also wanted.
 ### 1. pip install
 To install RingsPy, one may use `pip`:
 ```bash
@@ -22,13 +22,13 @@ pip install git+https://github.com/kingyin3613/RingsPy.git
 ``` 
 to get updates beyond the latest release. 
 
+### 2. conda install
 If you are on Linux or Mac, you can also use `conda-forge` channel:
 ```bash
 conda install -c conda-forge ringspy
 ``` 
-RingsPy depends on mainstream Python libraries ``numpy`` and ``scipy``, and optionally depends on library ``hexalattice``, if the regular hexagonal lattice (e.g. honeycomb) is wanted; also ``vtk``, if the 3D STL files are also wanted.
 
-### 2. Installation Check
+### 3. Installation Check
 
 There are some unit tests in [tests](https://github.com/kingyin3613/RingsPy/tree/main/tests/). One can use ``pytest`` to check whether the installation is successful by running this command:
 
