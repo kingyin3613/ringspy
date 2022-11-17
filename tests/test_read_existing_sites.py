@@ -19,6 +19,7 @@ import time
 import RingsPy.MeshGenTools as RPgen
 import shutil
 from pathlib import Path
+import pytest
 
 def test_read_existing_sites():
     # performance check only

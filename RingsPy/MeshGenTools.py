@@ -3946,7 +3946,11 @@ def ReadSavedSites(radial_growth_rule):
             print('Sites info from file: {:s} has been loaded.'.format(str(site_attempt)))
             return np.load(site_attempt), np.load(radius_attempt)
         d = d.parent
-        
+    
+    print('Could not find file: {:s}, please check if the existing site file is under the same directory with the input script.'.format(radial_growth_rule))
+    print('Now exitting...')
+    exit()
+    
     return None
 
 
