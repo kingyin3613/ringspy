@@ -14,7 +14,7 @@ RingsPy depends on mainstream Python libraries ``numpy`` and ``scipy``, and opti
 ### 1. pip install
 To install RingsPy, one may use `pip`:
 ```bash
-pip install RingsPy
+pip install ringspy
 ``` 
 or use:
 ```bash
