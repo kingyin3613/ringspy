@@ -1,10 +1,10 @@
 # RingsPy
 [![Python 3](https://img.shields.io/static/v1?label=Python&logo=Python&color=3776AB&message=3)](https://www.python.org/)
-[![PyPI version](https://badge.fury.io/py/RingsPy.svg)](https://badge.fury.io/py/RingsPy)
+[![PyPI version](https://badge.fury.io/py/ringspy.svg)](https://badge.fury.io/py/ringspy)
 [![Anaconda-Server Badge](https://anaconda.org/conda-forge/ringspy/badges/version.svg)](https://anaconda.org/conda-forge/ringspy)
 [![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.html)
-[![Tests](https://github.com/kingyin3613/RingsPy/actions/workflows/tests.yml/badge.svg)](https://github.com/kingyin3613/RingsPy/actions/workflows/tests.yml)
-[![codecov](https://codecov.io/gh/kingyin3613/RingsPy/branch/main/graph/badge.svg?token=4AZN3HGGET)](https://codecov.io/gh/kingyin3613/RingsPy)
+[![Tests](https://github.com/kingyin3613/ringspy/actions/workflows/tests.yml/badge.svg)](https://github.com/kingyin3613/ringspy/actions/workflows/tests.yml)
+[![codecov](https://codecov.io/gh/kingyin3613/ringspy/branch/main/graph/badge.svg?token=4AZN3HGGET)](https://codecov.io/gh/kingyin3613/ringspy)
 [![status](https://joss.theoj.org/papers/3dd05ca1103829e7620731845b0d2472/status.svg)](https://joss.theoj.org/papers/3dd05ca1103829e7620731845b0d2472)
 
 RingsPy is a Voronoi diagrams-based geometric generation tool that generates 3D meshes and models of prismatic cellular solids with radial growth rules.
@@ -18,7 +18,7 @@ pip install ringspy
 ``` 
 or use:
 ```bash
-pip install git+https://github.com/kingyin3613/RingsPy.git
+pip install git+https://github.com/kingyin3613/ringspy.git
 ``` 
 to get updates beyond the latest release. 
 
@@ -30,7 +30,7 @@ conda install -c conda-forge ringspy
 
 ### 3. Installation Check
 
-There are some unit tests in [tests](https://github.com/kingyin3613/RingsPy/tree/main/tests/). One can use ``pytest`` to check whether the installation is successful by running this command:
+There are some unit tests in [tests](https://github.com/kingyin3613/ringspy/tree/main/tests/). One can use ``pytest`` to check whether the installation is successful by running this command:
 
 ```bash
 pytest .
@@ -49,7 +49,7 @@ Once all required components are installed and one is ready to begin, a path for
 The first step to generate a cellular geometry is selecting geometry and appropriate parameters. 
 
 ### 1.1. Geometry
-A template file, for example, `test_wood_cube.py` located in the [tests](https://github.com/kingyin3613/RingsPy/tree/main/tests/) directory acts as both the parameter input file, and main executable for the generation of a cubic wood specimen.
+A template file, for example, `test_wood_cube.py` located in the [tests](https://github.com/kingyin3613/ringspy/tree/main/tests/) directory acts as both the parameter input file, and main executable for the generation of a cubic wood specimen.
 
 *Note: The Mesh Generation Tool by now only accepts many of pre-defined boundary geometries (for v0.3.x, the following 3 shapes are supported: triangle, square, hexagon), importing of CAD and/or other 3D model files will be implemented in subsequent versions.*
 
@@ -131,7 +131,7 @@ inpType = 'Abaqus'
 
 ![MeshGenerator](<./contents/MeshGenerator.png>)
 ### 2.1. Run Mesh Generation
-Open a Command Prompt or Terminal window and set the current directory to [tests](https://github.com/kingyin3613/RingsPy/tree/main/tests/) or any other directory, then run the command:
+Open a Command Prompt or Terminal window and set the current directory to [tests](https://github.com/kingyin3613/ringspy/tree/main/tests/) or any other directory, then run the command:
 ```
     python test_wood_cube.py
 ```
