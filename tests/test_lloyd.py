@@ -20,44 +20,44 @@ import ringspy.MeshGenTools as rpgen
 import shutil
 from pathlib import Path
 
-def test_hexalattice_tri():
+def test_lloyd():
     # performance check only
     startTime = time.time()
     
     # ==================================================================
     # Input parameters
-    geoName = 'honeycomb_tri'
+    geoName = 'wood_cube_lloyd'
     path = 'meshes'
     
-    radial_growth_rule = 'regular_hexagonal'
-    iter_max = 500 # increase this number to achieve a more regular geometry
+    radial_growth_rule = 'binary_lloyd'   
+    iter_max = 50 # increase this number to achieve a more regular geometry
     print_interval = 500 # interval for printing prgress info
     
     # Radial cell growth parameters
     # length unit: mm
     r_min = 0   # inner radius of generation domain
-    r_max = 2   # outer radius of generation domain
+    r_max = 2.5   # outer radius of generation domain
     nrings = 4 # number of rings
-    width_heart = 0.3*(r_max-r_min)/nrings # ring width for the innermost ring
-    width_sparse = 0.7*(r_max-r_min)/nrings # ring width for rings with sparse cells
-    width_dense = 0.3*(r_max-r_min)/nrings # ring width for rings with dense cells
-    generation_center = (0,1) # coordinates of generation domain center
+    width_heart = 0.15*(r_max-r_min)/nrings # ring width for the innermost ring
+    width_sparse = 0.85*(r_max-r_min)/nrings # ring width for rings with sparse cells
+    width_dense = 0.15*(r_max-r_min)/nrings # ring width for rings with dense cells
+    generation_center = (0,0) # coordinates of generation domain center
     
-    cellsize_sparse = 0.2
-    cellsize_dense = 0.2
+    cellsize_sparse = 0.02
+    cellsize_dense = 0.01
     cellwallthickness_sparse = 0.010
-    cellwallthickness_dense = 0.010
+    cellwallthickness_dense = 0.006
     
     # clipping box parameters
     boundaryFlag = 'on'
-    box_shape = 'triangle'
-    box_center = (0,0) # coordinates of clipping box center
-    box_size = 1.0 # side length
+    box_shape = 'square'
+    box_center = (1.25,0) # coordinates of clipping box center
+    box_size = 1.5 # side length
         
     # longitudinal direction parameters
     segment_length = 0.5*box_size
     theta_min = 0 # unit: radian
-    theta_max = 0 # unit: radian
+    theta_max = 0.05 # unit: radian
     z_min = 0
     z_max = box_size
     long_connector_ratio = 0.02 # longitudinal joint length = ratio * segment_length
@@ -66,7 +66,7 @@ def test_hexalattice_tri():
     skeleton_density = 1.5e-9 # unit: tonne/mm3
     
     # generation parameters
-    merge_operation = 'off'
+    merge_operation = 'on'
     merge_tol = 0.01
     
     precrackFlag = 'off'
@@ -100,9 +100,9 @@ def test_hexalattice_tri():
         # ---------------------------------------------
         # binary with Lloyd's algorithm (e.g. wood microstructure with earlywood-latewood alternations, but more regular cell shapes)
         sites,radii = rpgen.CellPlacement_Binary_Lloyd(geoName,path,generation_center,r_max,r_min,\
-                                                        nrings,width_heart,width_sparse,width_dense,\
-                                                        cellsize_sparse,cellsize_dense,iter_max,\
-                                                        print_interval)
+                                                       nrings,width_heart,width_sparse,width_dense,\
+                                                       cellsize_sparse,cellsize_dense,iter_max,\
+                                                       print_interval)
             
     elif radial_growth_rule == 'regular_hexagonal':
         # ----------------------------------
@@ -238,7 +238,7 @@ def test_hexalattice_tri():
                      height_connector_t,connector_l_connectivity,all_vertices_2D,\
                      max_wings,flattened_all_vertices_2D,nbeam_per_grain,nridge,\
                      connector_l_vertex_dict)
-
+    
     # ==================================================================
     # Calculate model properties
     [mass,bulk_volume,bulk_density,porosity] = \
@@ -302,6 +302,6 @@ def test_hexalattice_tri():
             nParticles,nbeamElem,skeleton_density,mass,bulk_volume,bulk_density,porosity,\
             stlFlag,inpFlag,inpType,radial_growth_rule,\
             startTime,placementTime,voronoiTime,RebuildvorTime,BeamTime,FileTime)
-
+            
 if __name__ == "__main__":
-    test_hexalattice_tri()
+    test_lloyd()

@@ -30,38 +30,42 @@ def test_hexalattice_hex():
     path = 'meshes'
     
     radial_growth_rule = 'regular_hexagonal'
-    iter_max = 100
-    print_interval = 500
+    iter_max = 500 # increase this number to achieve a more regular geometry
+    print_interval = 500 # interval for printing prgress info
     
     # Radial cell growth parameters
     # length unit: mm
-    r_min = 0   # inner radius of wood log
-    r_max = 2   # outer radius of wood log
+    r_min = 0   # inner radius of generation domain
+    r_max = 2   # outer radius of generation domain
     nrings = 4 # number of rings
-    width_heart = 0.3*(r_max-r_min)/nrings # heart wood ring width
-    width_early = 0.7*(r_max-r_min)/nrings # early wood ring width
-    width_late = 0.3*(r_max-r_min)/nrings # late wood ring width
-    log_center = (0,0) # coordinates of log center in the global system of reference
+    width_heart = 0.3*(r_max-r_min)/nrings # ring width for the innermost ring
+    width_sparse = 0.7*(r_max-r_min)/nrings # ring width for rings with sparse cells
+    width_dense = 0.3*(r_max-r_min)/nrings # ring width for rings with dense cells
+    generation_center = (0,0) # coordinates of generation domain center
     
-    cellsize_early = 0.2
-    cellsize_late = 0.2
-    cellwallthickness_early = 0.010
-    cellwallthickness_late = 0.010
+    cellsize_sparse = 0.2
+    cellsize_dense = 0.2
+    cellwallthickness_sparse = 0.010
+    cellwallthickness_dense = 0.010
     
     # clipping box parameters
     boundaryFlag = 'on'
     box_shape = 'hexagon'
-    box_center = (0,0) # coordinates of box center in the global system of reference
+    box_center = (0,0) # coordinates of clipping box center
     box_size = 1.0 # side length
         
     # longitudinal direction parameters
-    fiberlength = 0.5*box_size
-    theta_min = 0 # radian
-    theta_max = 0 # radian
+    segment_length = 0.5*box_size
+    theta_min = 0 # unit: radian
+    theta_max = 0 # unit: radian
     z_min = 0
     z_max = box_size
-    long_connector_ratio = 0.02 # longitudinal joint size
+    long_connector_ratio = 0.02 # longitudinal joint length = ratio * segment_length
     
+    # material parameters
+    skeleton_density = 1.5e-9 # unit: tonne/mm3
+    
+    # generation parameters
     merge_operation = 'off'
     merge_tol = 0.01
     
@@ -84,27 +88,35 @@ def test_hexalattice_hex():
         os.makedirs(Path(path, geoName))
         
     # ==================================================================
-    # Random cell site placement with a radial growth pattern
+    # Place cells with a specific radial growth pattern
     
-    if radial_growth_rule == 'wood_binary':
+    if radial_growth_rule == 'binary':
         # ---------------------------------------------
-        # wood with binary annual ring pattern (earlywood-latewood, abrupt transition)
-        sites,radius = rpgen.CellPlacement_Wood(log_center,r_max,r_min,nrings,width_heart,\
-                            width_early,width_late,cellsize_early,cellsize_late,\
+        # binary radial growth pattern (e.g. wood microstructure with earlywood-latewood alternations)
+        sites,radii = rpgen.CellPlacement_Binary(generation_center,r_max,r_min,nrings,width_heart,\
+                            width_sparse,width_dense,cellsize_sparse,cellsize_dense,\
                             iter_max,print_interval)
+    elif radial_growth_rule == 'binary_lloyd':
+        # ---------------------------------------------
+        # binary with Lloyd's algorithm (e.g. wood microstructure with earlywood-latewood alternations, but more regular cell shapes)
+        sites,radii = rpgen.CellPlacement_Binary_Lloyd(geoName,path,generation_center,r_max,r_min,\
+                                                        nrings,width_heart,width_sparse,width_dense,\
+                                                        cellsize_sparse,cellsize_dense,iter_max,\
+                                                        print_interval)
+            
     elif radial_growth_rule == 'regular_hexagonal':
         # ----------------------------------
-        # hexagonal honeycomb lattice
-        sites,radius = rpgen.CellPlacement_Honeycomb(log_center,r_max,r_min,nrings,\
+        # hexagonal honeycomb-like geometry
+        sites,radii = rpgen.CellPlacement_Honeycomb(generation_center,r_max,r_min,nrings,\
                             box_center,box_size,width_heart,\
-                            width_early,width_late,\
-                            cellsize_early,cellsize_late,\
-                            cellwallthickness_early,cellwallthickness_late,\
+                            width_sparse,width_dense,\
+                            cellsize_sparse,cellsize_dense,\
+                            cellwallthickness_sparse,cellwallthickness_dense,\
                             iter_max,print_interval)
     elif os.path.splitext(radial_growth_rule)[1] == '.npy':
         # ----------------------------------
-        # load saved cell sites and radius data
-        sites,radius = rpgen.ReadSavedSites(radial_growth_rule)
+        # load saved cell sites and radii data
+        sites,radii = rpgen.ReadSavedSites(radial_growth_rule)
     
     else:
         print('Growth rule: {:s} is not supported for the current version, please check the README for more details.'.format(radial_growth_rule))
@@ -117,7 +129,7 @@ def test_hexalattice_hex():
     print('{:d} particles/cells placed in {:.3f} seconds'.format(nParticles, (placementTime - startTime)))
     
     # ==================================================================
-    # Clipping box (Boundaries) of the model
+    # Clipping box (boundaries) of the model
     x_min,x_max,y_min,y_max,boundaries,boundary_points,boundarylines = \
         rpgen.Clipping_Box(box_shape,box_center,box_size,boundaryFlag)
     
@@ -132,7 +144,7 @@ def test_hexalattice_hex():
     x_precrack = x_indent + x_precrack_size
     y_precrack = box_center[1]
     
-    # Visualize the original Voronoi diagram generated with the wood mesh sites    
+    # Visualize the original 2D Voronoi diagram
     vor = Voronoi(sites[:,0:2])
     voronoi_plot_2d(vor, show_vertices=False,line_width=0.5, line_alpha=0.6, point_size=2)
     plt.xlim(x_min-0.1*abs(x_max-x_min), x_max+0.1*abs(x_max-x_min))
@@ -154,7 +166,7 @@ def test_hexalattice_hex():
         [voronoi_vertices,finite_ridges,boundary_points,finite_ridges_new,\
          boundary_ridges_new,nvertex,nvertices_in,nfinite_ridge,nboundary_ridge,\
          nboundary_pts,nboundary_pts_featured,voronoi_ridges,nridge] = \
-            rpgen.RebuildVoronoi_merge(vor,sites,boundaries,log_center,x_min,x_max,y_min,y_max,box_center,box_shape,merge_tol,boundaryFlag)
+            rpgen.RebuildVoronoi_merge(vor,sites,boundaries,generation_center,x_min,x_max,y_min,y_max,box_center,box_shape,merge_tol,boundaryFlag)
         
         RebuildvorTime = time.time() 
         print('Voronoi tessellation rebuilt and merged in {:.3f} seconds'.format(RebuildvorTime - voronoiTime))
@@ -162,7 +174,7 @@ def test_hexalattice_hex():
         [voronoi_vertices,finite_ridges,boundary_points,finite_ridges_new,\
           boundary_ridges_new,nvertex,nvertices_in,nfinite_ridge,nboundary_ridge,\
           nboundary_pts,nboundary_pts_featured,voronoi_ridges,nridge] = \
-            rpgen.RebuildVoronoi(vor,sites,boundaries,log_center,x_min,x_max,y_min,y_max,box_center,box_shape,boundaryFlag)
+            rpgen.RebuildVoronoi(vor,sites,boundaries,generation_center,x_min,x_max,y_min,y_max,box_center,box_shape,boundaryFlag)
         
         RebuildvorTime = time.time() 
         print('Voronoi tessellation rebuilt in {:.3f} seconds'.format(RebuildvorTime - voronoiTime))
@@ -175,44 +187,42 @@ def test_hexalattice_hex():
                            nboundary_ridge,nboundary_pts,nboundary_pts_featured)
     
     # ==================================================================        
-    # Generate a file for the geometry info for vertices and ridges
+    # Generate a file for vertices and ridges info
     [all_vertices_2D, max_wings, flattened_all_vertices_2D, all_ridges] = \
         rpgen.VertexandRidgeinfo(all_pts_2D,all_ridges,\
                            npt_per_layer,npt_per_layer_normal,\
-                           npt_per_layer_vtk,nridge,geoName,radius,log_center,\
-                           cellwallthickness_early,cellwallthickness_late)
+                           npt_per_layer_vtk,nridge,geoName,radii,generation_center,\
+                           cellwallthickness_sparse,cellwallthickness_dense)
         
     ###############################################################################
-    # Extrusion in the parallel-to-grain (longitudinal) direction
-    
+    # Extrude in the parallel-to-grain (longitudinal) direction
     NURBS_degree = 2
     nctrlpt_per_beam = 5
     
-    [woodIGAvertices,vertex_connectivity,beam_connectivity_original,nbeam_total,\
+    [IGAvertices,vertex_connectivity,beam_connectivity_original,nbeam_total,\
      beam_connectivity,nbeamElem,nlayer,connector_t_connectivity,\
      connector_t_bot_connectivity,connector_t_top_connectivity,\
      connector_t_reg_connectivity,connector_l_connectivity,nconnector_t_per_beam,\
      nconnector_t_per_grain,nconnector_t,nconnector_l,nconnector_total,\
      theta,z_coord,nbeam_per_grain,connector_l_vertex_dict] = \
         rpgen.GenerateBeamElement(NURBS_degree,nctrlpt_per_beam,\
-                            fiberlength,theta_min,theta_max,z_min,z_max,\
+                            segment_length,theta_min,theta_max,z_min,z_max,\
                             long_connector_ratio,npt_per_layer,voronoi_vertices,\
-                            nvertex,voronoi_ridges,nridge,log_center,\
+                            nvertex,voronoi_ridges,nridge,generation_center,\
                             all_vertices_2D,max_wings,flattened_all_vertices_2D,all_ridges)
     
     BeamTime = time.time() 
     print('{:d} beam elements generated in {:.3f} seconds'.format(nbeamElem, (BeamTime - RebuildvorTime)))
     
     # ==================================================================
-    # Insertion of precracks
+    # Insert precracks
     if precrackFlag in ['on','On','Y','y','Yes','yes']:
-        # pre-crack node list: [c1x1 c1y1 c1x2 c1y2 ...]
         precrack_nodes = np.array([[x_indent, y_precrack, x_precrack, y_precrack]])
         [precrack_elem,nconnector_t_precrack,nconnector_l_precrack] = \
             rpgen.insert_precracks(all_pts_2D,all_ridges,nridge,npt_per_layer,\
                                      npt_per_layer_normal,npt_per_layer_vtk,\
                                      nlayer,precrack_nodes,precrack_widths,\
-                                     cellsize_early)
+                                     cellsize_sparse)
     else:
         precrack_nodes = []
         precrack_elem = []
@@ -220,14 +230,19 @@ def test_hexalattice_hex():
         nconnector_l_precrack = 0
     
     # ==================================================================
-    # Connector Calculations
-    height_connector_t = fiberlength/4
+    # Calculate mesh info
+    height_connector_t = segment_length/4
     
-    ConnMeshData = rpgen.ConnectorMeshFile(geoName,woodIGAvertices,connector_t_bot_connectivity,\
+    ConnMeshData = rpgen.ConnectorMeshFile(geoName,IGAvertices,connector_t_bot_connectivity,\
                      connector_t_reg_connectivity,connector_t_top_connectivity,\
                      height_connector_t,connector_l_connectivity,all_vertices_2D,\
                      max_wings,flattened_all_vertices_2D,nbeam_per_grain,nridge,\
                      connector_l_vertex_dict)
+
+    # ==================================================================
+    # Calculate model properties
+    [mass,bulk_volume,bulk_density,porosity] = \
+        rpgen.ModelInfo(box_shape,boundary_points,z_min,z_max,skeleton_density,ConnMeshData)
     
     # ==================================================================
     # Bezier extraction 
@@ -238,20 +253,17 @@ def test_hexalattice_hex():
                        nconnector_t_per_beam,npatch,knotVec)
     
     # ==================================================================
-    # Generate visulization data 
+    # Generate Paraview visulization files
     rpgen.VisualizationFiles(geoName,NURBS_degree,nlayer,npt_per_layer_vtk,all_pts_2D,\
-                       fiberlength,theta,z_coord,nbeam_per_grain,nridge,\
-                       voronoi_ridges,log_center,all_ridges,nvertex,nconnector_t,\
+                       segment_length,theta,z_coord,nbeam_per_grain,nridge,\
+                       voronoi_ridges,generation_center,all_ridges,nvertex,nconnector_t,\
                        nconnector_l,nctrlpt_per_beam,ConnMeshData,all_vertices_2D,\
                        max_wings,flattened_all_vertices_2D)
         
     plt.savefig(Path('meshes/' + geoName + '/' + geoName + '.png'))
     
-    FileTime = time.time() 
-    print('Files generated in {:.3f} seconds'.format(FileTime - BeamTime))
-    
     # ==================================================================
-    # Generate 3D printing data
+    # Generate 3D model files
     if stlFlag in ['on','On','Y','y','Yes','yes']:
         rpgen.StlModelFile(geoName)
     
@@ -259,19 +271,20 @@ def test_hexalattice_hex():
     # Generate input files for numerical simulations
     if inpFlag in ['on','On','Y','y','Yes','yes']:
         if inpType in ['abaqus','Abaqus','ABQ','abq','ABAQUS','Abq']:
-            rpgen.AbaqusFile(geoName,NURBS_degree,npatch,nbeam_per_grain,woodIGAvertices,beam_connectivity,\
+            rpgen.AbaqusFile(geoName,NURBS_degree,npatch,nbeam_per_grain,IGAvertices,beam_connectivity,\
                             connector_t_bot_connectivity,connector_t_reg_connectivity,\
                             connector_t_top_connectivity,connector_l_connectivity,nbeamElem,\
                             nconnector_t,nconnector_l,nconnector_t_precrack,nconnector_l_precrack,\
-                            fiberlength,height_connector_t,long_connector_ratio,\
+                            segment_length,height_connector_t,long_connector_ratio,\
                             x_max,x_min,y_max,y_min,z_coord,box_shape,box_size,\
-                            cellwallthickness_early,cellwallthickness_late,\
+                            cellwallthickness_sparse,cellwallthickness_dense,\
                             merge_operation,merge_tol,\
                             precrackFlag,precrack_elem)
         else:
             np.save(Path('meshes/' + geoName + '/' + geoName + '_sites.npy'),sites)
-            np.save(Path('meshes/' + geoName + '/' + geoName + '_radius.npy'),radius)
+            np.save(Path('meshes/' + geoName + '/' + geoName + '_radii.npy'),radii)
             print('Input files type: {:s} is not supported for the current version, please check the README for more details.'.format(inpType))
+            print('Generated cells and rings info has been saved.')
             print('Now exitting...')
             exit()
     
@@ -279,14 +292,14 @@ def test_hexalattice_hex():
     print('Files generated in {:.3f} seconds'.format(FileTime - BeamTime))
     
     # ==================================================================
-    # Generate log file for the mesh generation
-    rpgen.LogFile(geoName,iter_max,r_min,r_max,nrings,width_heart,width_early,width_late,\
-            log_center,box_shape,box_center,box_size,x_min,x_max,y_min,y_max,
-            cellsize_early,cellsize_late,cellwallthickness_early,cellwallthickness_late,\
+    # Generate log file for the generation
+    rpgen.LogFile(geoName,iter_max,r_min,r_max,nrings,width_heart,width_sparse,width_dense,\
+            generation_center,box_shape,box_center,box_size,x_min,x_max,y_min,y_max,
+            cellsize_sparse,cellsize_dense,cellwallthickness_sparse,cellwallthickness_dense,\
             merge_operation,merge_tol,precrackFlag,precrack_widths,boundaryFlag,\
-            fiberlength,theta_min,theta_max,z_min,z_max,long_connector_ratio,\
+            segment_length,theta_min,theta_max,z_min,z_max,long_connector_ratio,\
             NURBS_degree,nctrlpt_per_beam,nconnector_t_precrack,nconnector_l_precrack,\
-            nParticles,nbeamElem,\
+            nParticles,nbeamElem,skeleton_density,mass,bulk_volume,bulk_density,porosity,\
             stlFlag,inpFlag,inpType,radial_growth_rule,\
             startTime,placementTime,voronoiTime,RebuildvorTime,BeamTime,FileTime)
 
