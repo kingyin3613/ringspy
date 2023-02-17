@@ -174,6 +174,8 @@ The following files should be generated in the `.\meshes\geoName` directory with
     - STL file of initial cellular solid configuration: `wood_cube.stl`
 - (Optional) Abaqus input files
     - INP file of simulation input of initial cellular solid configuration in `Abaqus`: `wood_cube.inp`
+
+
 ![Model2DPreview](<./contents/Model2DPreview.png>)
 	
 ### 3. Visualization
