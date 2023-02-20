@@ -36,7 +36,7 @@ There are some unit tests in [tests](https://github.com/kingyin3613/ringspy/tree
 pytest .
 ```
 
-## Getting Started (Current version: v0.4.0)
+## Getting Started (Current version: v0.4.1)
 Once all required components are installed and one is ready to begin, a path forward should be established for generating the mesh. The basic steps for running/viewing a cellular mesh are listed as the following:
 
     1. Edit geometry and algorithm parameters
