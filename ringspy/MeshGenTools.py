@@ -18,6 +18,7 @@ from scipy.spatial import Voronoi
 from pathlib import Path
 import datetime
 import pkg_resources
+import time
 
 
 def intersect2D(a, b):
@@ -2995,20 +2996,30 @@ def ReadSavedSites(sites_path, radial_growth_rule):
     sitesfile = radial_growth_rule
     radiifile = radial_growth_rule.strip().replace("_sites", '_radii')
     root = Path(Path(sites_path).root)
+    
+    # add a timeout condtion
+    tCurrent = time.time()
+    timeout_limit = 180 # seconds
 
     while sites_path != root:
-        site_attempt = sites_path / sitesfile
+        
+        # free up CPU cycles during timeout check, see Anthony's answer in
+        # https://stackoverflow.com/questions/13293269/how-would-i-stop-a-while-loop-after-n-amount-of-time
+        time.sleep(0.25) # sleep for 250 milliseconds
+        
+        sites_attempt = sites_path / sitesfile
         radii_attempt = sites_path / radiifile
-        if site_attempt.exists() and site_attempt.exists():
-            print('Sites info from file: {:s} has been loaded.'.format(str(site_attempt)))
-            return np.load(site_attempt), np.load(radii_attempt)
+        if sites_attempt.exists() and radii_attempt.exists():
+            print('Sites info from file: {:s} has been loaded.'.format(str(sites_attempt)))
+            print('Radii info from file: {:s} has been loaded.'.format(str(radii_attempt)))
+            return np.load(sites_attempt), np.load(radii_attempt)
         sites_path = sites_path.parent
-    
-    print('Could not find file: {:s}, please check if the existing site file is under the same directory with the input script.'.format(radial_growth_rule))
-    print('Now exitting...')
-    exit()
-    
-    return None
+        
+        if time.time() >= tCurrent + timeout_limit:
+            print('Could not find file: {:s}, please check if the existing site file is under the same directory with the input script.'.format(radial_growth_rule))
+            print('Now exitting...')
+            exit()
+            return None
 
 
 def StlModelFile(geoName):
