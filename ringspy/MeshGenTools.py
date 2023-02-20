@@ -2977,13 +2977,14 @@ def AbaqusFile(geoName,NURBS_degree,npatch,nbeam_per_grain,IGAvertices,beam_conn
     meshinpfile.write('*End Assembly\n')
 
 
-def ReadSavedSites(radial_growth_rule):
+def ReadSavedSites(sites_path, radial_growth_rule):
     """Search in the current directory and all directories above it 
     for a file of a particular name.
 
     Arguments:
     ---------
-    filename :: string, the filename to look for.
+    sites_path :: pathlib obj, the path of saved file.
+    radial_growth_rule :: string, the filename to look for.
 
     Returns
     -------
@@ -2993,17 +2994,15 @@ def ReadSavedSites(radial_growth_rule):
     
     sitesfile = radial_growth_rule
     radiifile = radial_growth_rule.strip().replace("_sites", '_radii')
-    
-    d = Path(__file__).parent #Path.cwd()
-    root = Path(d.root)
+    root = Path(Path(sites_path).root)
 
-    while d != root:
-        site_attempt = d / sitesfile
-        radii_attempt = d / radiifile
+    while sites_path != root:
+        site_attempt = sites_path / sitesfile
+        radii_attempt = sites_path / radiifile
         if site_attempt.exists() and site_attempt.exists():
             print('Sites info from file: {:s} has been loaded.'.format(str(site_attempt)))
             return np.load(site_attempt), np.load(radii_attempt)
-        d = d.parent
+        sites_path = sites_path.parent
     
     print('Could not find file: {:s}, please check if the existing site file is under the same directory with the input script.'.format(radial_growth_rule))
     print('Now exitting...')

@@ -36,7 +36,7 @@ def test_lloyd():
     # Radial cell growth parameters
     # length unit: mm
     r_min = 0   # inner radius of generation domain
-    r_max = 2.5   # outer radius of generation domain
+    r_max = 4   # outer radius of generation domain
     nrings = 4 # number of rings
     width_heart = 0.15*(r_max-r_min)/nrings # ring width for the innermost ring
     width_sparse = 0.85*(r_max-r_min)/nrings # ring width for rings with sparse cells

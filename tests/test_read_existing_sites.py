@@ -19,7 +19,6 @@ import time
 import ringspy.MeshGenTools as rpgen
 import shutil
 from pathlib import Path
-import pytest
 
 def test_read_existing_sites():
     # performance check only
@@ -117,7 +116,8 @@ def test_read_existing_sites():
     elif os.path.splitext(radial_growth_rule)[1] == '.npy':
         # ----------------------------------
         # load saved cell sites and radii data
-        sites,radii = rpgen.ReadSavedSites(radial_growth_rule)
+        sites_path = Path(os.path.dirname(os.path.abspath(__file__)))
+        sites,radii = rpgen.ReadSavedSites(sites_path,radial_growth_rule)
     
     else:
         print('Growth rule: {:s} is not supported for the current version, please check the README for more details.'.format(radial_growth_rule))
@@ -305,7 +305,4 @@ def test_read_existing_sites():
             startTime,placementTime,voronoiTime,RebuildvorTime,BeamTime,FileTime)
 
 if __name__ == "__main__":
-    #THIS_DIR = Path(__file__).parent
-    #my_data_path = THIS_DIR / 'testdata.csv'
-    
     test_read_existing_sites()

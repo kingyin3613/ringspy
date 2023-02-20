@@ -150,7 +150,7 @@ The Lloyd's relaxation (a.k.a. Lloyd's algorithm) has been integrated with the m
 ```
 radial_growth_rule = binary_lloyd
 ``` 
-This allows a rapid radial generation of more regular centroidal Voronoi cells from the `generation_center` (see the difference between `binary` and `binary_lloyd` in a preview of 2D cross-sections in section 2.2). For more detail of the algorithm, see [Wiki - Lloyd's algorithm](https://en.wikipedia.org/wiki/Lloyd's_algorithm)).
+This allows a rapid radial generation of more regular centroidal Voronoi cells from the `generation_center` (see the difference between `wood_binary` and `wood_binary_lloyd` in the preview of 2D cross-sections in section 2.2). For more detail of the algorithm, see [Wiki - Lloyd's algorithm](https://en.wikipedia.org/wiki/Lloyd's_algorithm)).
 
 ![lloyd](<./contents/lloyd.gif>)
 
