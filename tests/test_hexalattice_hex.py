@@ -55,11 +55,11 @@ def test_hexalattice_hex():
     box_size = 1.0 # side length
         
     # longitudinal direction parameters
-    segment_length = 0.5*box_size
+    nsegments = 2 # increase this number to achieve a smoother transition in longitudinal direction if theta is large
     theta_min = 0 # unit: radian
     theta_max = 0 # unit: radian
     z_min = 0
-    z_max = box_size
+    z_max = box_size # segment_length = (z_max - z_min) / nsegments
     long_connector_ratio = 0.02 # longitudinal joint length = ratio * segment_length
     
     # material parameters
@@ -197,16 +197,14 @@ def test_hexalattice_hex():
     ###############################################################################
     # Extrude in the parallel-to-grain (longitudinal) direction
     NURBS_degree = 2
-    nctrlpt_per_beam = 5
-    
     [IGAvertices,vertex_connectivity,beam_connectivity_original,nbeam_total,\
-     beam_connectivity,nbeamElem,nlayer,connector_t_connectivity,\
+     beam_connectivity,nbeamElem,nctrlpt_per_beam,nlayers,segment_length,connector_t_connectivity,\
      connector_t_bot_connectivity,connector_t_top_connectivity,\
      connector_t_reg_connectivity,connector_l_connectivity,nconnector_t_per_beam,\
      nconnector_t_per_grain,nconnector_t,nconnector_l,nconnector_total,\
-     theta,z_coord,nbeam_per_grain,connector_l_vertex_dict] = \
-        rpgen.GenerateBeamElement(NURBS_degree,nctrlpt_per_beam,\
-                            segment_length,theta_min,theta_max,z_min,z_max,\
+     theta,z_coord,connector_l_vertex_dict] = \
+        rpgen.GenerateBeamElement(NURBS_degree,nsegments,\
+                            theta_min,theta_max,z_min,z_max,\
                             long_connector_ratio,npt_per_layer,voronoi_vertices,\
                             nvertex,voronoi_ridges,nridge,generation_center,\
                             all_vertices_2D,max_wings,flattened_all_vertices_2D,all_ridges)
@@ -221,7 +219,7 @@ def test_hexalattice_hex():
         [precrack_elem,nconnector_t_precrack,nconnector_l_precrack] = \
             rpgen.insert_precracks(all_pts_2D,all_ridges,nridge,npt_per_layer,\
                                      npt_per_layer_normal,npt_per_layer_vtk,\
-                                     nlayer,precrack_nodes,precrack_widths,\
+                                     nlayers,precrack_nodes,precrack_widths,\
                                      cellsize_sparse)
     else:
         precrack_nodes = []
@@ -231,14 +229,13 @@ def test_hexalattice_hex():
     
     # ==================================================================
     # Calculate mesh info
-    height_connector_t = segment_length/4
-    
-    ConnMeshData = rpgen.ConnectorMeshFile(geoName,IGAvertices,connector_t_bot_connectivity,\
+    [ConnMeshData,conn_l_tangents] = \
+        rpgen.ConnectorMeshFile(geoName,IGAvertices,connector_t_bot_connectivity,\
                      connector_t_reg_connectivity,connector_t_top_connectivity,\
-                     height_connector_t,connector_l_connectivity,all_vertices_2D,\
-                     max_wings,flattened_all_vertices_2D,nbeam_per_grain,nridge,\
-                     connector_l_vertex_dict)
-
+                     connector_l_connectivity,all_vertices_2D,\
+                     max_wings,flattened_all_vertices_2D,nsegments,segment_length,\
+                     nctrlpt_per_beam,theta,nridge,connector_l_vertex_dict)
+    
     # ==================================================================
     # Calculate model properties
     [mass,bulk_volume,bulk_density,porosity] = \
@@ -246,7 +243,7 @@ def test_hexalattice_hex():
     
     # ==================================================================
     # Bezier extraction 
-    knotVec = rpgen.BezierExtraction(NURBS_degree,nctrlpt_per_beam,nbeam_total)
+    knotVec = rpgen.BezierExtraction(NURBS_degree,nbeam_total)
     npatch = beam_connectivity_original.shape[0]
     
     mkBezierBeamFile = rpgen.BezierBeamFile(geoName,NURBS_degree,nctrlpt_per_beam,\
@@ -254,11 +251,11 @@ def test_hexalattice_hex():
     
     # ==================================================================
     # Generate Paraview visulization files
-    rpgen.VisualizationFiles(geoName,NURBS_degree,nlayer,npt_per_layer_vtk,all_pts_2D,\
-                       segment_length,theta,z_coord,nbeam_per_grain,nridge,\
+    rpgen.VisualizationFiles(geoName,NURBS_degree,nlayers,npt_per_layer_vtk,all_pts_2D,\
+                       segment_length,theta,z_coord,nsegments,nridge,\
                        voronoi_ridges,generation_center,all_ridges,nvertex,nconnector_t,\
-                       nconnector_l,nctrlpt_per_beam,ConnMeshData,all_vertices_2D,\
-                       max_wings,flattened_all_vertices_2D)
+                       nconnector_l,nctrlpt_per_beam,ConnMeshData,conn_l_tangents,\
+                       all_vertices_2D,max_wings,flattened_all_vertices_2D)
         
     plt.savefig(Path('meshes/' + geoName + '/' + geoName + '.png'))
     
@@ -271,11 +268,11 @@ def test_hexalattice_hex():
     # Generate input files for numerical simulations
     if inpFlag in ['on','On','Y','y','Yes','yes']:
         if inpType in ['abaqus','Abaqus','ABQ','abq','ABAQUS','Abq']:
-            rpgen.AbaqusFile(geoName,NURBS_degree,npatch,nbeam_per_grain,IGAvertices,beam_connectivity,\
+            rpgen.AbaqusFile(geoName,NURBS_degree,npatch,IGAvertices,beam_connectivity,\
                             connector_t_bot_connectivity,connector_t_reg_connectivity,\
                             connector_t_top_connectivity,connector_l_connectivity,nbeamElem,\
                             nconnector_t,nconnector_l,nconnector_t_precrack,nconnector_l_precrack,\
-                            segment_length,height_connector_t,long_connector_ratio,\
+                            segment_length,long_connector_ratio,\
                             x_max,x_min,y_max,y_min,z_coord,box_shape,box_size,\
                             cellwallthickness_sparse,cellwallthickness_dense,\
                             merge_operation,merge_tol,\

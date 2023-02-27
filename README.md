@@ -36,7 +36,7 @@ There are some unit tests in [tests](https://github.com/kingyin3613/ringspy/tree
 pytest .
 ```
 
-## Getting Started (Current version: v0.4.1)
+## Getting Started (Current version: v0.4.2)
 Once all required components are installed and one is ready to begin, a path forward should be established for generating the mesh. The basic steps for running/viewing a cellular mesh are listed as the following:
 
     1. Edit geometry and algorithm parameters
@@ -89,11 +89,11 @@ box_center = (0,0) # coordinates of clipping box center
 box_size = 4.0 # side length
 	
 # longitudinal direction parameters
-segment_length = 0.5*box_size
+nsegments = 2 # increase this number to achieve a smoother transition in longitudinal direction if theta is large
 theta_min = 0 # unit: radian
 theta_max = 0.05 # unit: radian
 z_min = 0
-z_max = box_size
+z_max = box_size # segment_length = (z_max - z_min) / nsegments
 long_connector_ratio = 0.02 # longitudinal joint length = ratio * segment_length
 
 # material parameters
@@ -123,7 +123,7 @@ inpType = 'Abaqus'
 - `boundaryFlag` flag can be turned on/off for generating neat boundaries consisting of grains.
 - `box_shape` is the shape of cutting box (for v0.4.x, choose one of following shapes: `triangle`, `square`, or `hexagon`).
 - `box_center`, and `box_size` are for describing the cutting box.
-- `fiberlength` is the length of segments consisting the prismatic cells during the z- (longitudinal) extrusion.
+- `nsegments` is the number of segments consisting the prismatic cells during the z- (longitudinal) extrusion, with `segment_length = (z_max - z_min) / nsegments`.
 - `theta_min` and `theta_max` determine the twisting angles (unit: radian) of the 2D mesh around the `generation_center`, during the spiral z-extrusion.
 - `z_min` and `z_max` determine the boundaries of prismatic cells in z- (longitudinal) direction.
 - `long_connector_ratio` is the length of longitudinal joints, with `longitudinal joint length = ratio * segment_length`.

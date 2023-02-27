@@ -191,7 +191,7 @@ def Clipping_Box(box_shape,box_center,box_size,boundaryFlag):
     clipping box for the 2D Voronoi diagram
     """
     
-    if box_shape in ['square','Square','SQUARE', 'cube','s']: # sqaure box
+    if box_shape in ['square','Square','SQUARE','rectangle','Rectangle','RECTANGLE','cube','Cube','CUBE','s']: # sqaure box
         x_min = box_center[0] - box_size/2
         x_max = box_center[0] + box_size/2 
         y_min = box_center[1] - box_size/2
@@ -209,7 +209,7 @@ def Clipping_Box(box_shape,box_center,box_size,boundaryFlag):
         else:
             boundarylines = patches.Rectangle(boundaries[0][1][0], x_max-x_min, y_max-y_min, linewidth=2, linestyle='-.', edgecolor='k',facecolor='none')
             
-    elif box_shape in ['triangle','Triangle','TRIANGLE','triangular','tri','^']: # Triangle box
+    elif box_shape in ['triangle','Triangle','TRIANGLE','triangular','Triangular','TRIANGULAR','tri','Tri','TRI','^']: # Triangle box
         x_0 = box_center[0] - box_size
         x_1 = box_center[0]
         x_2 = box_center[0] + box_size
@@ -233,7 +233,7 @@ def Clipping_Box(box_shape,box_center,box_size,boundaryFlag):
         y_min = y_0
         y_max = y_1
         
-    elif box_shape in ['hexagon','Hexagon','HEXAGON','hexagonal','hex','h']: # hexagonal box
+    elif box_shape in ['hexagon','Hexagon','HEXAGON','hexagonal','Hexagonal','HEXAGONAL','hex','Hex','HEX','h']: # hexagonal box
         x_0 = box_center[1] - box_size
         x_1 = box_center[1] - box_size/2.0
         x_2 = box_center[1] + box_size/2.0
@@ -264,7 +264,7 @@ def Clipping_Box(box_shape,box_center,box_size,boundaryFlag):
         y_max = y_2
         
     else:
-        print('box_shape: {:s} is not supported for the current version, please check the README for more details.'.format(box_shape))
+        print('box_shape: {:s} is not supported for current version, please check README for more details.'.format(box_shape))
         print('Now exitting...')
         exit()
         
@@ -521,7 +521,7 @@ def RebuildVoronoi(vor,circles,boundaries,generation_center,x_min,x_max,y_min,y_
     voronoi_vertices_in = []
     voronoi_vertices_out = []
     
-    if box_shape == 'triangle':
+    if box_shape in ['triangle','Triangle','TRIANGLE','triangular','Triangular','TRIANGULAR','tri','Tri','TRI','^']:
         for pointidx, simplex in zip(vor.ridge_points, vor.ridge_vertices):
             simplex = np.asarray(simplex)
             simplex = np.where(simplex == -1, -9999999999, simplex) # use a large negative number instead of -1 to represent the infinite ridge vertices 
@@ -551,7 +551,7 @@ def RebuildVoronoi(vor,circles,boundaries,generation_center,x_min,x_max,y_min,y_
                 elif check_isinside_boundTriangle2D(np.append(vor.vertices[simplex[simplex >= 0][0]],0),boundaries): # index of finite end Voronoi vertex of the infinite ridge
                     infinite_ridges.append(simplex)
                     infinite_ridges_pointid.append(pointidx) 
-    elif box_shape == 'square':
+    elif box_shape in ['square','Square','SQUARE','rectangle','Rectangle','RECTANGLE','cube','Cube','CUBE','s']:
         for pointidx, simplex in zip(vor.ridge_points, vor.ridge_vertices):
             simplex = np.asarray(simplex)
             simplex = np.where(simplex == -1, -9999999999, simplex) # use a large negative number instead of -1 to represent the infinite ridge vertices 
@@ -581,7 +581,7 @@ def RebuildVoronoi(vor,circles,boundaries,generation_center,x_min,x_max,y_min,y_
                 elif check_isinside_boundbox2D(np.append(vor.vertices[simplex[simplex >= 0][0]],0),x_min,x_max,y_min,y_max): # index of finite end Voronoi vertex of the infinite ridge
                     infinite_ridges.append(simplex)
                     infinite_ridges_pointid.append(pointidx) 
-    elif box_shape == 'hexagon':
+    elif box_shape in ['hexagon','Hexagon','HEXAGON','hexagonal','Hexagonal','HEXAGONAL','hex','Hex','HEX','h']:
         L = y_max - y_min
         box_center = generation_center
         for pointidx, simplex in zip(vor.ridge_points, vor.ridge_vertices):
@@ -1424,36 +1424,37 @@ Number of ridges\n'+ str(nridge) +
     return all_vertices_2D, max_wings, flattened_all_vertices_2D, all_ridges
 
 
-def GenerateBeamElement(NURBS_degree,nctrlpt_per_beam,segment_length,theta_min,theta_max,\
+def GenerateBeamElement(NURBS_degree,nsegments,theta_min,theta_max,\
                         z_min,z_max,long_connector_ratio,npt_per_layer,voronoi_vertices,\
                         nvertex,voronoi_ridges,nridge,generation_center,all_vertices_2D,max_wings,\
                         flattened_all_vertices_2D,all_ridges):
     
 
     nctrlpt_per_elem = NURBS_degree + 1
-    nbeam_per_grain = int(round((z_max-z_min)/segment_length))
+    nctrlpt_per_beam = 2*NURBS_degree + 1
     
-    nlayer = nctrlpt_per_beam*nbeam_per_grain
+    nlayers = nctrlpt_per_beam*nsegments
+    segment_length = (z_max - z_min) / nsegments
     
     nconnector_t_per_beam = int((nctrlpt_per_beam-1)/NURBS_degree+1)
-    nconnector_t_per_grain = int(nconnector_t_per_beam*nbeam_per_grain)
+    nconnector_t_per_grain = int(nconnector_t_per_beam*nsegments)
     
-    theta = np.linspace(theta_min,theta_max,nlayer-(nbeam_per_grain-1))
-    z_coord = np.linspace(z_min,z_max,nlayer-(nbeam_per_grain-1))
+    theta = np.linspace(theta_min,theta_max,nlayers-(nsegments-1))
+    z_coord = np.linspace(z_min,z_max,nlayers-(nsegments-1))
     connector_l_length = segment_length*long_connector_ratio
-    connector_l_angle = (theta_max-theta_min)/nbeam_per_grain*long_connector_ratio
+    connector_l_angle = (theta_max-theta_min)/nsegments*long_connector_ratio
     
     # Insert repeated layers for the longitudinal connectors
-    for i in range(nlayer-(nbeam_per_grain-1)-(nctrlpt_per_beam-1),1,-(nctrlpt_per_beam-1)): 
+    for i in range(nlayers-(nsegments-1)-(nctrlpt_per_beam-1),1,-(nctrlpt_per_beam-1)): 
         theta = np.insert(theta,i,theta[i-1])
         theta[i:] += connector_l_angle
-    for i in range(nlayer-(nbeam_per_grain-1)-(nctrlpt_per_beam-1),1,-(nctrlpt_per_beam-1)):
+    for i in range(nlayers-(nsegments-1)-(nctrlpt_per_beam-1),1,-(nctrlpt_per_beam-1)):
         z_coord = np.insert(z_coord,i,z_coord[i-1])
         z_coord[i:] += connector_l_length
     
     # Data for IGA use
-    vertices_new = np.zeros((nlayer,npt_per_layer,3))
-    for i in range(0,nlayer):
+    vertices_new = np.zeros((nlayers,npt_per_layer,3))
+    for i in range(0,nlayers):
         for j in range(0,npt_per_layer):
             vertices_new[i,j,:2] = rotate_around_point_highperf(voronoi_vertices[j,:], theta[i], generation_center)
             vertices_new[i,j,2] = z_coord[i]
@@ -1462,14 +1463,14 @@ def GenerateBeamElement(NURBS_degree,nctrlpt_per_beam,segment_length,theta_min,t
     IGAvertices = np.reshape(vertices_new,(-1,3))
     
     # Connectivity for IGA
-    npt_total = nlayer*npt_per_layer
+    npt_total = nlayers*npt_per_layer
     vertex_connectivity = np.linspace(0,npt_total-1,npt_total)
     
     # Beams
     ngrain = nvertex
-    nbeam_total = ngrain*nbeam_per_grain
+    nbeam_total = ngrain*nsegments
     beam_connectivity_original = np.zeros((nbeam_total,nctrlpt_per_beam))
-    for i in range(0,nbeam_per_grain):
+    for i in range(0,nsegments):
         for j in range(0, ngrain):
             irow = i*ngrain + j
             ivertex = i*npt_per_layer*nctrlpt_per_beam + j
@@ -1491,7 +1492,7 @@ def GenerateBeamElement(NURBS_degree,nctrlpt_per_beam,segment_length,theta_min,t
     # Transverse connectors 
     nconnector_t = nridge*nconnector_t_per_grain
     connector_t_connectivity = np.zeros((nconnector_t,2))
-    for i in range(0,nbeam_per_grain):
+    for i in range(0,nsegments):
         for j in range(0,nconnector_t_per_beam):
             for k in range(0,nridge):
                 irow = i*nconnector_t_per_beam*nridge + j*nridge + k
@@ -1511,11 +1512,11 @@ def GenerateBeamElement(NURBS_degree,nctrlpt_per_beam,segment_length,theta_min,t
     # Longitudinal connectors
     nwings = all_vertices_2D[:,2].astype(int)
     nconnector_l_per_layer = sum(nwings)
-    nconnector_l = nconnector_l_per_layer * (nbeam_per_grain-1)
+    nconnector_l = nconnector_l_per_layer * (nsegments-1)
     connector_l_connectivity = np.zeros((nconnector_l,2))
     connector_l_vertex_dict = np.zeros(nconnector_l)
     irow_conn_l = 0
-    for i in range(0,nbeam_per_grain-1): # loop over layers of longitudinal connectors
+    for i in range(0,nsegments-1): # loop over layers of longitudinal connectors
         for j in range(0,ngrain): # loop over grains in each layer
             n = nwings[j]
             irow = i*ngrain + j
@@ -1530,18 +1531,18 @@ def GenerateBeamElement(NURBS_degree,nctrlpt_per_beam,segment_length,theta_min,t
     nconnector_total = nconnector_t + nconnector_l
     
     return IGAvertices,vertex_connectivity,beam_connectivity_original,nbeam_total,\
-        beam_connectivity,nbeamElem,nlayer,connector_t_connectivity,\
+        beam_connectivity,nbeamElem,nctrlpt_per_beam,nlayers,segment_length,connector_t_connectivity,\
         connector_t_bot_connectivity,connector_t_top_connectivity,\
         connector_t_reg_connectivity,connector_l_connectivity,nconnector_t_per_beam,\
         nconnector_t_per_grain,nconnector_t,nconnector_l,nconnector_total,\
-        theta,z_coord,nbeam_per_grain,connector_l_vertex_dict
+        theta,z_coord,connector_l_vertex_dict
 
 
 def ConnectorMeshFile(geoName,IGAvertices,connector_t_bot_connectivity,\
-                   connector_t_reg_connectivity,connector_t_top_connectivity,\
-                   height_connector_t,connector_l_connectivity,all_vertices_2D,\
-                   max_wings,flattened_all_vertices_2D,nbeam_per_grain,nridge,\
-                   connector_l_vertex_dict):
+                      connector_t_reg_connectivity,connector_t_top_connectivity,\
+                      connector_l_connectivity,all_vertices_2D,\
+                      max_wings,flattened_all_vertices_2D,nsegments,segment_length,\
+                      nctrlpt_per_beam,theta,nridge,connector_l_vertex_dict):
 ######### txt File stores the connector data for Abaqus analyses ##############
     nelem_connector_t_bot = connector_t_bot_connectivity.shape[0]
     nelem_connector_t_reg = connector_t_reg_connectivity.shape[0]
@@ -1549,10 +1550,23 @@ def ConnectorMeshFile(geoName,IGAvertices,connector_t_bot_connectivity,\
     nelem_connector_l = connector_l_connectivity.shape[0]
     nelem_total = nelem_connector_t_bot + nelem_connector_t_reg + nelem_connector_t_top + nelem_connector_l
     
+    # calculate heights of transverse connectors
+    height_connector_t = segment_length/4
+    
+    # calculate longitudinal connectors
+    nlayers_conn_l = nsegments - 1
     conn_l_ridge_index = flattened_all_vertices_2D[0,:].astype(int)
     conn_l_lengths = flattened_all_vertices_2D[2,:]
     # conn_l_widths = flattened_all_vertices_2D[3,:]  
     conn_l_angles = flattened_all_vertices_2D[4,:]
+    
+    conn_l_ridge_index = np.tile(conn_l_ridge_index,nlayers_conn_l)
+    conn_l_lengths = np.tile(conn_l_lengths,nlayers_conn_l)
+    conn_l_angles = np.tile(conn_l_angles,nlayers_conn_l)
+    
+    for i in range(0,nlayers_conn_l):
+        conn_l_angles[i*2*nridge:(i+1)*2*nridge] = conn_l_angles[i*2*nridge:(i+1)*2*nridge] - theta[(i+1)*nctrlpt_per_beam]
+        
     rot = np.array([[np.cos(conn_l_angles), -np.sin(conn_l_angles)], [np.sin(conn_l_angles), np.cos(conn_l_angles)]]).T
     rot = np.hstack((rot[:,0,:],np.zeros(len(conn_l_angles))[:, np.newaxis])) # convert to 3D rotation matrix, assumes rotation remains still in-plane
     conn_l_tangents = rot
@@ -1579,15 +1593,15 @@ def ConnectorMeshFile(geoName,IGAvertices,connector_t_bot_connectivity,\
         Meshdata[i+nelem_connector_t_bot+nelem_connector_t_reg+nelem_connector_t_top,16] = conn_l_lengths[i]
         
     Meshdata[:,6:9] = (Meshdata[:,0:3] + Meshdata[:,3:6])/2
-    Meshdata[0:nelem_connector_t_bot,8] = Meshdata[0:nelem_connector_t_bot,8]
-    Meshdata[nelem_total-nelem_connector_t_top:nelem_total,8] = Meshdata[nelem_total-nelem_connector_t_top:nelem_total,8]
+    # Meshdata[0:nelem_connector_t_bot,8] = Meshdata[0:nelem_connector_t_bot,8]
+    # Meshdata[nelem_total-nelem_connector_t_top:nelem_total,8] = Meshdata[nelem_total-nelem_connector_t_top:nelem_total,8]
     Meshdata[:,9:12] = Meshdata[:,6:9] - Meshdata[:,0:3]
     Meshdata[:,12:15] = Meshdata[:,6:9] - Meshdata[:,3:6]
 
     # Add z-variation/random field for cellwall thicknesses/connector widths
     for i in range(0,nridge):
         Meshdata[i,15] = all_vertices_2D[connector_t_bot_connectivity[i,1]-1,3+max_wings*3] # assign widths to all bot transverse connectors
-    Meshdata[:nelem_total-nelem_connector_l,15] = np.tile(Meshdata[0:nridge,15],3*nbeam_per_grain) # use the same widths for reg and top transverse connectors
+    Meshdata[:nelem_total-nelem_connector_l,15] = np.tile(Meshdata[0:nridge,15],3*nsegments) # use the same widths for reg and top transverse connectors
     
     conn_l_widths = Meshdata[conn_l_ridge_index,15]
     Meshdata[nelem_total-nelem_connector_l:nelem_total,15] = conn_l_widths
@@ -1611,12 +1625,12 @@ Number of long connectors\n'+ str(nelem_connector_l) +
 '\n\
 [inode jnode centerx centery centerz dx1 dy1 dz1 dx2 dy2 dz2 width height]', comments='')  
 
-    return Meshdata
+    return Meshdata, conn_l_tangents
 
 
 def insert_precracks(all_pts_2D,all_ridges,nridge,npt_per_layer,\
                      npt_per_layer_normal,npt_per_layer_vtk,\
-                     nlayer,precrack_nodes,precrack_widths,\
+                     nlayers,precrack_nodes,precrack_widths,\
                      cellsize_sparse,):
     
     precrack_midpts = (precrack_nodes[:,0:2]+precrack_nodes[:,2:4])/2.0
@@ -1647,19 +1661,22 @@ def insert_precracks(all_pts_2D,all_ridges,nridge,npt_per_layer,\
     return precracked_elem, nconnector_t_precrack, nconnector_l_precrack
         
         
-def VisualizationFiles(geoName,NURBS_degree,nlayer,npt_per_layer_vtk,all_pts_2D,\
-                       segment_length,theta,z_coord,nbeam_per_grain,nridge,\
+def VisualizationFiles(geoName,NURBS_degree,nlayers,npt_per_layer_vtk,all_pts_2D,\
+                       segment_length,theta,z_coord,nsegments,nridge,\
                        voronoi_ridges,generation_center,all_ridges,nvertex,\
                        nconnector_t,nconnector_l,nctrlpt_per_beam,ConnMeshData,\
-                       all_vertices_2D,max_wings,flattened_all_vertices_2D):
+                       conn_l_tangents,all_vertices_2D,max_wings,\
+                       flattened_all_vertices_2D):
+    
+    # Calculate model parameters
     ngrain = nvertex
+    nlayers_conn_l = nsegments - 1
     ninterval_per_beam_vtk = int((nctrlpt_per_beam-1)/2) # 2 layers ----> 1 interval
-
     nconnector_t_per_beam = int((nctrlpt_per_beam-1)/NURBS_degree+1)
     
     # Data for VTK use
-    vertices_new = np.zeros((nlayer,npt_per_layer_vtk,3))
-    for i in range(0,nlayer):
+    vertices_new = np.zeros((nlayers,npt_per_layer_vtk,3))
+    for i in range(0,nlayers):
         for j in range(0,npt_per_layer_vtk):
             vertices_new[i,j,:2] = rotate_around_point_highperf(all_pts_2D[j,:], theta[i], generation_center)
             vertices_new[i,j,2] = z_coord[i]
@@ -1669,13 +1686,13 @@ def VisualizationFiles(geoName,NURBS_degree,nlayer,npt_per_layer_vtk,all_pts_2D,
     
     # Connectivity for VTK use
     # Vertex
-    npt_total_vtk = nlayer*npt_per_layer_vtk
+    npt_total_vtk = nlayers*npt_per_layer_vtk
     vertex_connectivity_vtk = np.linspace(0,npt_total_vtk-1,npt_total_vtk)
     
     # Beam
-    nbeam_total_vtk = ngrain*nbeam_per_grain*ninterval_per_beam_vtk
+    nbeam_total_vtk = ngrain*nsegments*ninterval_per_beam_vtk
     beam_connectivity_vtk = np.zeros((nbeam_total_vtk,3)) # 3 is the number of points per beam in Paraview
-    for i in range(0,nbeam_per_grain):
+    for i in range(0,nsegments):
         for j in range(0,ninterval_per_beam_vtk):
             for k in range(0,ngrain):
                 irow = i*ninterval_per_beam_vtk*ngrain + j*ngrain + k
@@ -1684,7 +1701,7 @@ def VisualizationFiles(geoName,NURBS_degree,nlayer,npt_per_layer_vtk,all_pts_2D,
     
     # Transverse connectors 
     connector_t_connectivity_vtk = np.zeros((nconnector_t,2))
-    for i in range(0,nbeam_per_grain):
+    for i in range(0,nsegments):
         for j in range(0,nconnector_t_per_beam):
             for k in range(0,nridge):
                 irow = i*nconnector_t_per_beam*nridge + j*nridge + k
@@ -1694,7 +1711,7 @@ def VisualizationFiles(geoName,NURBS_degree,nlayer,npt_per_layer_vtk,all_pts_2D,
     connector_l_connectivity_vtk = np.zeros((nconnector_l,2))
     nwings = all_vertices_2D[:,2].astype(int)
     irow_conn_l = 0
-    for i in range(0,nbeam_per_grain-1): # loop over layers of longitudinal connectors
+    for i in range(0,nsegments-1): # loop over layers of longitudinal connectors
         for j in range(0,ngrain): # loop over grains in each layer
             nw = nwings[j]
             irow = i*ngrain + j
@@ -1704,9 +1721,9 @@ def VisualizationFiles(geoName,NURBS_degree,nlayer,npt_per_layer_vtk,all_pts_2D,
     
     # Quad - Beam Wings
     nquad = nridge*2
-    nquad_total = nquad*nbeam_per_grain*ninterval_per_beam_vtk
+    nquad_total = nquad*nsegments*ninterval_per_beam_vtk
     quad_connectivity = np.zeros((nquad_total,8))
-    for i in range(0,nbeam_per_grain):
+    for i in range(0,nsegments):
         for j in range(0,ninterval_per_beam_vtk):
             for k in range(0,nridge):
                 for l in range(0,2):
@@ -1721,9 +1738,13 @@ def VisualizationFiles(geoName,NURBS_degree,nlayer,npt_per_layer_vtk,all_pts_2D,
     nquad_conn = nconnector_t + nconnector_l
     nquad_conn_total = nquad_conn
     
-    conn_l_angles = flattened_all_vertices_2D[4,:]
-    
     Quad_center = np.copy(ConnMeshData[:,2:5])
+    
+    ##### Set normals of longitudinal connectors to be vertical normal = (0,0,1)
+    ConnMeshData[nconnector_t:nquad_conn_total,5:7] = 0
+    ConnMeshData[nconnector_t:nquad_conn_total,8:10] = 0
+    #### (Need to changed for inclined beam axis in the future)
+    
     Quad_normal1 = np.copy(ConnMeshData[:,5:8])
     Quad_normal2 = np.copy(ConnMeshData[:,8:11])
     Quad_length1 = np.linalg.norm(Quad_normal1, axis=1)
@@ -1733,10 +1754,8 @@ def VisualizationFiles(geoName,NURBS_degree,nlayer,npt_per_layer_vtk,all_pts_2D,
     Quad_normal = Quad_normal1/Quad_length1[:, np.newaxis]
     Quad_tangent = np.zeros((nquad_conn_total,3))
     Quad_tangent[0:nconnector_t] = np.tile(np.array([0.0,0.0,1.0]),(nconnector_t,1)) # assume a tangent of (0,0,1) for all conn_t
-    
-    rot = np.array([[np.cos(conn_l_angles), -np.sin(conn_l_angles)], [np.sin(conn_l_angles), np.cos(conn_l_angles)]]).T
-    rot = np.hstack((rot[:,0,:],np.zeros(len(conn_l_angles))[:, np.newaxis])) # convert to 3D rotation matrix, assumes rotation remains still in-plane
-    Quad_tangent[nconnector_t:nquad_conn] = rot
+
+    Quad_tangent[nconnector_t:nquad_conn] = conn_l_tangents
     Quad_bitangent = np.cross(Quad_normal,Quad_tangent)
     
     nconnector_t_bot = int(nconnector_t/3)
@@ -1796,7 +1815,7 @@ def VisualizationFiles(geoName,NURBS_degree,nlayer,npt_per_layer_vtk,all_pts_2D,
     # Paraview Visualization File
     collocation_flag_vtk = np.concatenate((np.ones(ngrain),np.zeros(npt_per_layer_vtk*NURBS_degree-ngrain)))
     collocation_flag_vtk = np.concatenate((np.tile(collocation_flag_vtk, nconnector_t_per_beam-1),np.concatenate((np.ones(ngrain),np.zeros(npt_per_layer_vtk-ngrain)))))
-    collocation_flag_vtk = np.tile(collocation_flag_vtk, nbeam_per_grain)
+    collocation_flag_vtk = np.tile(collocation_flag_vtk, nsegments)
 
 # =============================================================================
     # Paraview Vertices File
@@ -2122,7 +2141,8 @@ def VisualizationFiles(geoName,NURBS_degree,nlayer,npt_per_layer_vtk,all_pts_2D,
     vtkfile_conns_vol.close()
     
     
-def BezierExtraction(NURBS_degree,nctrlpt_per_beam,nbeam_total):
+def BezierExtraction(NURBS_degree,nbeam_total):
+    nctrlpt_per_beam = 2*NURBS_degree + 1
     knotVec_per_beam = np.concatenate((np.zeros(NURBS_degree),(np.linspace(0,1,int((nctrlpt_per_beam-1)/NURBS_degree+1))),np.ones(NURBS_degree)))
     knotVec = np.tile(knotVec_per_beam, (nbeam_total,1))
     return knotVec
@@ -2154,11 +2174,11 @@ def BezierBeamFile(geoName,NURBS_degree,nctrlpt_per_beam,\
     txtfile.close()
     
             
-def AbaqusFile(geoName,NURBS_degree,npatch,nbeam_per_grain,IGAvertices,beam_connectivity,\
+def AbaqusFile(geoName,NURBS_degree,npatch,IGAvertices,beam_connectivity,\
                connector_t_bot_connectivity,connector_t_reg_connectivity,\
                connector_t_top_connectivity,connector_l_connectivity,nbeamElem,\
                nconnector_t,nconnector_l,nconnector_t_precrack,nconnector_l_precrack,\
-               segment_length,height_connector_t,long_connector_ratio,\
+               segment_length,long_connector_ratio,\
                x_max,x_min,y_max,y_min,z_coord,box_shape,box_size,\
                cellwallthickness_sparse,cellwallthickness_dense,\
                merge_operation,merge_tol,\
@@ -2200,6 +2220,7 @@ def AbaqusFile(geoName,NURBS_degree,npatch,nbeam_per_grain,IGAvertices,beam_conn
     nsvars_conn_t = 32  # number of svars for transverse connector
     iprops_connector_t_bot = np.zeros(7)
     props_connector_t_bot = np.zeros(26)
+    height_connector_t = segment_length/4
     
     props_connector_t_bot[0]     = 1.5E-9 # Cell substance density [tonne/mm^3]
     props_connector_t_bot[1]     = 6.6E+8 # Mesoscale elastic modulus [MPa]
