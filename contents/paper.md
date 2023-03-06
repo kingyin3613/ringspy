@@ -14,7 +14,7 @@ authors:
     orcid: 0000-0001-7436-3910
     affiliation: "1"
 affiliations:
- - name: Department of Civil and Environmental Engineering, Northwestern University, Evanston, Illinois, USA
+ - name: Department of Civil and Environmental Engineering, Northwestern University, Evanston, Illinois, United States of America
    index: 1
 date: October 2022
 bibliography: paper.bib
