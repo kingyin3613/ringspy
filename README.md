@@ -5,7 +5,7 @@
 [![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.html)
 [![Tests](https://github.com/kingyin3613/ringspy/actions/workflows/tests.yml/badge.svg)](https://github.com/kingyin3613/ringspy/actions/workflows/tests.yml)
 [![codecov](https://codecov.io/gh/kingyin3613/ringspy/branch/main/graph/badge.svg?token=4AZN3HGGET)](https://codecov.io/gh/kingyin3613/ringspy)
-[![status](https://joss.theoj.org/papers/3dd05ca1103829e7620731845b0d2472/status.svg)](https://joss.theoj.org/papers/3dd05ca1103829e7620731845b0d2472)
+[![DOI](https://joss.theoj.org/papers/10.21105/joss.04945/status.svg)](https://doi.org/10.21105/joss.04945)
 
 RingsPy is a Voronoi diagrams-based geometric generation tool that generates 3D meshes and models of prismatic cellular solids with radial growth rules.
 
@@ -246,11 +246,27 @@ All steps for the model setup can be accomplished through manually coding the Ab
 ![ModelNumericalSimulation](<./contents/ModelNumericalSimulation.png>)
 
 ## Contributing
+[![DOI](https://joss.theoj.org/papers/10.21105/joss.04945/status.svg)](https://doi.org/10.21105/joss.04945)
+
+If you make use of this code, or find it is useful for your own research , please cite the JOSS paper:
+
+    @article{ringspy,
+      doi = {10.21105/joss.04945},
+      url = {https://doi.org/10.21105/joss.04945},
+      year = {2023},
+      publisher = {The Open Journal},
+      volume = {8},
+      number = {83},
+	  pages = {4945},
+      author = {Hao Yin and Gianluca Cusatis},
+      title = {RingsPy: A Python package for Voronoi mesh generation of cellular solids with radial growth pattern},
+      journal = {Journal of Open Source Software}
+    }
+
 
 Contributions are always welcome!
 
 If you wish to contribute code/algorithms to this project, or to propose a collaboration study, please send an email to haoyin2022 [at] u.northwestern.edu .
-
 ## License
 ![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-blue.svg)
 
