@@ -249,20 +249,20 @@ All steps for the model setup can be accomplished through manually coding the Ab
 [![DOI](https://joss.theoj.org/papers/10.21105/joss.04945/status.svg)](https://doi.org/10.21105/joss.04945)
 
 If you make use of this code, or find it is useful for your own research , please cite the JOSS paper:
-
-    @article{ringspy,
-      doi = {10.21105/joss.04945},
-      url = {https://doi.org/10.21105/joss.04945},
-      year = {2023},
-      publisher = {The Open Journal},
-      volume = {8},
-      number = {83},
-	  pages = {4945},
-      author = {Hao Yin and Gianluca Cusatis},
-      title = {RingsPy: A Python package for Voronoi mesh generation of cellular solids with radial growth pattern},
-      journal = {Journal of Open Source Software}
-    }
-
+```
+@article{ringspy,
+    doi = {10.21105/joss.04945},
+    url = {https://doi.org/10.21105/joss.04945},
+    year = {2023},
+    publisher = {The Open Journal},
+    volume = {8},
+    number = {83},
+    pages = {4945},
+    author = {Hao Yin and Gianluca Cusatis},
+    title = {RingsPy: A Python package for Voronoi mesh generation of cellular solids with radial growth pattern},
+    journal = {Journal of Open Source Software}
+}
+```
 
 Contributions are always welcome!
 
