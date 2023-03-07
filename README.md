@@ -144,7 +144,7 @@ Functions in `MeshGenTools` library will be called to create the initial mesh, w
 
 A new folder should have been created in the `.\meshes` directory with the same name as the `geoName` in `test_wood_cube.py`.
 
-${\color{red}\textbf{(New feature in version v0.4.x)}}$
+${\textbf{(New feature in version v0.4.x)}}$
 
 The Lloyd's relaxation (a.k.a. Lloyd's algorithm) has been integrated with the mesh generation, one may use this approach by changing the following line in the input file:
 ```
@@ -221,7 +221,7 @@ A scientific visualization application `ParaView` can directly visualize the gen
 ![ModelVisualization](<./contents/ModelVisualization.png>)
 
 ### 4. (Optional) Numerical Simulation
-The mesh generation tool can also prepare the input files for the numerical simulations of the cellular solid in other softwares. By now (version 1.0.0), the input file format, `.inp`, that is used in a finite element method (FEM) software `Abaqus` is supported, if the INP flag is on. `Abaqus` is a commerical software suite for integrated computer-aided engineering (CAE) and finite element analysis, own by `Dassault Systèmes`. One may refer to its [Wiki](https://en.wikipedia.org/wiki/Abaqus) for more about `Abaqus`, and to [Introduction](https://bertoldi.seas.harvard.edu/files/bertoldi/files/abaqusinputfilemanualv1.pdf?m=1444417191) for the introduction of Abaqus input files.
+The mesh generation tool can also prepare the input files for the numerical simulations of the cellular solid in other softwares. By now (version 1.0.x), the input file format, `.inp`, that is used in a finite element method (FEM) software `Abaqus` is supported, if the INP flag is on. `Abaqus` is a commerical software suite for integrated computer-aided engineering (CAE) and finite element analysis, own by `Dassault Systèmes`. One may refer to its [Wiki](https://en.wikipedia.org/wiki/Abaqus) for more about `Abaqus`, and to [Introduction](https://bertoldi.seas.harvard.edu/files/bertoldi/files/abaqusinputfilemanualv1.pdf?m=1444417191) for the introduction of Abaqus input files.
 
 All steps for the model setup can be accomplished through manually coding the Abaqus input file in a text editor. The method used in the example procedure shown below requires access to the Abaqus GUI.
 
