@@ -17,8 +17,20 @@ from scipy.spatial import ConvexHull
 from scipy.spatial import Voronoi
 from pathlib import Path
 import datetime
-import pkg_resources
 import time
+
+from . import __version__
+
+
+
+def cross2D(a, b):
+    """
+    z-component of the cross product of 2D vectors (or arrays of 2D vectors).
+    NumPy 2 no longer accepts 2D vectors in np.cross.
+    """
+    a = np.asarray(a)
+    b = np.asarray(b)
+    return a[...,0]*b[...,1] - a[...,1]*b[...,0]
 
 
 def intersect2D(a, b):
@@ -474,10 +486,14 @@ def CellPlacement_Honeycomb(generation_center,r_max,r_min,nrings,box_center,box_
                             cellsize_sparse,cellsize_dense,\
                             cellwallthickness_sparse,cellwallthickness_dense,\
                             iter_max,print_interval):
-    from hexalattice.hexalattice import create_hex_grid
     """
     packing cells in hexagonal grids
     """
+    try:
+        from hexalattice.hexalattice import create_hex_grid
+    except ImportError as e:
+        raise ImportError("radial_growth_rule 'regular_hexagonal' needs the optional package hexalattice: "
+                          "pip install 'ringspy[hex]'") from e
     
     # generate radii for rings
     width = np.concatenate(([width_heart],np.tile([width_sparse,width_dense],nrings)))
@@ -678,8 +694,8 @@ def RebuildVoronoi(vor,circles,boundaries,generation_center,x_min,x_max,y_min,y_
             for boundary in boundaries: # loop over boundary lines
                 q = np.asarray(boundary[1][0])
                 s = np.asarray(boundary[1][1]) - np.asarray(boundary[1][0])
-                t = np.cross((q-p),s)/np.cross(normal,s)
-                u = np.cross((q-p),normal)/np.cross(normal,s)
+                t = cross2D((q-p),s)/cross2D(normal,s)
+                u = cross2D((q-p),normal)/cross2D(normal,s)
                 
                 if (u >= 0) and (u <= 1):
                     if np.sign(np.dot(midpoint - generation_center, normal)) == 1: # facing outwards
@@ -695,8 +711,8 @@ def RebuildVoronoi(vor,circles,boundaries,generation_center,x_min,x_max,y_min,y_
             for boundary in boundaries: # loop over boundary lines
                 q = np.asarray(boundary[1][0])
                 s = np.asarray(boundary[1][1]) - np.asarray(boundary[1][0])
-                t = np.cross((q-p),s)/np.cross(normal,s)
-                u = np.cross((q-p),normal)/np.cross(normal,s)
+                t = cross2D((q-p),s)/cross2D(normal,s)
+                u = cross2D((q-p),normal)/cross2D(normal,s)
                 
                 if (u >= 0) and (u <= 1):
                     if (t >= 0) and (t < t_final):
@@ -707,8 +723,8 @@ def RebuildVoronoi(vor,circles,boundaries,generation_center,x_min,x_max,y_min,y_
             for boundary in boundaries: # loop over boundary lines
                 q = np.asarray(boundary[1][0])
                 s = np.asarray(boundary[1][1]) - np.asarray(boundary[1][0])
-                t = np.cross((q-p),s)/np.cross(normal,s)
-                u = np.cross((q-p),normal)/np.cross(normal,s)
+                t = cross2D((q-p),s)/cross2D(normal,s)
+                u = cross2D((q-p),normal)/cross2D(normal,s)
                 
                 if (u >= 0) and (u <= 1):
                     if (t >= 0) and (t < t_final):
@@ -904,8 +920,8 @@ def RebuildVoronoi_merge(vor,circles,boundaries,generation_center,x_min,x_max,y_
             for boundary in boundaries: # loop over boundary lines
                 q = np.asarray(boundary[1][0])
                 s = np.asarray(boundary[1][1]) - np.asarray(boundary[1][0])
-                t = np.cross((q-p),s)/np.cross(normal,s)
-                u = np.cross((q-p),normal)/np.cross(normal,s)
+                t = cross2D((q-p),s)/cross2D(normal,s)
+                u = cross2D((q-p),normal)/cross2D(normal,s)
                 
                 if (u>= 0) and (u<=1):
                     if np.sign(np.dot(midpoint - generation_center, normal)) == 1: # facing outwards
@@ -921,8 +937,8 @@ def RebuildVoronoi_merge(vor,circles,boundaries,generation_center,x_min,x_max,y_
             for boundary in boundaries: # loop over boundary lines
                 q = np.asarray(boundary[1][0])
                 s = np.asarray(boundary[1][1]) - np.asarray(boundary[1][0])
-                t = np.cross((q-p),s)/np.cross(normal,s)
-                u = np.cross((q-p),normal)/np.cross(normal,s)
+                t = cross2D((q-p),s)/cross2D(normal,s)
+                u = cross2D((q-p),normal)/cross2D(normal,s)
                 
                 if (u >= 0) and (u <= 1):
                     if (t > 0) and (t < t_final):
@@ -933,8 +949,8 @@ def RebuildVoronoi_merge(vor,circles,boundaries,generation_center,x_min,x_max,y_
             for boundary in boundaries: # loop over boundary lines
                 q = np.asarray(boundary[1][0])
                 s = np.asarray(boundary[1][1]) - np.asarray(boundary[1][0])
-                t = np.cross((q-p),s)/np.cross(normal,s)
-                u = np.cross((q-p),normal)/np.cross(normal,s)
+                t = cross2D((q-p),s)/cross2D(normal,s)
+                u = cross2D((q-p),normal)/cross2D(normal,s)
                 
                 if (u >= 0) and (u <= 1):
                     if (t > 0) and (t < t_final):
@@ -1648,7 +1664,7 @@ def insert_precracks(all_pts_2D,all_ridges,nridge,npt_per_layer,\
         for ridge in near_ridges[i]:
             q = all_pts_2D[all_ridges[ridge,0],:]
             s = all_pts_2D[all_ridges[ridge,1],:] - q
-            u = np.cross((q-p),normal)/np.cross(normal,s)
+            u = cross2D((q-p),normal)/cross2D(normal,s)
             if (u >= 0) and (u <= 1):
                 precracked_elem.append(ridge)
                 
@@ -2347,7 +2363,7 @@ def AbaqusFile(geoName,NURBS_degree,npatch,IGAvertices,beam_connectivity,\
     meshinpfile = open(Path('meshes/' + geoName + '/' + geoName + '.inp'),'w')
     meshinpfile.write('*HEADING'+'\n')
     meshinpfile.write('** Job name: {0} Model name: Model-{1}\n'.format(geoName,geoName))
-    meshinpfile.write('** Generated with RingsPy Mesh Generation Tool V{}\n'.format(pkg_resources.get_distribution("RingsPy").version))
+    meshinpfile.write('** Generated with RingsPy Mesh Generation Tool V{}\n'.format(__version__))
     # PART
     meshinpfile.write('** \n')
     meshinpfile.write('** PARTS\n') 
@@ -3056,7 +3072,10 @@ def StlModelFile(geoName):
     None or error message, if generation failed (TBD)
     """
     
-    import vtk
+    try:
+        import vtk
+    except ImportError as e:
+        raise ImportError("STL export (stlFlag = 'on') needs the optional package vtk: pip install 'ringspy[vtk]'") from e
     import os
     
     vtufilename = geoName + '_conns_vol'+'.vtu'
@@ -3142,7 +3161,7 @@ def LogFile(geoName,iter_max,r_min,r_max,nrings,width_heart,width_sparse,width_d
     # Generate log file
     logfile = open(Path('meshes/' + geoName + '/' + geoName + '-report.log'),'w')                                      
     logfile.write('################################################################################\n')
-    logfile.write('##             Log Created with RingsPy Mesh Generation Tool V' + pkg_resources.get_distribution("ringspy").version + '           ##\n')
+    logfile.write('##             Log Created with RingsPy Mesh Generation Tool V' + __version__ + '           ##\n')
     logfile.write('##             Files generated at local time: ' + current_time + '             ##\n')
     logfile.write('################################################################################\n')
     logfile.write('\n')

@@ -10,15 +10,15 @@
 RingsPy is a Voronoi diagrams-based geometric generation tool that generates 3D meshes and models of prismatic cellular solids with radial growth rules.
 
 ## Dependencies and Installation
-RingsPy depends on mainstream Python libraries ``numpy`` and ``scipy``, and optionally depends on library ``hexalattice``, if a regular hexagonal lattice (e.g. honeycomb) is wanted; also ``vtk``, if the 3D model files are also wanted.
+RingsPy needs Python 3.9 or newer and depends on mainstream Python libraries ``numpy``, ``scipy`` and ``matplotlib``. It optionally depends on library ``hexalattice``, if a regular hexagonal lattice (e.g. honeycomb) is wanted, and on ``vtk``, if the 3D model (STL) files are also wanted.
 ### 1. pip install
-To install RingsPy, one may use `pip`:
+To install RingsPy with all optional features, one may use `pip`:
 ```bash
-pip install ringspy
+pip install "ringspy[all]"
 ``` 
-or use:
+`pip install ringspy` installs the core package only; add the extras `[vtk]` (STL export) or `[hex]` (`regular_hexagonal` growth rule) as needed. One may also use:
 ```bash
-pip install git+https://github.com/kingyin3613/ringspy.git
+pip install "ringspy[all] @ git+https://github.com/kingyin3613/ringspy.git"
 ``` 
 to get updates beyond the latest release. 
 
@@ -30,10 +30,11 @@ conda install -c conda-forge ringspy
 
 ### 3. Installation Check
 
-There are some unit tests in [tests](https://github.com/kingyin3613/ringspy/tree/main/tests/). One can use ``pytest`` to check whether the installation is successful by firstly moving to ``ringspy`` or ``ringspy/tests`` directory and then running this command:
+There are some unit tests in [tests](https://github.com/kingyin3613/ringspy/tree/main/tests/). One can use ``pytest`` to check whether the installation is successful by installing the test dependencies in the cloned ``ringspy`` directory and then running ``pytest`` there (generated files go to temporary folders):
 
 ```bash
-pytest .
+pip install -e ".[test]"
+pytest
 ```
 
 ## Getting Started (Current version: v1.0.2)

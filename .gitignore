@@ -1,0 +1,17 @@
+# generated meshes
+meshes/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# tools
+.pytest_cache/
+.coverage
+coverage.xml
+.tox/
