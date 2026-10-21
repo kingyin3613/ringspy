@@ -37,20 +37,22 @@ pip install -e ".[test]"
 pytest
 ```
 
-## Getting Started (Current version: v1.1.0)
+`pytest -m "not slow"` skips the end-to-end runs of the examples and takes well under a minute.
+
+## Getting Started (Current version: v1.2.0)
 Once all required components are installed and one is ready to begin, a path forward should be established for generating the mesh. The basic steps for running/viewing a cellular mesh are listed as the following:
 
-    1. Edit geometry and algorithm parameters
-    2. Generate mesh using Mesh Generation Tools
+    1. Edit geometry and algorithm parameters in an input file
+    2. Generate mesh with the command `ringspy run` (or with `ringspy.generate` in Python)
     3. Visualize 2D view using Matplotlib or 3D model in `ParaView`
     4. (Optional) Export 3D STL model for 3D editing and/or printing
-	5. (Optional) Export input file for numerical simulations with software `Abaqus`
+    5. (Optional) Export input file for numerical simulations with software `Abaqus`
 
 ### 1. Geometry and Parameters
 The first step to generate a cellular geometry is selecting geometry and appropriate parameters. 
 
 ### 1.1. Geometry
-A template file, for example, `test_wood_cube.py` located in the [tests](https://github.com/kingyin3613/ringspy/tree/main/tests/) directory acts as both the parameter input file, and main executable for the generation of a cubic wood specimen.
+An input file in [TOML](https://toml.io) format, for example [`wood_cube.toml`](https://github.com/kingyin3613/ringspy/tree/main/examples/wood_cube.toml) in the [examples](https://github.com/kingyin3613/ringspy/tree/main/examples/) directory, holds the parameters for the generation of a cubic wood specimen. The other examples there are a wood specimen with more regular cells (`wood_cube_lloyd.toml`), honeycombs clipped by a hexagon or a triangle (`honeycomb_hex.toml`, `honeycomb_tri.toml`), and a mesh of previously saved cells (`saved_sites.toml`). Copy the one closest to the wanted geometry and edit it.
 
 *Note: The Mesh Generation Tool by now only accepts many of pre-defined boundary geometries (for v1.x, the following 3 shapes are supported: triangle, square, hexagon), importing of CAD and/or other 3D model files will be implemented in subsequent versions.*
 
@@ -58,65 +60,69 @@ A template file, for example, `test_wood_cube.py` located in the [tests](https:/
 
 ### 1.2. Parameters
 
+By opening an input file, e.g., `examples/wood_cube.toml` in any text editor, a file format similar to what is shown below will be displayed:
+```toml
+geoName = "wood_cube"
+path = "meshes"                 # output folder: the files go to meshes/wood_cube/
 
-By opening a input file, e.g., `tests/test_wood_cube.py` in any text editor, a file format similar to what is shown below will be displayed:
-```
-geoName = 'wood_cube'
-path = 'meshes'
+# Cell placement
+radial_growth_rule = "binary"   # binary, binary_lloyd, regular_hexagonal, or a saved *_sites.npy file
+iter_max = 500                  # increase this number to achieve a more regular geometry
+print_interval = 500            # interval for printing progress info
+seed = 2023                     # random seed; remove it for a different geometry on every run
 
-radial_growth_rule = 'binary'
-iter_max = 500 # increase this number to achieve a more regular geometry
-print_interval = 500 # interval for printing prgress info
-
-# Radial cell growth parameters
-# length unit: mm
-r_min = 0   # inner radius of generation domain
-r_max = 4   # outer radius of generation domain
-nrings = 4 # number of rings
-width_heart = 0.3*(r_max-r_min)/nrings # ring width for the innermost ring
-width_sparse = 0.7*(r_max-r_min)/nrings # ring width for rings with sparse cells
-width_dense = 0.3*(r_max-r_min)/nrings # ring width for rings with dense cells
-generation_center = (0,0) # coordinates of generation domain center
+# Radial cell growth
+r_min = 0                       # inner radius of generation domain
+r_max = 4                       # outer radius of generation domain
+nrings = 4                      # number of rings
+width_heart = 0.3               # ring width of the innermost ring (left out: 0.3*(r_max-r_min)/nrings)
+width_sparse = 0.7              # ring width of rings with sparse cells (left out: 0.7*(r_max-r_min)/nrings)
+width_dense = 0.3               # ring width of rings with dense cells (left out: 0.3*(r_max-r_min)/nrings)
+generation_center = [0, 0]      # coordinates of generation domain center
 
 cellsize_sparse = 0.02
 cellsize_dense = 0.01
 cellwallthickness_sparse = 0.010
 cellwallthickness_dense = 0.006
 
-# clipping box parameters
-boundaryFlag = 'on'
-box_shape = 'square'
-box_center = (0,0) # coordinates of clipping box center
-box_size = 4.0 # side length
-	
-# longitudinal direction parameters
-nsegments = 2 # increase this number to achieve a smoother transition in longitudinal direction if theta is large
-theta_min = 0 # unit: radian
-theta_max = 0.05 # unit: radian
+# Clipping box
+boundaryFlag = true
+box_shape = "square"            # square, triangle or hexagon
+box_center = [0, 0]             # coordinates of clipping box center
+box_size = 4.0                  # side length
+
+# Longitudinal direction
+nsegments = 2                   # increase this number to achieve a smoother transition in longitudinal direction if theta is large
+theta_min = 0                   # unit: radian
+theta_max = 0.05                # unit: radian
 z_min = 0
-z_max = box_size # segment_length = (z_max - z_min) / nsegments
-long_connector_ratio = 0.02 # longitudinal joint length = ratio * segment_length
+z_max = 4.0                     # segment_length = (z_max - z_min) / nsegments (left out: box_size)
+long_connector_ratio = 0.02     # longitudinal joint length = ratio * segment_length
 
-# material parameters
-skeleton_density = 1.5e-9 # unit: tonne/mm3
+# Material
+skeleton_density = 1.5e-9       # unit: tonne/mm3
 
-# generation parameters
-merge_operation = 'on'
+# Mesh operations
+merge_operation = true          # merge cell walls shorter than merge_tol
 merge_tol = 0.01
 
-precrackFlag = 'off'
+precrackFlag = false
 precrack_widths = 0.1
 
-stlFlag = 'on'
-
-inpFlag = 'on'
-inpType = 'Abaqus'
+# Output files
+stlFlag = true                  # 3D model (needs vtk: pip install "ringspy[vtk]")
+inpFlag = true                  # input file for simulations
+inpType = "Abaqus"
+save_sites = false              # also save wood_cube_sites.npy and wood_cube_radii.npy, to reuse the cells later
 ```
 
-- `geoName` is the geometry name, `path` is the folder where the mesh files will be generated.
-- `radial_growth_rule` is the radial growth rule for cell placement. When a file name with extension`.npy` is specified, a saved cell data file will be loaded (for v1.x, choose one of these rules: `binary`, `binary_lloyd`, `regular_hexagonal`, or a file name with extension `.npy`).
+A parameter that is left out takes its default value, which is its value in `wood_cube.toml`; a misspelled parameter name is an error. Flags take `true`/`false` (the `'on'`/`'off'` strings of earlier versions also work).
+
+- `geoName` is the geometry name, `path` is the folder where the mesh files will be generated (relative to the folder where `ringspy run` is started).
+- `radial_growth_rule` is the radial growth rule for cell placement. When a file name with extension`.npy` is specified, a saved cell data file will be loaded (for v1.x, choose one of these rules: `binary`, `binary_lloyd`, `regular_hexagonal`, or a file name with extension `.npy`). The `.npy` file and its `_radii.npy` partner are looked for in the folder of the input file and its parents, or in `sites_dir` if given; `save_sites = true` saves them for a generated geometry.
 - `iter_max` is the max number of iteration for randomly placing non-overlapping cell particles in the 2D toroidal cell placement region. Noticing that, larger `iter_max` leads to more centroidal Voronoi cells, for more reference, see [Wiki - Centroidal Voronoi Tessellation](https://en.wikipedia.org/wiki/Centroidal_Voronoi_tessellation/).
 - `print_interval` is the print interval when every n cell particles are placed in the placement region.
+- `seed` makes the random cell placement repeatable: the same seed gives the same files. Without a seed, every run gives a different geometry (the cells then come from NumPy's global random state, as in earlier versions). The seed is written to the report log.
 - `r_min` and `r_max` are the upper and lower bounds of radii of toroidal cell placement regions (generation rings), `nrings` is the total number of rings.
 - `width_heart`, `width_sparse`, and `width_dense`, are ring widths for innermost ring, rings with sparse cells, and rings with dense cells, respectively, which all together determine the morphology of the cellular structure.
 - `generation_center` is the location of the placement region.
@@ -130,26 +136,44 @@ inpType = 'Abaqus'
 - `long_connector_ratio` is the length of longitudinal joints, with `longitudinal joint length = ratio * segment_length`.
 - `skeleton_density` is the density of the skeleton (substance) material, e.g. density of wood cell walls in the wood microstructure. 
 - `merge_operation` flag can be turned on/off for the merging operation, when flag is on, cell ridges that are shorter than the threshold `merge_tol` in the 2D mesh will be deleted, and their vertices will be merged respectively, the mesh will be reconstructed. This is designed for eliminating small cell ridges/walls which fall out of the resolution range of the 3D printing and for avoiding having elements with too small stable time increments in numerical simulations. 
-- `precrackFlag` flag is for inserting a pre-crack, for the notched specimens (for v1.x, only a single line pre-crack with the length of `precrack_widths` is supported).
+- `precrackFlag` flag is for inserting pre-cracks, for the notched specimens. `precrack_nodes = [[x1, y1, x2, y2], ...]` gives the line segments of the cracks; when it is left out, a horizontal crack of length `0.1*box_size` through `box_center`, starting `0.12*box_size` from the left side of the box, is inserted. `precrack_widths` is the width of the cracks.
 - `stlFlag` flag can be turned on/off for generating 3D STL files.
 - `inpFlag` flag can be turned on/off for generating input files for numerical simulations.
 - `inpType` indicates the software(s) that the mesh generation should generate input files for.
 
 ![growth_rule_binary](<./contents/growth_rule_binary.png>)
 ### 2.1. Run Mesh Generation
-Open a Command Prompt or Terminal window and set the current directory to [tests](https://github.com/kingyin3613/ringspy/tree/main/tests/) or any other directory, then run the command:
+Open a Command Prompt or Terminal window, set the current directory to [examples](https://github.com/kingyin3613/ringspy/tree/main/examples/) or the folder of your own input file, then run the command:
+```bash
+ringspy run wood_cube.toml
 ```
-python test_wood_cube.py
-```
-Functions in `MeshGenTools` library will be called to create the initial mesh, wood cell particles following certain cell size distribution will be placed, then `Scipy.voronoi` function will be called to form the initial 2D Voronoi tessellation, additional code reforms the tesselation and generates the desired files. A successful generation will end with the line "Files generated ..." in the Terminal window.
+(`python -m ringspy run wood_cube.toml` does the same.) The options `--seed`, `--path` and `--geoName` override the values in the file, e.g. `ringspy run wood_cube.toml --seed 7 --geoName wood_cube_7`.
 
-A new folder should have been created in the `.\meshes` directory with the same name as the `geoName` in `test_wood_cube.py`.
+Functions in `MeshGenTools` library will be called to create the initial mesh, wood cell particles following certain cell size distribution will be placed, then `Scipy.voronoi` function will be called to form the initial 2D Voronoi tessellation, additional code reforms the tesselation and generates the desired files. A successful generation will end with the line "Mesh files written to ..." in the Terminal window.
+
+A new folder should have been created in the `.\meshes` directory with the same name as the `geoName` in `wood_cube.toml`.
+
+The same generation can be run from Python, e.g. to loop over parameters:
+```python
+import ringspy
+
+result = ringspy.generate("wood_cube.toml")                 # same as: ringspy run wood_cube.toml
+for seed in range(5):
+    ringspy.generate("wood_cube.toml", seed=seed, geoName=f"wood_cube_{seed}", stlFlag=False)
+
+config = ringspy.Config(geoName="small_cube", r_max=2, box_size=1.0, seed=1)  # parameters left out: defaults
+result = ringspy.generate(config)
+print(result.output_dir, result.nParticles, result.porosity)
+```
+Each example also has a short Python script next to it, e.g. `python wood_cube.py`.
+
+*Note: template scripts of earlier versions (e.g. `tests/test_wood_cube.py` of v1.1), which call the `MeshGenTools` functions one by one, still work. Their placement functions take an optional `rng` argument (a seed or a `numpy.random.Generator`) to make the cell placement repeatable.*
 
 ${\textbf{(New feature in version v0.4.x)}}$
 
-The Lloyd's relaxation (a.k.a. Lloyd's algorithm) has been integrated with the mesh generation, one may use this approach by changing the following line in the input file:
-```
-radial_growth_rule = binary_lloyd
+The Lloyd's relaxation (a.k.a. Lloyd's algorithm) has been integrated with the mesh generation, one may use this approach by changing the following line in the input file (see [`wood_cube_lloyd.toml`](https://github.com/kingyin3613/ringspy/tree/main/examples/wood_cube_lloyd.toml)):
+```toml
+radial_growth_rule = "binary_lloyd"
 ``` 
 This allows a rapid radial generation of more regular centroidal Voronoi cells from the `generation_center` (see the difference between `wood_binary` and `wood_binary_lloyd` in the preview of 2D cross-sections in section 2.2). For more detail of the algorithm, see [Wiki - Lloyd's algorithm](https://en.wikipedia.org/wiki/Lloyd's_algorithm)).
 

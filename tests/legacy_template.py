@@ -1,11 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-RingsPy
-a Python Voronoi diagrams-based geometric generation tool that generates 
-3D meshes of prismatic cellular solids with radial growth rules.
-
-author: king_yin3613
-email: haoyin2022@u.northwestern.edu
+A template script in the style of RingsPy <= 1.1 (tests/test_wood_cube.py of v1.1.0,
+with a smaller geometry and a precrack). Users still have such scripts:
+test_legacy_template.py checks that they run and give the same files as ringspy.generate().
 """
 
 import numpy as np
@@ -20,13 +17,13 @@ import ringspy.MeshGenTools as rpgen
 import shutil
 from pathlib import Path
 
-def test_wood_cube():
+def legacy_template():
     # performance check only
     startTime = time.time()
     
     # ==================================================================
     # Input parameters
-    geoName = 'wood_cube'
+    geoName = 'legacy'
     path = 'meshes'
     
     radial_growth_rule = 'binary'
@@ -36,15 +33,15 @@ def test_wood_cube():
     # Radial cell growth parameters
     # length unit: mm
     r_min = 0   # inner radius of generation domain
-    r_max = 4   # outer radius of generation domain
-    nrings = 4 # number of rings
+    r_max = 1.5   # outer radius of generation domain
+    nrings = 2 # number of rings
     width_heart = 0.3*(r_max-r_min)/nrings # ring width for the innermost ring
     width_sparse = 0.7*(r_max-r_min)/nrings # ring width for rings with sparse cells
     width_dense = 0.3*(r_max-r_min)/nrings # ring width for rings with dense cells
     generation_center = (0,0) # coordinates of generation domain center
     
-    cellsize_sparse = 0.02
-    cellsize_dense = 0.01
+    cellsize_sparse = 0.04
+    cellsize_dense = 0.02
     cellwallthickness_sparse = 0.010
     cellwallthickness_dense = 0.006
     
@@ -52,7 +49,7 @@ def test_wood_cube():
     boundaryFlag = 'on'
     box_shape = 'square'
     box_center = (0,0) # coordinates of clipping box center
-    box_size = 4.0 # side length
+    box_size = 1.0 # side length
         
     # longitudinal direction parameters
     nsegments = 2 # increase this number to achieve a smoother transition in longitudinal direction if theta is large
@@ -69,7 +66,7 @@ def test_wood_cube():
     merge_operation = 'on'
     merge_tol = 0.01
     
-    precrackFlag = 'off'
+    precrackFlag = 'on'
     precrack_widths = 0.1
     
     stlFlag = 'on'
@@ -298,4 +295,4 @@ def test_wood_cube():
             startTime,placementTime,voronoiTime,RebuildvorTime,BeamTime,FileTime,path=path)
         
 if __name__ == "__main__":
-    test_wood_cube()
+    legacy_template()

@@ -1,0 +1,60 @@
+# RingsPy example: regular hexagonal honeycomb clipped by a hexagon
+#
+#   ringspy run honeycomb_hex.toml
+#
+# Needs hexalattice: pip install "ringspy[hex]". Lengths in mm.
+# Any parameter left out takes its default value: the value in wood_cube.toml.
+
+geoName = "honeycomb_hex"
+path = "meshes"                 # output folder: the files go to meshes/honeycomb_hex/
+
+# Cell placement
+radial_growth_rule = "regular_hexagonal" # binary, binary_lloyd, regular_hexagonal, or a saved *_sites.npy file
+iter_max = 500                  # increase this number to achieve a more regular geometry
+print_interval = 500            # interval for printing progress info
+seed = 2023                     # random seed; remove it for a different geometry on every run
+
+# Radial cell growth
+r_min = 0                       # inner radius of generation domain
+r_max = 2                       # outer radius of generation domain
+nrings = 4                      # number of rings
+width_heart = 0.15              # ring width of the innermost ring (left out: 0.3*(r_max-r_min)/nrings)
+width_sparse = 0.35             # ring width of rings with sparse cells (left out: 0.7*(r_max-r_min)/nrings)
+width_dense = 0.15              # ring width of rings with dense cells (left out: 0.3*(r_max-r_min)/nrings)
+generation_center = [0, 0]      # coordinates of generation domain center
+
+cellsize_sparse = 0.2
+cellsize_dense = 0.2
+cellwallthickness_sparse = 0.010
+cellwallthickness_dense = 0.010
+
+# Clipping box
+boundaryFlag = true
+box_shape = "hexagon"           # square, triangle or hexagon
+box_center = [0, 0]             # coordinates of clipping box center
+box_size = 1.0                  # side length
+
+# Longitudinal direction
+nsegments = 2                   # increase this number to achieve a smoother transition in longitudinal direction if theta is large
+theta_min = 0                   # unit: radian
+theta_max = 0                   # unit: radian
+z_min = 0
+z_max = 1.0                     # segment_length = (z_max - z_min) / nsegments (left out: box_size)
+long_connector_ratio = 0.02     # longitudinal joint length = ratio * segment_length
+
+# Material
+skeleton_density = 1.5e-9       # unit: tonne/mm3
+
+# Mesh operations
+merge_operation = false         # merge cell walls shorter than merge_tol
+merge_tol = 0.01
+
+precrackFlag = false
+precrack_widths = 0.1
+# precrack_nodes = [[x1, y1, x2, y2], ...]  (left out: a horizontal line from near the left edge of the box)
+
+# Output files
+stlFlag = true                  # 3D model (needs vtk: pip install "ringspy[vtk]")
+inpFlag = true                  # input file for simulations
+inpType = "Abaqus"
+save_sites = false              # also save honeycomb_hex_sites.npy and honeycomb_hex_radii.npy, to reuse the cells later
