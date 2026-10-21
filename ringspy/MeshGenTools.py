@@ -128,6 +128,33 @@ def check_overlap(circles,circC):
     nooverlap = all( (x - c[0])**2 + (y - c[1])**2 >= (w + c[2])**2 for c in circles )
     return nooverlap
 
+class _CircleGrid:
+    """
+    Placed circles binned in a uniform grid, so that an overlap check only
+    looks at the circles in the 3x3 neighbouring grid cells. The grid spacing
+    is 1.5 times the largest possible sum of two radii: circles further away
+    cannot overlap, so check_overlap gives the same answer as with all circles.
+    """
+    def __init__(self, max_radius):
+        self.spacing = 3*max_radius
+        if not self.spacing > 0: # degenerate radii: one grid cell, i.e. check all circles
+            self.spacing = math.inf
+        self.bins = {}
+
+    def _key(self, circC):
+        return (math.floor(circC[0]/self.spacing), math.floor(circC[1]/self.spacing))
+
+    def add(self, circC):
+        self.bins.setdefault(self._key(circC), []).append(circC)
+
+    def check_overlap(self, circC):
+        """ Same as check_overlap(all placed circles, circC) """
+        i, j = self._key(circC)
+        neighbours = []
+        for key in ((i-1,j-1),(i-1,j),(i-1,j+1),(i,j-1),(i,j),(i,j+1),(i+1,j-1),(i+1,j),(i+1,j+1)):
+            neighbours.extend(self.bins.get(key, ()))
+        return check_overlap(neighbours, circC)
+
 def check_iscollinear(p1,p2,boundaries):
     """ Make sure the line segment x1-x2 is collinear with 
         any line segment of the boundary polygon
@@ -329,6 +356,7 @@ def CellPlacement_Binary(generation_center,r_max,r_min,nrings,width_heart,
     # Place circular cells in each ring (can be parallelized in the future)
     # circles: list = list()
     circles = []
+    grid = _CircleGrid(max(cellsize_dense,cellsize_sparse)) # placed circles, for fast overlap checks
     for ibin in range(0,nrings*2+1):
         iter = 0 
         while iter < iter_max:
@@ -345,8 +373,9 @@ def CellPlacement_Binary(generation_center,r_max,r_min,nrings,width_heart,
     
             circC = [x, y, w]
             
-            if check_overlap(circles, circC) and check_isinside_boundcircle(circC,generation_center,radii[ibin],radii[ibin+1]):
+            if grid.check_overlap(circC) and check_isinside_boundcircle(circC,generation_center,radii[ibin],radii[ibin+1]):
                 circles.append(circC)
+                grid.add(circC)
                 
                 # regularly print 
                 if (len(circles) % print_interval == 0):
@@ -585,6 +614,24 @@ def _project_into_convex_box(points,boundaries):
     return points
 
 
+def _plot_segments(segments,color,linestyle='-',linewidth=None):
+    """
+    Draw line segments (array of shape (n,2,2)) in the current axes as one LineCollection,
+    styled like plt.plot(segments[:,:,0].T, segments[:,:,1].T, ...), which creates one
+    Line2D per segment and is slow to draw for large meshes
+    """
+    from matplotlib.collections import LineCollection
+    if linewidth is None:
+        linewidth = plt.rcParams['lines.linewidth']
+    solid = linestyle in ['-','solid']
+    lines = LineCollection(np.asarray(segments,dtype=float).reshape(-1,2,2),colors=color,linestyles=linestyle,
+                           linewidths=linewidth,
+                           capstyle=plt.rcParams['lines.solid_capstyle' if solid else 'lines.dash_capstyle'],
+                           joinstyle=plt.rcParams['lines.solid_joinstyle' if solid else 'lines.dash_joinstyle'])
+    plt.gca().add_collection(lines)
+    return lines
+
+
 def _clip_voronoi(vor,circles,boundaries,generation_center,inside,boundaryFlag,plot=False):
     """
     Clip the Voronoi diagram by the clipping box. Ridges with both vertices inside
@@ -657,11 +704,9 @@ def _clip_voronoi(vor,circles,boundaries,generation_center,inside,boundaryFlag,p
                                    np.column_stack((cut_boundary,cut_inside))).reshape(-1,2).astype(int)
 
     if plot:
-        ridges = vor.vertices[finite_ridges]
-        plt.plot(ridges[:,:,0].T, ridges[:,:,1].T, 'k-',linewidth=1)
+        _plot_segments(vor.vertices[finite_ridges],'k',linewidth=1)
         if ncut > 0:
-            cut_start = vor.vertices[cut_vertex]
-            plt.plot(np.vstack((cut_start[:,0],boundary_points[:,0])), np.vstack((cut_start[:,1],boundary_points[:,1])), 'k-',linewidth=1)
+            _plot_segments(np.stack((vor.vertices[cut_vertex],boundary_points),axis=1),'k',linewidth=1)
 
     if boundaryFlag in ON_FLAGS:
         boundary_points_featured = np.reshape(np.asarray([x[1][0] for x in boundaries],dtype=float),(-1,2))
@@ -702,6 +747,52 @@ def RebuildVoronoi(vor,circles,boundaries,generation_center,x_min,x_max,y_min,y_
         boundary_ridges_new,nvertex,nvertices_in,nfinite_ridge,nboundary_ridge,\
             nboundary_pts,nboundary_pts_featured,voronoi_ridges,nridge
 
+class _PointIndex:
+    """
+    Row index of 2D points by their coordinates, for a list of points that only grows.
+    lookup(p) gives the first row equal to p, same as np.where(np.all(points == p, axis=1))[0][0]
+    """
+    def __init__(self, points):
+        self.index = {}
+        self.npoints = 0
+        self.extend(points)
+
+    def extend(self, points):
+        for point in map(tuple, np.reshape(points,(-1,2)).tolist()):
+            self.index.setdefault(point, self.npoints)
+            self.npoints += 1
+
+    def lookup(self, points):
+        """Rows of an array of points with shape (..., 2), as an array with shape (...)"""
+        points = np.asarray(points)
+        rows = [self.index[point] for point in map(tuple, np.reshape(points,(-1,2)).tolist())]
+        return np.array(rows,dtype=np.intp).reshape(points.shape[:-1])
+
+
+def _replace_merged_indices(ridge_lists,pairs,merged_indices,lo,hi):
+    """
+    Replace the vertex indices of each pair of merged vertices with the index of
+    their merged vertex: same result as, for each pair in order,
+        ridges[ridges == pair[0]] = merged_index; ridges[ridges == pair[1]] = merged_index
+    for all ridge lists. The vertex indices of the pairs are in [lo, hi) and the merged
+    indices are not, so a vertex in several pairs gets the merged index of its first pair.
+    """
+    lut = np.arange(lo,hi)
+    replaced = np.zeros(hi-lo,dtype=bool)
+    for pair, merged_index in zip(np.reshape(pairs,(-1,2)).tolist(), np.reshape(merged_indices,-1).tolist()):
+        for vertex in pair:
+            if not replaced[vertex-lo]:
+                lut[vertex-lo] = merged_index
+                replaced[vertex-lo] = True
+    replaced_lists = []
+    for ridges in ridge_lists:
+        ridges = np.copy(ridges)
+        inside = (ridges >= lo) & (ridges < hi)
+        ridges[inside] = lut[ridges[inside]-lo]
+        replaced_lists.append(ridges)
+    return replaced_lists
+
+
 def RebuildVoronoi_merge(vor,circles,boundaries,generation_center,x_min,x_max,y_min,y_max,box_center,box_shape,merge_tol,boundaryFlag):
     """Clip Voronoi mesh by the boundaries, merge short Voronoi ridges, and rebuild the new Voronoi mesh"""
     inside = _inside_clip_box(box_shape,boundaries,x_min,x_max,y_min,y_max,box_center)
@@ -717,6 +808,7 @@ def RebuildVoronoi_merge(vor,circles,boundaries,generation_center,x_min,x_max,y_
     # Merge operation
     # Case 1 merge
     voronoi_vertices_in_whole = np.copy(voronoi_vertices_in)
+    index_in_whole = _PointIndex(voronoi_vertices_in_whole) # coordinates -> first row in voronoi_vertices_in_whole
     tree_voronoi_vertices_in = cKDTree(voronoi_vertices_in)
     rows_to_fuse_voronoi_vertices_in = tree_voronoi_vertices_in.query_pairs(r=merge_tol,output_type='ndarray')
     rows_to_fuse_voronoi_vertices_in_whole = np.copy(rows_to_fuse_voronoi_vertices_in)
@@ -737,23 +829,18 @@ def RebuildVoronoi_merge(vor,circles,boundaries,generation_center,x_min,x_max,y_
             # Offset the indices of boundary points as we inserted points in vertice_in list
             infinite_ridges_merged[infinite_ridges_merged >= nvertices_in] += len(unique_pts)
             # Replace the indices of two close points with the index of new merged point in both finite_ridges_new and infinite_ridges_new lists
-            for i in range(0,len(rows_to_fuse_voronoi_vertices_in_whole)):
-                finite_ridges_merged[finite_ridges_merged == rows_to_fuse_voronoi_vertices_in_whole[i,0]] = nvertices_in + unique_inverse[i]
-                finite_ridges_merged[finite_ridges_merged == rows_to_fuse_voronoi_vertices_in_whole[i,1]] = nvertices_in + unique_inverse[i]
-                infinite_ridges_merged[infinite_ridges_merged == rows_to_fuse_voronoi_vertices_in_whole[i,0]] = nvertices_in + unique_inverse[i]
-                infinite_ridges_merged[infinite_ridges_merged == rows_to_fuse_voronoi_vertices_in_whole[i,1]] = nvertices_in + unique_inverse[i]
+            fused_indices = nvertices_in + np.reshape(unique_inverse,-1)
             voronoi_vertices_in_fused = unique_pts.astype(float)
         else:
             # Offset the indices of boundary points as we inserted points in vertice_in list
             infinite_ridges_merged[infinite_ridges_merged >= nvertices_in] += len(rows_to_fuse_voronoi_vertices_in_whole)
             # Replace the indices of two close points with the index of new merged point in both finite_ridges_new and infinite_ridges_new lists
-            for i in range(0,len(rows_to_fuse_voronoi_vertices_in_whole)):
-                finite_ridges_merged[finite_ridges_merged == rows_to_fuse_voronoi_vertices_in_whole[i,0]] = nvertices_in + i
-                finite_ridges_merged[finite_ridges_merged == rows_to_fuse_voronoi_vertices_in_whole[i,1]] = nvertices_in + i
-                infinite_ridges_merged[infinite_ridges_merged == rows_to_fuse_voronoi_vertices_in_whole[i,0]] = nvertices_in + i
-                infinite_ridges_merged[infinite_ridges_merged == rows_to_fuse_voronoi_vertices_in_whole[i,1]] = nvertices_in + i
+            fused_indices = nvertices_in + np.arange(len(rows_to_fuse_voronoi_vertices_in_whole))
+        finite_ridges_merged, infinite_ridges_merged = \
+            _replace_merged_indices([finite_ridges_merged,infinite_ridges_merged],rows_to_fuse_voronoi_vertices_in_whole,fused_indices,0,nvertices_in)
                 
         voronoi_vertices_in_whole = np.vstack((voronoi_vertices_in_whole,voronoi_vertices_in_fused)) # create a whole vertex list
+        index_in_whole.extend(voronoi_vertices_in_fused)
         voronoi_vertices_in_new = np.vstack((np.delete(voronoi_vertices_in,rows_to_fuse_voronoi_vertices_in,0),voronoi_vertices_in_fused)) # create a new vertex list
         # update the voronoi_vertices_in
         voronoi_vertices_in = np.copy(voronoi_vertices_in_new)
@@ -763,9 +850,7 @@ def RebuildVoronoi_merge(vor,circles,boundaries,generation_center,x_min,x_max,y_
         rows_to_fuse_voronoi_vertices_in = tree_voronoi_vertices_in.query_pairs(r=merge_tol,output_type='ndarray')
         # update the rows_to_fuse_voronoi_vertices_in with the rows-to-fuse in list voronoi_vertices_in_whole
         rows_to_fuse_voronoi_vertices_in_whole = np.copy(rows_to_fuse_voronoi_vertices_in)
-        for i in range(0,len(rows_to_fuse_voronoi_vertices_in)):
-            rows_to_fuse_voronoi_vertices_in_whole[i,0] = np.where(np.all(voronoi_vertices_in_whole==voronoi_vertices_in_new[rows_to_fuse_voronoi_vertices_in[i,0],:],axis=1))[0][0]
-            rows_to_fuse_voronoi_vertices_in_whole[i,1] = np.where(np.all(voronoi_vertices_in_whole==voronoi_vertices_in_new[rows_to_fuse_voronoi_vertices_in[i,1],:],axis=1))[0][0]
+        rows_to_fuse_voronoi_vertices_in_whole[:] = index_in_whole.lookup(voronoi_vertices_in_new[rows_to_fuse_voronoi_vertices_in])
 
     # delete rows with identical indices and reverse indices in finite_ridges_merged
     zero_rows = np.where((finite_ridges_merged[:,0] - finite_ridges_merged[:,1]) == 0)[0]
@@ -786,6 +871,7 @@ def RebuildVoronoi_merge(vor,circles,boundaries,generation_center,x_min,x_max,y_
         boundary_ridges_merged = np.copy(boundary_ridges_new)
         nboundary_pts = boundary_points.shape[0]
         boundary_points_whole = np.copy(boundary_points)
+        index_boundary_whole = _PointIndex(boundary_points_whole) # coordinates -> first row in boundary_points_whole
         
         while len(rows_to_fuse_boundary_points) != 0:
             points_new = np.reshape(boundary_points_whole[rows_to_fuse_boundary_points_whole],(-1,2))
@@ -798,21 +884,17 @@ def RebuildVoronoi_merge(vor,circles,boundaries,generation_center,x_min,x_max,y_
             if len(np.unique(boundary_points_fused,axis=0)) != len(boundary_points_fused):
                 [unique_pts,unique_inverse] = np.unique(boundary_points_fused,return_inverse=True,axis=0)
                 # Replace the indices of closeby points with the index of new merged point in both finite_ridges_new and infinite_ridges_new lists
-                for i in range(0,len(rows_to_fuse_boundary_points)):
-                    boundary_ridges_merged[boundary_ridges_merged == (rows_to_fuse_boundary_points_whole[i,0]+nvertices_in)] = nvertices_in + nboundary_pts + unique_inverse[i]
-                    boundary_ridges_merged[boundary_ridges_merged == (rows_to_fuse_boundary_points_whole[i,1]+nvertices_in)] = nvertices_in + nboundary_pts + unique_inverse[i]
-                    infinite_ridges_merged[infinite_ridges_merged == (rows_to_fuse_boundary_points_whole[i,0]+nvertices_in)] = nvertices_in + nboundary_pts + unique_inverse[i]
-                    infinite_ridges_merged[infinite_ridges_merged == (rows_to_fuse_boundary_points_whole[i,1]+nvertices_in)] = nvertices_in + nboundary_pts + unique_inverse[i]
+                fused_indices = nvertices_in + nboundary_pts + np.reshape(unique_inverse,-1)
                 boundary_points_fused = unique_pts.astype(float)
             else:
                 # Replace the indices of two close points with the index of new merged point in both boundary_ridges_new and infinite_ridges_new lists
-                for i in range(0,len(rows_to_fuse_boundary_points)):
-                    boundary_ridges_merged[boundary_ridges_merged == (rows_to_fuse_boundary_points_whole[i,0]+nvertices_in)] = nvertices_in + nboundary_pts + i
-                    boundary_ridges_merged[boundary_ridges_merged == (rows_to_fuse_boundary_points_whole[i,1]+nvertices_in)] = nvertices_in + nboundary_pts + i
-                    infinite_ridges_merged[infinite_ridges_merged == (rows_to_fuse_boundary_points_whole[i,0]+nvertices_in)] = nvertices_in + nboundary_pts + i
-                    infinite_ridges_merged[infinite_ridges_merged == (rows_to_fuse_boundary_points_whole[i,1]+nvertices_in)] = nvertices_in + nboundary_pts + i
+                fused_indices = nvertices_in + nboundary_pts + np.arange(len(rows_to_fuse_boundary_points))
+            boundary_ridges_merged, infinite_ridges_merged = \
+                _replace_merged_indices([boundary_ridges_merged,infinite_ridges_merged],rows_to_fuse_boundary_points_whole+nvertices_in,\
+                                        fused_indices,nvertices_in,nvertices_in+nboundary_pts)
                     
             boundary_points_whole = np.vstack((boundary_points_whole,boundary_points_fused)) # create a whole vertex list        
+            index_boundary_whole.extend(boundary_points_fused)
             boundary_points_new = np.vstack((np.delete(boundary_points,rows_to_fuse_boundary_points,0),boundary_points_fused)) # create a new vertex list
             
             
@@ -824,9 +906,7 @@ def RebuildVoronoi_merge(vor,circles,boundaries,generation_center,x_min,x_max,y_
             rows_to_fuse_boundary_points = tree_boundary_points.query_pairs(r=merge_tol,output_type='ndarray')
             # update the rows_to_fuse in list voronoi_vertices_in with the rows-to-fuse in list voronoi_vertices_in_whole
             rows_to_fuse_boundary_points_whole = np.copy(rows_to_fuse_boundary_points)
-            for i in range(0,len(rows_to_fuse_boundary_points)):
-                rows_to_fuse_boundary_points_whole[i,0] = np.where(np.all(boundary_points_whole==boundary_points_new[rows_to_fuse_boundary_points[i,0],:],axis=1))[0][0]
-                rows_to_fuse_boundary_points_whole[i,1] = np.where(np.all(boundary_points_whole==boundary_points_new[rows_to_fuse_boundary_points[i,1],:],axis=1))[0][0]
+            rows_to_fuse_boundary_points_whole[:] = index_boundary_whole.lookup(boundary_points_new[rows_to_fuse_boundary_points])
         
                     
         # delete rows with identical indices and reverse indices in finite_ridges_merged
@@ -862,16 +942,12 @@ def RebuildVoronoi_merge(vor,circles,boundaries,generation_center,x_min,x_max,y_
             rows_to_replace_voronoi_vertices_in = tree_voronoi_vertices_in.query_ball_point(boundary_points[i,:],merge_tol)
             if len(rows_to_replace_voronoi_vertices_in) != 0:
                 # update the rows_to_place_voronoi_vertices_in with the rows-to-replace in list voronoi_vertices_in_whole
-                rows_to_replace_voronoi_vertices_in_whole = np.copy(rows_to_replace_voronoi_vertices_in)
-                for j in range(0,len(rows_to_replace_voronoi_vertices_in_whole)):
-                    rows_to_replace_voronoi_vertices_in_whole[j] = np.where(np.all(voronoi_vertices_in_whole==voronoi_vertices_in[rows_to_replace_voronoi_vertices_in[j],:],axis=1))[0][0]
-        
-                # Visualize nearby points
-                nearby_points = voronoi_vertices_in_whole[rows_to_replace_voronoi_vertices_in_whole]
+                rows_to_replace_voronoi_vertices_in_whole = index_in_whole.lookup(voronoi_vertices_in[rows_to_replace_voronoi_vertices_in])
                 # replace indices
+                boundary_point_index = index_boundary_whole.lookup(boundary_points[i,:]) + nvertices_in
                 for rows in rows_to_replace_voronoi_vertices_in_whole:
-                    finite_ridges_merged[finite_ridges_merged == rows] = np.where(np.all(boundary_points_whole == boundary_points[i,:],axis=1))[0][0] + nvertices_in
-                    infinite_ridges_merged[infinite_ridges_merged == rows] = np.where(np.all(boundary_points_whole == boundary_points[i,:],axis=1))[0][0] + nvertices_in
+                    finite_ridges_merged[finite_ridges_merged == rows] = boundary_point_index
+                    infinite_ridges_merged[infinite_ridges_merged == rows] = boundary_point_index
 
         zero_rows = np.where((finite_ridges_merged[:,0] - finite_ridges_merged[:,1]) == 0)[0]
         finite_ridges_merged = np.delete(finite_ridges_merged,zero_rows,0)
@@ -892,21 +968,16 @@ def RebuildVoronoi_merge(vor,circles,boundaries,generation_center,x_min,x_max,y_
         
     # Visualize merged mesh   
     merged_ridges = voronoi_vertices_whole[all_ridges_merged]
-    plt.plot(merged_ridges[:,:,0].T, merged_ridges[:,:,1].T, 'g--')
+    _plot_segments(merged_ridges,'g',linestyle='--')
     
     
     voronoi_vertices = np.unique(np.reshape(voronoi_vertices_whole[all_ridges_merged],(-1,2)),axis=0)
     # update the indices from voronoi_vertices_whole to voronoi_vertices(which is the list with no useless points)
-    for i in range(0,len(finite_ridges_merged)):
-        finite_ridges_merged[i,0] = np.where(np.all(voronoi_vertices==voronoi_vertices_whole[finite_ridges_merged[i,0],:],axis=1))[0][0]
-        finite_ridges_merged[i,1] = np.where(np.all(voronoi_vertices==voronoi_vertices_whole[finite_ridges_merged[i,1],:],axis=1))[0][0]
-    for i in range(0,len(infinite_ridges_merged)):
-        infinite_ridges_merged[i,0] = np.where(np.all(voronoi_vertices==voronoi_vertices_whole[infinite_ridges_merged[i,0],:],axis=1))[0][0]
-        infinite_ridges_merged[i,1] = np.where(np.all(voronoi_vertices==voronoi_vertices_whole[infinite_ridges_merged[i,1],:],axis=1))[0][0]
+    index_vertices = _PointIndex(voronoi_vertices)
+    finite_ridges_merged[:] = index_vertices.lookup(voronoi_vertices_whole[finite_ridges_merged])
+    infinite_ridges_merged[:] = index_vertices.lookup(voronoi_vertices_whole[infinite_ridges_merged])
     if boundaryFlag in ON_FLAGS:  
-        for i in range(0,len(boundary_ridges_merged)):
-            boundary_ridges_merged[i,0] = np.where(np.all(voronoi_vertices==voronoi_vertices_whole[boundary_ridges_merged[i,0],:],axis=1))[0][0]
-            boundary_ridges_merged[i,1] = np.where(np.all(voronoi_vertices==voronoi_vertices_whole[boundary_ridges_merged[i,1],:],axis=1))[0][0]
+        boundary_ridges_merged[:] = index_vertices.lookup(voronoi_vertices_whole[boundary_ridges_merged])
     # merged points are rounded to multiples of merge_tol, which can push them slightly
     # across slanted box edges (triangle/hexagon): move them back onto the boundary
     if box_shape in SQUARE_SHAPES + TRIANGLE_SHAPES + HEXAGON_SHAPES:
@@ -1071,61 +1142,44 @@ def VertexandRidgeinfo(all_pts_2D,all_ridges,npt_per_layer,npt_per_layer_normal,
             vertex_cellwallthickness_2D[i] = cellwallthickness_dense
 #==================================================================================================
      
-    # Generate a list containing info for each vertex
-    all_vertices_info_2D = []
-    all_direction_info_2D = []
-    for i in range(0,npt_per_layer): # loop over all vertices
-        
-        allrows = np.where(all_ridges == i)[0] # find all Voronoi ridges containing the ith vertex
-        vertex_info = []
-        vertex_info.append(len(allrows)) # append total number of wings for the ith vertex
-        vertex_info.append(allrows) # append ridge indices
-        vertex_info.append(all_ridges[allrows,0:2][np.nonzero(all_ridges[allrows,0:2]-i)]) # append the indices of vetices at the other end of each ridge
-        direction_info = []
-        direction = np.where(all_ridges[allrows,0:2] == i)[1] # the position of current vertex in each ridge, p1 --> 0, p2 --> 1 
-        direction = -np.power(-1,direction+1) # convert the way to express the direction of each ridge to: 1/-1 --> pointing from/to the current vertex
-        direction_info.append(direction) # append ridge direction
-        vertex_info.append(all_ridge_lengths[allrows]/2) # append wing lengths
-        vertex_info.append(np.ones(len(allrows))*vertex_cellwallthickness_2D[i]) # append wing widths
-        vertex_info.append(all_ridge_angles[allrows]+math.pi*(-direction.clip(max=0))) # append wing angles
-        
-        all_vertices_info_2D.append(vertex_info)
-        all_direction_info_2D.append(direction_info)
-    
-    # flattened 1D numpy array of lengths, widths and angles of wings
-    # ref:https://stackoverflow.com/questions/952914/how-do-i-make-a-flat-list-out-of-a-list-of-lists
-    ridge_inices = [vertex_info[1] for vertex_info in all_vertices_info_2D]
-    ridge_inices = np.array([item for sublist in ridge_inices for item in sublist])
-    another_vertex_inices = [vertex_info[2] for vertex_info in all_vertices_info_2D]
-    another_vertex_inices = np.array([item for sublist in another_vertex_inices for item in sublist])
-    ridge_lengths = [vertex_info[3] for vertex_info in all_vertices_info_2D]
-    ridge_lengths = np.array([item for sublist in ridge_lengths for item in sublist])
-    ridge_widths = [vertex_info[4] for vertex_info in all_vertices_info_2D]
-    ridge_widths = np.array([item for sublist in ridge_widths for item in sublist])
-    ridge_angles = [vertex_info[5] for vertex_info in all_vertices_info_2D]
-    ridge_angles = np.array([item for sublist in ridge_angles for item in sublist])
-    ridge_directions = [direction_info[0] for direction_info in all_direction_info_2D]
-    ridge_directions = np.array([item for sublist in ridge_directions for item in sublist])
+    # Find the wings (Voronoi ridges) of all vertices: the entries of all_ridges equal to
+    # each vertex index, in row-major order (as np.where(all_ridges == i) gives them)
+    all_ridges = np.asarray(all_ridges)
+    flat_ridges = all_ridges.reshape(-1)
+    order = np.argsort(flat_ridges,kind='stable')
+    first, last = np.searchsorted(flat_ridges[order],[0,npt_per_layer])
+    wing_vertex = flat_ridges[order[first:last]] # vertex of each wing, wings sorted by vertex
+    wing_ridge = order[first:last] // all_ridges.shape[1] # ridge index of each wing
+    wing_position = order[first:last] % all_ridges.shape[1] # position of the vertex in the ridge, p1 --> 0, p2 --> 1
+    if np.any(wing_position > 1) or np.any(all_ridges[wing_ridge,0] == all_ridges[wing_ridge,1]):
+        raise ValueError('Inconsistent Voronoi ridges: a vertex index is also used by a ridge mid/quarter point, or a ridge has zero length.')
+    nwings = np.bincount(wing_vertex,minlength=npt_per_layer) # total number of wings for each vertex
+
+    # flattened 1D numpy array of ridge indices, indices of the vertices at the other end of each ridge,
+    # lengths, widths, angles and directions of wings
+    direction = -np.power(-1,wing_position+1) # convert the way to express the direction of each ridge to: 1/-1 --> pointing from/to the current vertex
+    ridge_inices = wing_ridge
+    another_vertex_inices = all_ridges[wing_ridge,1-wing_position]
+    ridge_lengths = all_ridge_lengths[wing_ridge]/2
+    ridge_widths = vertex_cellwallthickness_2D[wing_vertex]
+    ridge_angles = all_ridge_angles[wing_ridge]+math.pi*(-direction.clip(max=0))
+    ridge_directions = direction
     
     flattened_all_vertices_2D = np.vstack((ridge_inices,another_vertex_inices,ridge_lengths,ridge_widths,ridge_angles,ridge_directions))
  
     # Convert ragged info list to a rectangular shape numpy array
-    max_wings = max([vertex_info[0] for vertex_info in all_vertices_info_2D])
+    max_wings = int(nwings.max())
     
     all_vertices_info_2D_nparray = np.zeros((npt_per_layer,1+max_wings*5))
-    all_vertices_info_2D_nparray[:,0] = [vertex_info[0] for vertex_info in all_vertices_info_2D]
+    all_vertices_info_2D_nparray[:,0] = nwings
     
-    for i in range(0,npt_per_layer):
-        nwings = all_vertices_info_2D[i][0]
-        all_vertices_info_2D_nparray[i,1:nwings+1] = all_vertices_info_2D[i][1]
-        all_vertices_info_2D_nparray[i,max_wings+1:max_wings+nwings+1] = all_vertices_info_2D[i][2]
-        all_vertices_info_2D_nparray[i,2*max_wings+1:2*max_wings+nwings+1] = all_vertices_info_2D[i][3]
-        all_vertices_info_2D_nparray[i,3*max_wings+1:3*max_wings+nwings+1] = all_vertices_info_2D[i][4]
-        all_vertices_info_2D_nparray[i,4*max_wings+1:4*max_wings+nwings+1] = all_vertices_info_2D[i][5]
+    iwing = np.arange(len(wing_vertex)) - np.repeat(np.cumsum(nwings)-nwings,nwings) # position of each wing among the wings of its vertex
+    for icol, values in enumerate([ridge_inices,another_vertex_inices,ridge_lengths,ridge_widths,ridge_angles]):
+        all_vertices_info_2D_nparray[wing_vertex,icol*max_wings+1+iwing] = values
     
     # Save info to txt files
     all_vertices_2D = np.hstack((all_pts_2D[0:npt_per_layer,:],all_vertices_info_2D_nparray))
-    np.savetxt(Path(path, geoName, geoName +'-vertex.mesh'), all_vertices_2D, fmt='%.16g', delimiter=' '\
+    _savetxt(Path(path, geoName, geoName +'-vertex.mesh'), all_vertices_2D, fmt='%.16g', delimiter=' '\
         ,header='Vertex Data Generated with RingsPy Mesh Generation Tool\n\
 Number of vertices\n'+ str(npt_per_layer) +
     '\n\
@@ -1133,7 +1187,7 @@ Max number of wings for one vertex\n'+ str(max_wings) +
     '\n\
 [xcoord ycoord nwings ridge1 ... ridgen farvertex1 ... farvertexn length1 ... lengthn width1 ... widthn angle1 ... anglen]', comments='')
     
-    np.savetxt(Path(path, geoName, geoName +'-ridge.mesh'), all_ridges, fmt='%d', delimiter=' '\
+    _savetxt(Path(path, geoName, geoName +'-ridge.mesh'), all_ridges, fmt='%d', delimiter=' '\
         ,header='Ridge Data Generated with RingsPy Mesh Generation Tool\n\
 Number of ridges\n'+ str(nridge) +
     '\n\
@@ -1171,11 +1225,7 @@ def GenerateBeamElement(NURBS_degree,nsegments,theta_min,theta_max,\
         z_coord[i:] += connector_l_length
     
     # Data for IGA use
-    vertices_new = np.zeros((nlayers,npt_per_layer,3))
-    for i in range(0,nlayers):
-        for j in range(0,npt_per_layer):
-            vertices_new[i,j,:2] = rotate_around_point_highperf(voronoi_vertices[j,:], theta[i], generation_center)
-            vertices_new[i,j,2] = z_coord[i]
+    vertices_new = _rotate_layers(voronoi_vertices[np.arange(npt_per_layer)],theta[0:nlayers],z_coord[0:nlayers],generation_center)
     
     # Vertex Data for IGA
     IGAvertices = np.reshape(vertices_new,(-1,3))
@@ -1187,13 +1237,9 @@ def GenerateBeamElement(NURBS_degree,nsegments,theta_min,theta_max,\
     # Beams
     ngrain = nvertex
     nbeam_total = ngrain*nsegments
-    beam_connectivity_original = np.zeros((nbeam_total,nctrlpt_per_beam))
-    for i in range(0,nsegments):
-        for j in range(0, ngrain):
-            irow = i*ngrain + j
-            ivertex = i*npt_per_layer*nctrlpt_per_beam + j
-            for icol in range(0,nctrlpt_per_beam):
-                beam_connectivity_original[irow,icol] = ivertex+icol*npt_per_layer
+    i, j = np.meshgrid(np.arange(nsegments),np.arange(ngrain),indexing='ij')
+    ivertex = (i*npt_per_layer*nctrlpt_per_beam + j).reshape(-1,1)
+    beam_connectivity_original = (ivertex + np.arange(nctrlpt_per_beam)*npt_per_layer).astype(float)
     
     # Rearange beam connectivity such that each row is corresponding to a Bezier beam element
     beam_connectivity = np.copy(beam_connectivity_original)
@@ -1209,12 +1255,10 @@ def GenerateBeamElement(NURBS_degree,nsegments,theta_min,theta_max,\
     
     # Transverse connectors 
     nconnector_t = nridge*nconnector_t_per_grain
+    i, j = np.meshgrid(np.arange(nsegments),np.arange(nconnector_t_per_beam),indexing='ij')
+    layer_offset = (i*npt_per_layer*nctrlpt_per_beam + j*NURBS_degree*npt_per_layer).reshape(-1,1,1)
     connector_t_connectivity = np.zeros((nconnector_t,2))
-    for i in range(0,nsegments):
-        for j in range(0,nconnector_t_per_beam):
-            for k in range(0,nridge):
-                irow = i*nconnector_t_per_beam*nridge + j*nridge + k
-                connector_t_connectivity[irow,:] = voronoi_ridges[k]+i*npt_per_layer*nctrlpt_per_beam+j*NURBS_degree*npt_per_layer
+    connector_t_connectivity[:] = (np.asarray(voronoi_ridges)[np.newaxis,0:nridge,:] + layer_offset).reshape(-1,2)
                 
     connector_t_connectivity = (connector_t_connectivity+1).astype(int)
     # Slicing block indices, https://stackoverflow.com/questions/39692769/efficient-numpy-indexing-take-first-n-rows-of-every-block-of-m-rows
@@ -1233,15 +1277,11 @@ def GenerateBeamElement(NURBS_degree,nsegments,theta_min,theta_max,\
     nconnector_l = nconnector_l_per_layer * (nsegments-1)
     connector_l_connectivity = np.zeros((nconnector_l,2))
     connector_l_vertex_dict = np.zeros(nconnector_l)
-    irow_conn_l = 0
-    for i in range(0,nsegments-1): # loop over layers of longitudinal connectors
-        for j in range(0,ngrain): # loop over grains in each layer
-            n = nwings[j]
-            irow = i*ngrain + j
-            for k in range(0,n): # loop over wings of each grain
-                connector_l_connectivity[irow_conn_l,:] = (beam_connectivity_original[irow,-1],beam_connectivity_original[irow,-1]+npt_per_layer)
-                connector_l_vertex_dict[irow_conn_l] = irow
-                irow_conn_l += 1
+    # one connector per wing of each grain, for each layer of longitudinal connectors
+    irow = (np.arange(nsegments-1)[:,np.newaxis]*ngrain + np.arange(ngrain)[np.newaxis,:]).reshape(-1)
+    irow = np.repeat(irow,np.tile(nwings[0:ngrain],nsegments-1))
+    connector_l_connectivity[0:len(irow)] = np.column_stack((beam_connectivity_original[irow,-1],beam_connectivity_original[irow,-1]+npt_per_layer))
+    connector_l_vertex_dict[0:len(irow)] = irow
     
     connector_l_vertex_dict = connector_l_vertex_dict.astype(int)
     connector_l_connectivity = connector_l_connectivity.astype(int)
@@ -1292,23 +1332,16 @@ def ConnectorMeshFile(geoName,IGAvertices,connector_t_bot_connectivity,\
 # Meshdata = [nodex1 nodey1 nodez1 nodex2 nodey2 nodez2 centerx centery centerz dx1 dy1 dz1 dx2 dy2 dz2 width height]    
     Meshdata = np.zeros((nelem_total,17))
     
-    for i in range(0,nelem_connector_t_bot):
-        Meshdata[i,0:3] = np.copy(IGAvertices)[connector_t_bot_connectivity[i,0]-1,:]
-        Meshdata[i,3:6] = np.copy(IGAvertices)[connector_t_bot_connectivity[i,1]-1,:]
-        Meshdata[i,16] = height_connector_t
-    for i in range(0,nelem_connector_t_reg):
-        Meshdata[i+nelem_connector_t_bot,0:3] = np.copy(IGAvertices)[connector_t_reg_connectivity[i,0]-1,:]
-        Meshdata[i+nelem_connector_t_bot,3:6] = np.copy(IGAvertices)[connector_t_reg_connectivity[i,1]-1,:]
-        Meshdata[i+nelem_connector_t_bot,16] = height_connector_t*2
-    for i in range(0,nelem_connector_t_top):
-        Meshdata[i+nelem_connector_t_bot+nelem_connector_t_reg,0:3] = np.copy(IGAvertices)[connector_t_top_connectivity[i,0]-1,:]
-        Meshdata[i+nelem_connector_t_bot+nelem_connector_t_reg,3:6] = np.copy(IGAvertices)[connector_t_top_connectivity[i,1]-1,:]
-        Meshdata[i+nelem_connector_t_bot+nelem_connector_t_reg,16] = height_connector_t
-        
-    for i in range(0,nelem_connector_l):
-        Meshdata[i+nelem_connector_t_bot+nelem_connector_t_reg+nelem_connector_t_top,0:3] = np.copy(IGAvertices)[connector_l_connectivity[i,0]-1,:]
-        Meshdata[i+nelem_connector_t_bot+nelem_connector_t_reg+nelem_connector_t_top,3:6] = np.copy(IGAvertices)[connector_l_connectivity[i,1]-1,:]
-        Meshdata[i+nelem_connector_t_bot+nelem_connector_t_reg+nelem_connector_t_top,16] = conn_l_lengths[i]
+    connectivity = np.concatenate((connector_t_bot_connectivity,connector_t_reg_connectivity,connector_t_top_connectivity,connector_l_connectivity))
+    Meshdata[:,0:3] = IGAvertices[connectivity[:,0]-1,:]
+    Meshdata[:,3:6] = IGAvertices[connectivity[:,1]-1,:]
+    ielem_reg = nelem_connector_t_bot
+    ielem_top = ielem_reg + nelem_connector_t_reg
+    ielem_l = ielem_top + nelem_connector_t_top
+    Meshdata[0:ielem_reg,16] = height_connector_t
+    Meshdata[ielem_reg:ielem_top,16] = height_connector_t*2
+    Meshdata[ielem_top:ielem_l,16] = height_connector_t
+    Meshdata[ielem_l:nelem_total,16] = conn_l_lengths[0:nelem_connector_l]
         
     Meshdata[:,6:9] = (Meshdata[:,0:3] + Meshdata[:,3:6])/2
     # Meshdata[0:nelem_connector_t_bot,8] = Meshdata[0:nelem_connector_t_bot,8]
@@ -1317,8 +1350,7 @@ def ConnectorMeshFile(geoName,IGAvertices,connector_t_bot_connectivity,\
     Meshdata[:,12:15] = Meshdata[:,6:9] - Meshdata[:,3:6]
 
     # Add z-variation/random field for cellwall thicknesses/connector widths
-    for i in range(0,nridge):
-        Meshdata[i,15] = all_vertices_2D[connector_t_bot_connectivity[i,1]-1,3+max_wings*3] # assign widths to all bot transverse connectors
+    Meshdata[0:nridge,15] = all_vertices_2D[connector_t_bot_connectivity[0:nridge,1]-1,3+max_wings*3] # assign widths to all bot transverse connectors
     Meshdata[:nelem_total-nelem_connector_l,15] = np.tile(Meshdata[0:nridge,15],3*nsegments) # use the same widths for reg and top transverse connectors
     
     conn_l_widths = Meshdata[conn_l_ridge_index,15]
@@ -1328,10 +1360,10 @@ def ConnectorMeshFile(geoName,IGAvertices,connector_t_bot_connectivity,\
     Meshdata[nelem_total-nelem_connector_l:nelem_total,6:9] += conn_l_tangents*Meshdata[nelem_total-nelem_connector_l:nelem_total,16][:, np.newaxis]/2
 
     # Replace nodal coordinates with nodal indices
-    Meshdata[:,0:2] = np.concatenate((connector_t_bot_connectivity,connector_t_reg_connectivity,connector_t_top_connectivity,connector_l_connectivity))
+    Meshdata[:,0:2] = connectivity
     Meshdata = np.delete(Meshdata,[2,3,4,5],1)
     
-    np.savetxt(Path(path, geoName, geoName+'-mesh.txt'), Meshdata, fmt='%.16g', delimiter=' '\
+    _savetxt(Path(path, geoName, geoName+'-mesh.txt'), Meshdata, fmt='%.16g', delimiter=' '\
     ,header='# Connector Data Generated with RingsPy Mesh Generation Tool\n\
 Number of bot connectors\n'+ str(nelem_connector_t_bot) +
 '\n\
@@ -1388,78 +1420,156 @@ def insert_precracks(all_pts_2D,all_ridges,nridge,npt_per_layer,\
     return precracked_elem, nconnector_t_precrack, nconnector_l_precrack
         
         
+def _rotate_layers(points,theta,z,origin):
+    """
+    2D points rotated around origin by each angle in theta, with z coordinates z:
+    array of shape (len(theta), len(points), 3). Same values as calling
+    rotate_around_point_highperf for each point and angle.
+    """
+    offset_x, offset_y = origin
+    adjusted_x = points[:,0] - offset_x
+    adjusted_y = points[:,1] - offset_y
+    layers = np.zeros((len(theta),len(points),3))
+    for i, radians in enumerate(theta):
+        cos_rad = math.cos(radians)
+        sin_rad = math.sin(radians)
+        layers[i,:,0] = offset_x + cos_rad * adjusted_x + sin_rad * adjusted_y
+        layers[i,:,1] = offset_y + -sin_rad * adjusted_x + cos_rad * adjusted_y
+        layers[i,:,2] = z[i]
+    return layers
+
+
+def _format_rows(array,row_format,join=True,chunk_rows=20000):
+    """
+    Text of a 1D or 2D array, one row_format line per row: the same as
+    ''.join(row_format % tuple(row) for row in array), but formatted in chunks of
+    rows with one % operation each (much faster). join=False returns the chunks.
+    """
+    array = np.asarray(array)
+    ncol = 1 if array.ndim == 1 else array.shape[1]
+    values = array.reshape(-1).tolist()
+    chunks = []
+    for start in range(0,len(values),chunk_rows*ncol):
+        part = values[start:start+chunk_rows*ncol]
+        chunks.append((row_format*(len(part)//ncol)) % tuple(part))
+    return ''.join(chunks) if join else chunks
+
+
+def _savetxt(fname,X,fmt='%.18e',delimiter=' ',header='',comments='# '):
+    """np.savetxt for a 2D array and a single format, writing the same text but faster"""
+    X = np.asarray(X)
+    with open(fname,'w') as txtfile:
+        if len(header) > 0:
+            txtfile.write(comments + header.replace('\n','\n' + comments) + '\n')
+        txtfile.writelines(_format_rows(X,delimiter.join([fmt]*X.shape[1]) + '\n',join=False))
+
+
+def _write_vtu_appended(filename,points,cells,types,point_data=None,cell_data=None):
+    """
+    Write an unstructured grid (.vtu) file with all data arrays stored as raw binary
+    appended data. cells is a list of connectivity arrays (one row per cell),
+    point_data and cell_data are (name, values) pairs or None.
+    """
+    connectivity = np.concatenate([np.reshape(c,-1) for c in cells])
+    offsets = np.cumsum(np.concatenate([np.full(len(c),np.shape(c)[1]) for c in cells]))
+    int_type, int_dtype = ('Int32','<i4') if max(connectivity.max(initial=0),offsets.max(initial=0)) < 2**31 else ('Int64','<i8')
+    blocks = []
+    def appended(data):
+        """Add a data block, return its offset in the appended data"""
+        offset = sum(len(block) for block in blocks)
+        data = np.ascontiguousarray(data).tobytes()
+        blocks.append(np.array(len(data),dtype='<u8').tobytes() + data)
+        return offset
+
+    xml = ['<?xml version="1.0"?>\n',
+           '<VTKFile type="UnstructuredGrid" version="1.0" byte_order="LittleEndian" header_type="UInt64">\n',
+           '<UnstructuredGrid>\n',
+           '<Piece NumberOfPoints="{:d}" NumberOfCells="{:d}">\n'.format(len(points),len(types))]
+    for tag, data in [('PointData',point_data),('CellData',cell_data)]:
+        if data is not None:
+            name, values = data
+            xml.append('<{} Scalars="{}">\n'.format(tag,name))
+            xml.append('<DataArray type="Float32" Name="{}" format="appended" offset="{:d}"/>\n'.format(name,appended(np.asarray(values,dtype='<f4'))))
+            xml.append('</{}>\n'.format(tag))
+    xml.append('<Points>\n')
+    xml.append('<DataArray type="Float64" NumberOfComponents="3" format="appended" offset="{:d}"/>\n'.format(appended(np.asarray(points,dtype='<f8'))))
+    xml.append('</Points>\n')
+    xml.append('<Cells>\n')
+    xml.append('<DataArray type="{}" Name="connectivity" format="appended" offset="{:d}"/>\n'.format(int_type,appended(connectivity.astype(int_dtype))))
+    xml.append('<DataArray type="{}" Name="offsets" format="appended" offset="{:d}"/>\n'.format(int_type,appended(offsets.astype(int_dtype))))
+    xml.append('<DataArray type="UInt8" Name="types" format="appended" offset="{:d}"/>\n'.format(appended(np.asarray(types,dtype='u1'))))
+    xml.append('</Cells>\n')
+    xml.append('</Piece>\n')
+    xml.append('</UnstructuredGrid>\n')
+    xml.append('<AppendedData encoding="raw">\n_')
+    with open(filename,'wb') as vtkfile:
+        vtkfile.write(''.join(xml).encode('ascii'))
+        for block in blocks:
+            vtkfile.write(block)
+        vtkfile.write(b'\n</AppendedData>\n</VTKFile>\n')
+
+
 def VisualizationFiles(geoName,NURBS_degree,nlayers,npt_per_layer_vtk,all_pts_2D,\
                        segment_length,theta,z_coord,nsegments,nridge,\
                        voronoi_ridges,generation_center,all_ridges,nvertex,\
                        nconnector_t,nconnector_l,nctrlpt_per_beam,ConnMeshData,\
                        conn_l_tangents,all_vertices_2D,max_wings,\
-                       flattened_all_vertices_2D,path='meshes'):
+                       flattened_all_vertices_2D,path='meshes',vtk_format='ascii'):
+    """
+    Write the Paraview files geoName_vertices.vtu, geoName_beams.vtu, geoName_conns.vtu
+    and geoName_conns_vol.vtu. vtk_format = 'ascii' (default) writes text files,
+    'binary' writes the data arrays as raw binary appended data (faster to write and
+    read, about 3 times smaller).
+    """
+    if vtk_format not in ['ascii','binary']:
+        raise ValueError("vtk_format must be 'ascii' or 'binary', not {!r}".format(vtk_format))
     
     # Calculate model parameters
     ngrain = nvertex
-    nlayers_conn_l = nsegments - 1
     ninterval_per_beam_vtk = int((nctrlpt_per_beam-1)/2) # 2 layers ----> 1 interval
     nconnector_t_per_beam = int((nctrlpt_per_beam-1)/NURBS_degree+1)
     
-    # Data for VTK use
-    vertices_new = np.zeros((nlayers,npt_per_layer_vtk,3))
-    for i in range(0,nlayers):
-        for j in range(0,npt_per_layer_vtk):
-            vertices_new[i,j,:2] = rotate_around_point_highperf(all_pts_2D[j,:], theta[i], generation_center)
-            vertices_new[i,j,2] = z_coord[i]
-    
     # Vertex Data for VTK use
+    vertices_new = _rotate_layers(all_pts_2D[np.arange(npt_per_layer_vtk)],theta[0:nlayers],z_coord[0:nlayers],generation_center)
     VTKvertices = np.reshape(vertices_new,(-1,3))
     
     # Connectivity for VTK use
     # Vertex
     npt_total_vtk = nlayers*npt_per_layer_vtk
-    vertex_connectivity_vtk = np.linspace(0,npt_total_vtk-1,npt_total_vtk)
+    vertex_connectivity_vtk = np.arange(npt_total_vtk)
     
-    # Beam
+    # Beam (3 points per beam in Paraview)
     nbeam_total_vtk = ngrain*nsegments*ninterval_per_beam_vtk
-    beam_connectivity_vtk = np.zeros((nbeam_total_vtk,3)) # 3 is the number of points per beam in Paraview
-    for i in range(0,nsegments):
-        for j in range(0,ninterval_per_beam_vtk):
-            for k in range(0,ngrain):
-                irow = i*ninterval_per_beam_vtk*ngrain + j*ngrain + k
-                ivertex = (i + (i*ninterval_per_beam_vtk+j)*2)*npt_per_layer_vtk + k
-                beam_connectivity_vtk[irow,:] = (ivertex,ivertex+2*npt_per_layer_vtk,ivertex+npt_per_layer_vtk)
+    i, j, k = np.meshgrid(np.arange(nsegments),np.arange(ninterval_per_beam_vtk),np.arange(ngrain),indexing='ij')
+    ivertex = ((i + (i*ninterval_per_beam_vtk+j)*2)*npt_per_layer_vtk + k).reshape(-1)
+    beam_connectivity_vtk = np.column_stack((ivertex,ivertex+2*npt_per_layer_vtk,ivertex+npt_per_layer_vtk))
     
     # Transverse connectors 
-    connector_t_connectivity_vtk = np.zeros((nconnector_t,2))
-    for i in range(0,nsegments):
-        for j in range(0,nconnector_t_per_beam):
-            for k in range(0,nridge):
-                irow = i*nconnector_t_per_beam*nridge + j*nridge + k
-                connector_t_connectivity_vtk[irow,:] = (voronoi_ridges[k][0]+i*npt_per_layer_vtk*nctrlpt_per_beam+j*NURBS_degree*npt_per_layer_vtk,voronoi_ridges[k][1]+i*npt_per_layer_vtk*nctrlpt_per_beam+j*NURBS_degree*npt_per_layer_vtk)
+    i, j = np.meshgrid(np.arange(nsegments),np.arange(nconnector_t_per_beam),indexing='ij')
+    layer_offset = (i*npt_per_layer_vtk*nctrlpt_per_beam + j*NURBS_degree*npt_per_layer_vtk).reshape(-1,1,1)
+    connector_t_connectivity_vtk = np.zeros((nconnector_t,2),dtype=np.int64)
+    connector_t_connectivity_vtk[:] = (np.asarray(voronoi_ridges)[np.newaxis,0:nridge,0:2] + layer_offset).reshape(-1,2)
     
-    # Longitudinal connectors
-    connector_l_connectivity_vtk = np.zeros((nconnector_l,2))
+    # Longitudinal connectors: one per wing of each grain, for each layer of longitudinal connectors
+    connector_l_connectivity_vtk = np.zeros((nconnector_l,2),dtype=np.int64)
     nwings = all_vertices_2D[:,2].astype(int)
-    irow_conn_l = 0
-    for i in range(0,nsegments-1): # loop over layers of longitudinal connectors
-        for j in range(0,ngrain): # loop over grains in each layer
-            nw = nwings[j]
-            irow = i*ngrain + j
-            for k in range(0,nw): # loop over wings of each grain
-                connector_l_connectivity_vtk[irow_conn_l,:] = (beam_connectivity_vtk[irow+(ninterval_per_beam_vtk-1)*ngrain,1],beam_connectivity_vtk[irow+(ninterval_per_beam_vtk-1)*ngrain,1]+npt_per_layer_vtk)
-                irow_conn_l += 1
+    irow = (np.arange(nsegments-1)[:,np.newaxis]*ngrain + np.arange(ngrain)[np.newaxis,:]).reshape(-1)
+    irow = np.repeat(irow,np.tile(nwings[0:ngrain],nsegments-1))
+    beam_end = beam_connectivity_vtk[irow+(ninterval_per_beam_vtk-1)*ngrain,1]
+    connector_l_connectivity_vtk[0:len(irow)] = np.column_stack((beam_end,beam_end+npt_per_layer_vtk))
     
     # Quad - Beam Wings
     nquad = nridge*2
     nquad_total = nquad*nsegments*ninterval_per_beam_vtk
-    quad_connectivity = np.zeros((nquad_total,8))
-    for i in range(0,nsegments):
-        for j in range(0,ninterval_per_beam_vtk):
-            for k in range(0,nridge):
-                for l in range(0,2):
-                    irow = i*ninterval_per_beam_vtk*nquad + j*nquad + l*nridge + k
-                    ivertex = i + (i*ninterval_per_beam_vtk+j)*2
-                    quad_connectivity[irow,:] = (all_ridges[k][l]+ivertex*npt_per_layer_vtk,all_ridges[k][l]+(ivertex+2)*npt_per_layer_vtk, \
-                                                 all_ridges[k][l+2]+(ivertex+2)*npt_per_layer_vtk,all_ridges[k][l+2]+ivertex*npt_per_layer_vtk, \
-                                                 all_ridges[k][l]+(ivertex+1)*npt_per_layer_vtk,all_ridges[k][l+4]+(ivertex+2)*npt_per_layer_vtk, \
-                                                 all_ridges[k][l+2]+(ivertex+1)*npt_per_layer_vtk,all_ridges[k][l+4]+ivertex*npt_per_layer_vtk)
+    i, j = np.meshgrid(np.arange(nsegments),np.arange(ninterval_per_beam_vtk),indexing='ij')
+    layer = (i + (i*ninterval_per_beam_vtk+j)*2).reshape(-1,1,1)*npt_per_layer_vtk # [segment and interval, wing, ridge]
+    all_ridges = np.asarray(all_ridges)
+    vertex = all_ridges[np.newaxis,0:nridge,0:2].transpose(0,2,1)
+    midpt = all_ridges[np.newaxis,0:nridge,2:4].transpose(0,2,1)
+    qrtrpt = all_ridges[np.newaxis,0:nridge,4:6].transpose(0,2,1)
+    n = npt_per_layer_vtk
+    quad_connectivity = np.stack((vertex+layer,vertex+layer+2*n,midpt+layer+2*n,midpt+layer,\
+                                  vertex+layer+n,qrtrpt+layer+2*n,midpt+layer+n,qrtrpt+layer),axis=-1).reshape(nquad_total,8)
 
     # Quad - Connector Cross-sections
     nquad_conn = nconnector_t + nconnector_l
@@ -1497,375 +1607,133 @@ def VisualizationFiles(geoName,NURBS_degree,nlayers,npt_per_layer_vtk,all_pts_2D
     quad_conn_vertices[2*nquad_conn_total:3*nquad_conn_total,:] = Quad_center + Quad_tangent*Quad_height[:, np.newaxis]/2 + Quad_bitangent*Quad_width[:, np.newaxis]/2
     quad_conn_vertices[3*nquad_conn_total:4*nquad_conn_total,:] = Quad_center + Quad_tangent*Quad_height[:, np.newaxis]/2 - Quad_bitangent*Quad_width[:, np.newaxis]/2
     
-    quad_conn_connectivity = np.linspace(0,nquad_conn_total*4-1,nquad_conn_total*4)
+    quad_conn_connectivity = np.arange(nquad_conn_total*4)
     quad_conn_connectivity = np.reshape(quad_conn_connectivity, [4,-1]).T
     quad_conn_connectivity = quad_conn_connectivity + npt_total_vtk
 
-    # Modify Vertex Data by adding quad_conn_vertices
-    VTKvertices_quad_conn = np.vstack((VTKvertices,quad_conn_vertices))
-    npt_total_vtk_quad_conn = VTKvertices_quad_conn.shape[0]
-    vertex_connectivity_vtk_quad_conn = np.linspace(0,npt_total_vtk_quad_conn-1,npt_total_vtk_quad_conn)
-
     # Hex - Connector Volumes
-    nhex_conn_total = nquad_conn_total*2
-    
-    hex_conn_vertices = np.zeros((nquad_conn_total*4*3,3))
-    hex_conn_vertices[0:nquad_conn_total,:] = Quad_center - Quad_tangent*Quad_height[:, np.newaxis]/2 - Quad_bitangent*Quad_width[:, np.newaxis]/2
-    hex_conn_vertices[nquad_conn_total:2*nquad_conn_total,:] = Quad_center - Quad_tangent*Quad_height[:, np.newaxis]/2 + Quad_bitangent*Quad_width[:, np.newaxis]/2
-    hex_conn_vertices[2*nquad_conn_total:3*nquad_conn_total,:] = Quad_center + Quad_tangent*Quad_height[:, np.newaxis]/2 + Quad_bitangent*Quad_width[:, np.newaxis]/2
-    hex_conn_vertices[3*nquad_conn_total:4*nquad_conn_total,:] = Quad_center + Quad_tangent*Quad_height[:, np.newaxis]/2 - Quad_bitangent*Quad_width[:, np.newaxis]/2
-    
-    hex_conn_vertices[4*nquad_conn_total:5*nquad_conn_total,:] = Quad_center - Quad_tangent*Quad_height[:, np.newaxis]/2 - Quad_bitangent*Quad_width[:, np.newaxis]/2 - Quad_normal*Quad_length1[:, np.newaxis]
-    hex_conn_vertices[5*nquad_conn_total:6*nquad_conn_total,:] = Quad_center - Quad_tangent*Quad_height[:, np.newaxis]/2 + Quad_bitangent*Quad_width[:, np.newaxis]/2 - Quad_normal*Quad_length1[:, np.newaxis]
-    hex_conn_vertices[6*nquad_conn_total:7*nquad_conn_total,:] = Quad_center + Quad_tangent*Quad_height[:, np.newaxis]/2 + Quad_bitangent*Quad_width[:, np.newaxis]/2 - Quad_normal*Quad_length1[:, np.newaxis]
-    hex_conn_vertices[7*nquad_conn_total:8*nquad_conn_total,:] = Quad_center + Quad_tangent*Quad_height[:, np.newaxis]/2 - Quad_bitangent*Quad_width[:, np.newaxis]/2 - Quad_normal*Quad_length1[:, np.newaxis]
+    # vertices: quad_conn_vertices (the cross-sections), followed by the cross-sections
+    # moved to both ends of the connector
+    hex_conn_vertices = np.zeros((nquad_conn_total*4*2,3))
+    hex_conn_vertices[0:nquad_conn_total,:] = Quad_center - Quad_tangent*Quad_height[:, np.newaxis]/2 - Quad_bitangent*Quad_width[:, np.newaxis]/2 - Quad_normal*Quad_length1[:, np.newaxis]
+    hex_conn_vertices[nquad_conn_total:2*nquad_conn_total,:] = Quad_center - Quad_tangent*Quad_height[:, np.newaxis]/2 + Quad_bitangent*Quad_width[:, np.newaxis]/2 - Quad_normal*Quad_length1[:, np.newaxis]
+    hex_conn_vertices[2*nquad_conn_total:3*nquad_conn_total,:] = Quad_center + Quad_tangent*Quad_height[:, np.newaxis]/2 + Quad_bitangent*Quad_width[:, np.newaxis]/2 - Quad_normal*Quad_length1[:, np.newaxis]
+    hex_conn_vertices[3*nquad_conn_total:4*nquad_conn_total,:] = Quad_center + Quad_tangent*Quad_height[:, np.newaxis]/2 - Quad_bitangent*Quad_width[:, np.newaxis]/2 - Quad_normal*Quad_length1[:, np.newaxis]
 
-    hex_conn_vertices[8*nquad_conn_total:9*nquad_conn_total,:] = Quad_center - Quad_tangent*Quad_height[:, np.newaxis]/2 - Quad_bitangent*Quad_width[:, np.newaxis]/2 + Quad_normal*Quad_length2[:, np.newaxis]
-    hex_conn_vertices[9*nquad_conn_total:10*nquad_conn_total,:] = Quad_center - Quad_tangent*Quad_height[:, np.newaxis]/2 + Quad_bitangent*Quad_width[:, np.newaxis]/2 + Quad_normal*Quad_length2[:, np.newaxis]
-    hex_conn_vertices[10*nquad_conn_total:11*nquad_conn_total,:] = Quad_center + Quad_tangent*Quad_height[:, np.newaxis]/2 + Quad_bitangent*Quad_width[:, np.newaxis]/2 + Quad_normal*Quad_length2[:, np.newaxis]
-    hex_conn_vertices[11*nquad_conn_total:12*nquad_conn_total,:] = Quad_center + Quad_tangent*Quad_height[:, np.newaxis]/2 - Quad_bitangent*Quad_width[:, np.newaxis]/2 + Quad_normal*Quad_length2[:, np.newaxis]
-    
-    hex_conn1_connectivity = np.linspace(0,nquad_conn_total*4*2-1,nquad_conn_total*4*2)
+    hex_conn_vertices[4*nquad_conn_total:5*nquad_conn_total,:] = Quad_center - Quad_tangent*Quad_height[:, np.newaxis]/2 - Quad_bitangent*Quad_width[:, np.newaxis]/2 + Quad_normal*Quad_length2[:, np.newaxis]
+    hex_conn_vertices[5*nquad_conn_total:6*nquad_conn_total,:] = Quad_center - Quad_tangent*Quad_height[:, np.newaxis]/2 + Quad_bitangent*Quad_width[:, np.newaxis]/2 + Quad_normal*Quad_length2[:, np.newaxis]
+    hex_conn_vertices[6*nquad_conn_total:7*nquad_conn_total,:] = Quad_center + Quad_tangent*Quad_height[:, np.newaxis]/2 + Quad_bitangent*Quad_width[:, np.newaxis]/2 + Quad_normal*Quad_length2[:, np.newaxis]
+    hex_conn_vertices[7*nquad_conn_total:8*nquad_conn_total,:] = Quad_center + Quad_tangent*Quad_height[:, np.newaxis]/2 - Quad_bitangent*Quad_width[:, np.newaxis]/2 + Quad_normal*Quad_length2[:, np.newaxis]
+
+    hex_conn1_connectivity = np.arange(nquad_conn_total*4*2)
     hex_conn1_connectivity = np.reshape(hex_conn1_connectivity, [8,-1]).T
-    hex_conn2_connectivity = np.linspace(0,nquad_conn_total*4*2-1,nquad_conn_total*4*2)
+    hex_conn2_connectivity = np.arange(nquad_conn_total*4*2)
     hex_conn2_connectivity = np.reshape(hex_conn2_connectivity, [8,-1]).T
     hex_conn2_connectivity[:,4:8] = hex_conn2_connectivity[:,4:8] + nquad_conn_total*4
     hex_conn_connectivity = np.vstack((hex_conn1_connectivity,hex_conn2_connectivity))
     hex_conn_connectivity = hex_conn_connectivity + npt_total_vtk
 
-    # Modify Vertex Data by adding hex_conn_vertices
-    VTKvertices_hex_conn = np.vstack((VTKvertices,hex_conn_vertices))
-    npt_total_vtk_hex_conn = VTKvertices_hex_conn.shape[0]
-    vertex_connectivity_vtk_hex_conn = np.linspace(0,npt_total_vtk_hex_conn-1,npt_total_vtk_hex_conn)
-    
 # =============================================================================
     # Paraview Visualization File
     collocation_flag_vtk = np.concatenate((np.ones(ngrain),np.zeros(npt_per_layer_vtk*NURBS_degree-ngrain)))
     collocation_flag_vtk = np.concatenate((np.tile(collocation_flag_vtk, nconnector_t_per_beam-1),np.concatenate((np.ones(ngrain),np.zeros(npt_per_layer_vtk-ngrain)))))
     collocation_flag_vtk = np.tile(collocation_flag_vtk, nsegments)
 
-# =============================================================================
-    # Paraview Vertices File
     VTKcell_types_vertices = (np.ones(npt_total_vtk)).astype(int)
-
-    ncell_vertices = VTKcell_types_vertices.shape[0]
-
-    vtkfile_vertices = open (Path(path, geoName, geoName + '_vertices'+'.vtu'),'w')
-    
-    vtkfile_vertices.write('<VTKFile type="UnstructuredGrid" version="2.0" byte_order="LittleEndian">'+'\n')
-    vtkfile_vertices.write('<UnstructuredGrid>'+'\n')
-    vtkfile_vertices.write('<Piece NumberOfPoints="'+str(npt_total_vtk)+'"'+' '+'NumberOfCells="'+str(ncell_vertices)+'">'+'\n')
-    
-    # <Points>
-    vtkfile_vertices.write('<Points>'+'\n')
-    vtkfile_vertices.write('<DataArray type="Float64" NumberOfComponents="3" format="ascii">'+'\n')
-    for i in range(0,npt_total_vtk):
-        X,Y,Z = VTKvertices[i]
-        vtkfile_vertices.write(' '+'%11.8e'%X+'  '+'%11.8e'%Y+'  '+'%11.8e'%Z+'\n')
-    vtkfile_vertices.write('</DataArray>'+'\n')
-    vtkfile_vertices.write('</Points>'+'\n')
-    # </Points>
-    
-    # <PointData> 
-    vtkfile_vertices.write("<"+"PointData"\
-        +" "+"Tensors="+'"'+""+'"'\
-        +" "+"Vevtors="+'"'+""+'"'\
-        +" "+"Scalars="+'"'+"IGAcollocation_flag"+'"'+">"+'\n')
-    
-    # Point Data
-    vtkfile_vertices.write("<"+"DataArray"+" "+"type="+'"'+"Float32"+'"'+" "+"Name="+'"IGAcollocation_flag" format='+'"'+"ascii"+'"'+">"+'\n')
-    for i in range(0,npt_total_vtk):
-        X = collocation_flag_vtk[i]
-        vtkfile_vertices.write('%11.8e'%X+'\n')
-    vtkfile_vertices.write("</DataArray>"+'\n')
-    
-    vtkfile_vertices.write('</PointData>'+'\n')
-    # </PointData> 
-    
-    
-    # <Cells>
-    vtkfile_vertices.write('<Cells>'+'\n')
-    
-    # Cell connectivity
-    vtkfile_vertices.write('<DataArray type="Int32" Name="connectivity" format="ascii">'+'\n')
-    for x in vertex_connectivity_vtk.astype(int):
-        vtkfile_vertices.write("%s\n" % x)
-    vtkfile_vertices.write('\n')  
-    vtkfile_vertices.write('</DataArray>'+'\n')
-    
-    # Cell offsets
-    vtkfile_vertices.write('<DataArray type="Int32" Name="offsets" format="ascii">'+'\n')
-    current_offset = 0
-    for element in vertex_connectivity_vtk:
-        element_offset = 1
-        current_offset += element_offset
-        vtkfile_vertices.write(str(current_offset)+'\n')
-    vtkfile_vertices.write('</DataArray>'+'\n')
-    
-    # Cell type
-    vtkfile_vertices.write('<DataArray type="UInt8" Name="types" format="ascii">'+'\n')
-    for i in range(0,ncell_vertices):
-        element = VTKcell_types_vertices[i]
-        vtkfile_vertices.write(str(element)+'\n')
-
-    vtkfile_vertices.write('</DataArray>'+'\n')
-    
-    vtkfile_vertices.write('</Cells>'+'\n')
-    # </Cells>
-    
-    vtkfile_vertices.write('</Piece>'+'\n')
-    #</Piece>
-    
-    vtkfile_vertices.write('</UnstructuredGrid>'+'\n')
-    #</UnstructuredGrid>
-    
-    vtkfile_vertices.write('</VTKFile>'+'\n')
-    #</VTKFile>
-    
-    vtkfile_vertices.close()
-
-# =============================================================================
-    # Paraview Beam File
     VTKcell_types_beams = np.concatenate((21*np.ones(nbeam_total_vtk),23*np.ones(nquad_total))).astype(int)
-  
-    ncell_beams = VTKcell_types_beams.shape[0]
-
-    vtkfile_beams = open (Path(path, geoName, geoName + '_beams'+'.vtu'),'w')
-    
-    vtkfile_beams.write('<VTKFile type="UnstructuredGrid" version="2.0" byte_order="LittleEndian">'+'\n')
-    vtkfile_beams.write('<UnstructuredGrid>'+'\n')
-    vtkfile_beams.write('<Piece NumberOfPoints="'+str(npt_total_vtk)+'"'+' '+'NumberOfCells="'+str(ncell_beams)+'">'+'\n')
-    
-    # <Points>
-    vtkfile_beams.write('<Points>'+'\n')
-    vtkfile_beams.write('<DataArray type="Float64" NumberOfComponents="3" format="ascii">'+'\n')
-    for i in range(0,npt_total_vtk):
-        X,Y,Z = VTKvertices[i]
-        vtkfile_beams.write(' '+'%11.8e'%X+'  '+'%11.8e'%Y+'  '+'%11.8e'%Z+'\n')
-    vtkfile_beams.write('</DataArray>'+'\n')
-    vtkfile_beams.write('</Points>'+'\n')
-    # </Points>
-    
-    # <PointData> 
-    # </PointData> 
-      
-    # <Cells>
-    vtkfile_beams.write('<Cells>'+'\n')
-    
-    # Cell connectivity
-    vtkfile_beams.write('<DataArray type="Int32" Name="connectivity" format="ascii">'+'\n')
-    vtkfile_beams.write("\n".join(" ".join(map(str, x)) for x in beam_connectivity_vtk.astype(int)))
-    vtkfile_beams.write('\n')
-    vtkfile_beams.write("\n".join(" ".join(map(str, x)) for x in quad_connectivity.astype(int)))
-    vtkfile_beams.write('\n') 
-    vtkfile_beams.write('</DataArray>'+'\n')
-    
-    # Cell offsets
-    vtkfile_beams.write('<DataArray type="Int32" Name="offsets" format="ascii">'+'\n')
-    current_offset = 0
-    for element in beam_connectivity_vtk:
-        element_offset = len(element)
-        current_offset += element_offset
-        vtkfile_beams.write(str(current_offset)+'\n')
-    for element in quad_connectivity:
-        element_offset = len(element)
-        current_offset += element_offset
-        vtkfile_beams.write(str(current_offset)+'\n')
-    vtkfile_beams.write('</DataArray>'+'\n')
-    
-    # Cell type
-    vtkfile_beams.write('<DataArray type="UInt8" Name="types" format="ascii">'+'\n')
-    for i in range(0,ncell_beams):
-        element = VTKcell_types_beams[i]
-        vtkfile_beams.write(str(element)+'\n')
-
-    vtkfile_beams.write('</DataArray>'+'\n')
-    
-    vtkfile_beams.write('</Cells>'+'\n')
-    # </Cells>
-    
-    vtkfile_beams.write('</Piece>'+'\n')
-    #</Piece>
-    
-    vtkfile_beams.write('</UnstructuredGrid>'+'\n')
-    #</UnstructuredGrid>
-    
-    vtkfile_beams.write('</VTKFile>'+'\n')
-    #</VTKFile>
-    
-    vtkfile_beams.close()
-    
-# =============================================================================
-    # Paraview Connector (Axis + Center section) File
     VTKcell_types_conns = np.concatenate((3*np.ones(nconnector_t),3*np.ones(nconnector_l),9*np.ones(nconnector_t),9*np.ones(nconnector_l))).astype(int)
-    ncell_conns = VTKcell_types_conns.shape[0]
-    
-    Quad_width_vtk = np.tile(Quad_width,(2))
-
-    vtkfile_conns = open (Path(path, geoName, geoName + '_conns'+'.vtu'),'w')
-    
-    vtkfile_conns.write('<VTKFile type="UnstructuredGrid" version="2.0" byte_order="LittleEndian">'+'\n')
-    vtkfile_conns.write('<UnstructuredGrid>'+'\n')
-    vtkfile_conns.write('<Piece NumberOfPoints="'+str(npt_total_vtk_quad_conn)+'"'+' '+'NumberOfCells="'+str(ncell_conns)+'">'+'\n')
-    
-    # <Points>
-    vtkfile_conns.write('<Points>'+'\n')
-    vtkfile_conns.write('<DataArray type="Float64" NumberOfComponents="3" format="ascii">'+'\n')
-    for i in range(0,npt_total_vtk_quad_conn):
-        X,Y,Z = VTKvertices_quad_conn[i]
-        vtkfile_conns.write(' '+'%11.8e'%X+'  '+'%11.8e'%Y+'  '+'%11.8e'%Z+'\n')
-    vtkfile_conns.write('</DataArray>'+'\n')
-    vtkfile_conns.write('</Points>'+'\n')
-    # </Points>
-    
-    # <PointData> 
-    # </PointData> 
-      
-    # <Cells>
-    vtkfile_conns.write('<Cells>'+'\n')
-    
-    # Cell connectivity
-    vtkfile_conns.write('<DataArray type="Int32" Name="connectivity" format="ascii">'+'\n')
-    vtkfile_conns.write("\n".join(" ".join(map(str, x)) for x in connector_t_connectivity_vtk.astype(int)))
-    vtkfile_conns.write('\n')
-    vtkfile_conns.write("\n".join(" ".join(map(str, x)) for x in connector_l_connectivity_vtk.astype(int)))
-    vtkfile_conns.write('\n')
-    vtkfile_conns.write("\n".join(" ".join(map(str, x)) for x in quad_conn_connectivity.astype(int)))
-    vtkfile_conns.write('\n')   
-    vtkfile_conns.write('</DataArray>'+'\n')
-    
-    # Cell offsets
-    vtkfile_conns.write('<DataArray type="Int32" Name="offsets" format="ascii">'+'\n')
-    current_offset = 0
-    for element in connector_t_connectivity_vtk:
-        element_offset = len(element)
-        current_offset += element_offset
-        vtkfile_conns.write(str(current_offset)+'\n')
-    for element in connector_l_connectivity_vtk:
-        element_offset = len(element)
-        current_offset += element_offset
-        vtkfile_conns.write(str(current_offset)+'\n')
-    for element in quad_conn_connectivity:
-        element_offset = len(element)
-        current_offset += element_offset
-        vtkfile_conns.write(str(current_offset)+'\n')
-    vtkfile_conns.write('</DataArray>'+'\n')
-    
-    # Cell type
-    vtkfile_conns.write('<DataArray type="UInt8" Name="types" format="ascii">'+'\n')
-    for i in range(0,ncell_conns):
-        element = VTKcell_types_conns[i]
-        vtkfile_conns.write(str(element)+'\n')
-
-    vtkfile_conns.write('</DataArray>'+'\n')
-    
-    vtkfile_conns.write('</Cells>'+'\n')
-    # </Cells>
-
-    # <CellData>
-    vtkfile_conns.write("<"+"CellData"\
-            +" "+"Tensors="+'"'+""+'"'\
-            +" "+"Vevtors="+'"'+""+'"'\
-            +" "+"Scalars="+'"'+"Connector_width"+'"'+">"+'\n')
-    
-    vtkfile_conns.write("<"+"DataArray"+" "+"type="+'"'+"Float32"+'"'+" "+"Name="+'"Connector_width"'+" "+"format="+'"'+"ascii"+'"'+">"+'\n')
-    for i in range(0,ncell_conns):
-        X = Quad_width_vtk[i]
-        vtkfile_conns.write('%11.8e'%X+'\n')
-    vtkfile_conns.write('</DataArray>'+'\n')
-
-    vtkfile_conns.write('</CellData>'+'\n')
-        
-    vtkfile_conns.write('</Piece>'+'\n')
-    #</Piece>
-    
-    vtkfile_conns.write('</UnstructuredGrid>'+'\n')
-    #</UnstructuredGrid>
-    
-    vtkfile_conns.write('</VTKFile>'+'\n')
-    #</VTKFile>
-    
-    vtkfile_conns.close()
-    
-# =============================================================================
-    # Paraview Connector (Volume) File
     VTKcell_types_conns_vol = np.concatenate((12*np.ones(nconnector_t),12*np.ones(nconnector_l),12*np.ones(nconnector_t),12*np.ones(nconnector_l))).astype(int)
-    ncell_conns_vol = VTKcell_types_conns_vol.shape[0]
-    
     Quad_width_vtk = np.tile(Quad_width,(2))
 
-    vtkfile_conns_vol = open (Path(path, geoName, geoName + '_conns_vol'+'.vtu'),'w')
-    
-    vtkfile_conns_vol.write('<VTKFile type="UnstructuredGrid" version="2.0" byte_order="LittleEndian">'+'\n')
-    vtkfile_conns_vol.write('<UnstructuredGrid>'+'\n')
-    vtkfile_conns_vol.write('<Piece NumberOfPoints="'+str(npt_total_vtk_hex_conn)+'"'+' '+'NumberOfCells="'+str(ncell_conns_vol)+'">'+'\n')
-    
-    # <Points>
-    vtkfile_conns_vol.write('<Points>'+'\n')
-    vtkfile_conns_vol.write('<DataArray type="Float64" NumberOfComponents="3" format="ascii">'+'\n')
-    for i in range(0,npt_total_vtk_hex_conn):
-        X,Y,Z = VTKvertices_hex_conn[i]
-        vtkfile_conns_vol.write(' '+'%11.8e'%X+'  '+'%11.8e'%Y+'  '+'%11.8e'%Z+'\n')
-    vtkfile_conns_vol.write('</DataArray>'+'\n')
-    vtkfile_conns_vol.write('</Points>'+'\n')
-    # </Points>
-    
-    # <PointData> 
-    # </PointData> 
-      
-    # <Cells>
-    vtkfile_conns_vol.write('<Cells>'+'\n')
-    
-    # Cell connectivity
-    vtkfile_conns_vol.write('<DataArray type="Int32" Name="connectivity" format="ascii">'+'\n')
-    vtkfile_conns_vol.write("\n".join(" ".join(map(str, x)) for x in hex_conn_connectivity.astype(int)))
-    vtkfile_conns_vol.write('\n')   
-    vtkfile_conns_vol.write('</DataArray>'+'\n')
-    
-    # Cell offsets
-    vtkfile_conns_vol.write('<DataArray type="Int32" Name="offsets" format="ascii">'+'\n')
-    current_offset = 0
-    for element in hex_conn_connectivity:
-        element_offset = len(element)
-        current_offset += element_offset
-        vtkfile_conns_vol.write(str(current_offset)+'\n')
-    vtkfile_conns_vol.write('</DataArray>'+'\n')
-    
-    # Cell type
-    vtkfile_conns_vol.write('<DataArray type="UInt8" Name="types" format="ascii">'+'\n')
-    for i in range(0,ncell_conns_vol):
-        element = VTKcell_types_conns_vol[i]
-        vtkfile_conns_vol.write(str(element)+'\n')
+    files = [ # file name, point arrays, connectivity arrays (one row per cell), cell types, point data, cell data
+        ('_vertices',[VTKvertices],[vertex_connectivity_vtk.reshape(-1,1)],VTKcell_types_vertices,
+         ('IGAcollocation_flag',collocation_flag_vtk),None),
+        ('_beams',[VTKvertices],[beam_connectivity_vtk,quad_connectivity],VTKcell_types_beams,None,None),
+        ('_conns',[VTKvertices,quad_conn_vertices],[connector_t_connectivity_vtk,connector_l_connectivity_vtk,quad_conn_connectivity],
+         VTKcell_types_conns,None,('Connector_width',Quad_width_vtk)),
+        ('_conns_vol',[VTKvertices,quad_conn_vertices,hex_conn_vertices],[hex_conn_connectivity],
+         VTKcell_types_conns_vol,None,('Connector_width',Quad_width_vtk)),
+        ]
 
-    vtkfile_conns_vol.write('</DataArray>'+'\n')
-    
-    vtkfile_conns_vol.write('</Cells>'+'\n')
-    # </Cells>
-    
-    # <CellData>
-    vtkfile_conns_vol.write("<"+"CellData"\
-            +" "+"Tensors="+'"'+""+'"'\
-            +" "+"Vectors="+'"'+""+'"'\
-            +" "+"Scalars="+'"'+"Connector_width"+'"'+">"+'\n')
-    
-    vtkfile_conns_vol.write("<"+"DataArray"+" "+"type="+'"'+"Float32"+'"'+" "+"Name="+'"Connector_width"'+" "+"format="+'"'+"ascii"+'"'+">"+'\n')
-    for i in range(0,ncell_conns_vol):
-        X = Quad_width_vtk[i]
-        vtkfile_conns_vol.write('%11.8e'%X+'\n')
-    vtkfile_conns_vol.write('</DataArray>'+'\n')
+    if vtk_format == 'binary':
+        for suffix, points, cells, types, point_data, cell_data in files:
+            _write_vtu_appended(Path(path, geoName, geoName + suffix + '.vtu'),np.vstack(points),cells,types,point_data,cell_data)
+        return
 
-    vtkfile_conns_vol.write('</CellData>'+'\n')
-    
-    vtkfile_conns_vol.write('</Piece>'+'\n')
-    #</Piece>
-    
-    vtkfile_conns_vol.write('</UnstructuredGrid>'+'\n')
-    #</UnstructuredGrid>
-    
-    vtkfile_conns_vol.write('</VTKFile>'+'\n')
-    #</VTKFile>
-    
-    vtkfile_conns_vol.close()
+    # ASCII files (the points shared by several files are formatted once)
+    points_format = ' %11.8e  %11.8e  %11.8e\n'
+    shared_points_text = {id(VTKvertices): _format_rows(VTKvertices,points_format),
+                          id(quad_conn_vertices): _format_rows(quad_conn_vertices,points_format)}
+    for suffix, points, cells, types, point_data, cell_data in files:
+        with open(Path(path, geoName, geoName + suffix + '.vtu'),'w') as vtkfile:
+            write = vtkfile.write
+            write('<VTKFile type="UnstructuredGrid" version="2.0" byte_order="LittleEndian">\n')
+            write('<UnstructuredGrid>\n')
+            write('<Piece NumberOfPoints="'+str(sum(p.shape[0] for p in points))+'" NumberOfCells="'+str(len(types))+'">\n')
+
+            # <Points>
+            write('<Points>\n')
+            write('<DataArray type="Float64" NumberOfComponents="3" format="ascii">\n')
+            for p in points:
+                if id(p) in shared_points_text:
+                    write(shared_points_text[id(p)])
+                else:
+                    vtkfile.writelines(_format_rows(p,points_format,join=False))
+            write('</DataArray>\n')
+            write('</Points>\n')
+            # </Points>
+
+            # <PointData>
+            if point_data is not None:
+                name, values = point_data
+                write('<PointData Tensors="" Vevtors="" Scalars="'+name+'">\n')
+                write('<DataArray type="Float32" Name="'+name+'" format="ascii">\n')
+                write(_format_rows(values,'%11.8e\n'))
+                write('</DataArray>\n')
+                write('</PointData>\n')
+            # </PointData>
+
+            # <Cells>
+            write('<Cells>\n')
+
+            # Cell connectivity
+            write('<DataArray type="Int32" Name="connectivity" format="ascii">\n')
+            if suffix == '_vertices':
+                write(_format_rows(cells[0],'%d\n'))
+                write('\n')
+            else:
+                for connectivity in cells: # rows separated by newlines, no newline after the last row
+                    write(_format_rows(connectivity,' '.join(['%d']*connectivity.shape[1])+'\n')[:-1])
+                    write('\n')
+            write('</DataArray>\n')
+
+            # Cell offsets
+            write('<DataArray type="Int32" Name="offsets" format="ascii">\n')
+            offsets = np.cumsum(np.concatenate([np.full(len(connectivity),connectivity.shape[1]) for connectivity in cells]))
+            write(_format_rows(offsets,'%d\n'))
+            write('</DataArray>\n')
+
+            # Cell type
+            write('<DataArray type="UInt8" Name="types" format="ascii">\n')
+            write(_format_rows(types,'%d\n'))
+            write('</DataArray>\n')
+
+            write('</Cells>\n')
+            # </Cells>
+
+            # <CellData>
+            if cell_data is not None:
+                name, values = cell_data
+                write('<CellData Tensors="" '+('Vevtors' if suffix == '_conns' else 'Vectors')+'="" Scalars="'+name+'">\n')
+                write('<DataArray type="Float32" Name="'+name+'" format="ascii">\n')
+                write(_format_rows(values,'%11.8e\n'))
+                write('</DataArray>\n')
+                write('</CellData>\n')
+            # </CellData>
+
+            write('</Piece>\n')
+            write('</UnstructuredGrid>\n')
+            write('</VTKFile>\n')
     
     
 def BezierExtraction(NURBS_degree,nbeam_total):
@@ -1939,9 +1807,9 @@ def AbaqusFile(geoName,NURBS_degree,npatch,IGAvertices,beam_connectivity,\
     # transverse connectors of precracked ridges (cell walls) are cracked in every segment
     nsegments = len(z_coord)//(2*NURBS_degree+1)
     nridge = nelem_connector_t_bot//nsegments
-    precrack_ridges = set(int(ridge) for ridge in precrack_elem)
-    def is_precracked(i): # i: row in the bot/reg/top transverse connector arrays, which repeat every nridge rows
-        return (i % nridge) in precrack_ridges
+    precrack_ridges = [int(ridge) for ridge in precrack_elem] if precrackFlag in ON_FLAGS else []
+    def precracked_rows(connectivity): # rows of the bot/reg/top transverse connector arrays, which repeat every nridge rows
+        return np.isin(np.arange(connectivity.shape[0]) % max(nridge,1),precrack_ridges)
     
     xaxis = 1
     yaxis = 2
@@ -1969,85 +1837,38 @@ def AbaqusFile(geoName,NURBS_degree,npatch,IGAvertices,beam_connectivity,\
     meshinpfile.write('*Instance, name=Part-1-1, part=Part-1\n')
     # nodes
     meshinpfile.write('*Node,nset=AllNodes\n')
-    for i in range(0,numnode):
-        meshinpfile.write('{:d}, {:#.9e}, {:#.9e},  {:#.9e}\n'.format(i+1,IGAvertices[i,0],IGAvertices[i,1],IGAvertices[i,2]))
+    meshinpfile.write(_format_rows(np.column_stack((np.arange(1,numnode+1),IGAvertices[:,0:3])),'%d, %#.9e, %#.9e,  %#.9e\n'))
+    def write_elements(ids,connectivity):
+        """Write one line per element: id, node1, node2, ..."""
+        connectivity = np.reshape(connectivity,(len(ids),-1))
+        meshinpfile.write(_format_rows(np.column_stack((ids,connectivity)).astype(int),'%d'+', %d'*connectivity.shape[1]+'\n'))
     # beam element connectivity 
     count = 1
     meshinpfile.write('*Element, type=B32,elset=AllBeams\n') 
-    for i in range(0,nelem):
-        meshinpfile.write('{:d}'.format(count))
-        count += 1
-        for j in range(0,nnode):
-            meshinpfile.write(', {:d}'.format(beam_connectivity[i,j])) 
-        meshinpfile.write('\n')
-        
-    if precrackFlag in ON_FLAGS:
-        connector_t_precracked_index = []
-        connector_t_precracked_connectivity = []
-        # bottom/regular/top transverse connector element connectivity, precracked connectors are collected
-        for elset, connectivity in [('AllBotConns',connector_t_bot_connectivity),\
-                                    ('AllRegConns',connector_t_reg_connectivity),\
-                                    ('AllTopConns',connector_t_top_connectivity)]:
-            meshinpfile.write('*Element, type=T3D2,elset={:s}\n'.format(elset))
-            for i in range(0,connectivity.shape[0]):
-                if is_precracked(i):
-                    connector_t_precracked_index.append(count)
-                    connector_t_precracked_connectivity.append(connectivity[i,:])
-                else:
-                    meshinpfile.write('{:d}'.format(count))
-                    for j in range(0,nelnode_connector):
-                        meshinpfile.write(', {:d}'.format(connectivity[i,j]))
-                    meshinpfile.write('\n')
-                count += 1
-        # precracked transverse connector element connectivity
-        if connector_t_precracked_index:
-            meshinpfile.write('*Element, type=T3D2,elset=AllPrecrackTConns\n')
-            for i in range(0,len(connector_t_precracked_connectivity)):
-                meshinpfile.write('{:d}'.format(connector_t_precracked_index[i]))
-                for j in range(0,nelnode_connector):
-                    meshinpfile.write(', {:d}'.format(connector_t_precracked_connectivity[i][j]))
-                meshinpfile.write('\n')
-        # longitudinal connector element connectivity (longitudinal connectors are not precracked)
-        meshinpfile.write('*Element, type=T3D2,elset=AllLongConns\n')
-        for i in range(0,nelem_connector_l):
-            meshinpfile.write('{:d}'.format(count))
-            count += 1
-            for j in range(0,nelnode_connector):
-                meshinpfile.write(', {:d}'.format(connector_l_connectivity[i,j]))
-            meshinpfile.write('\n')
-    else:
-        # bottom transverse connector element connectivity 
-        meshinpfile.write('*Element, type=T3D2,elset=AllBotConns\n') 
-        for i in range(0,nelem_connector_t_bot):
-            meshinpfile.write('{:d}'.format(count))
-            count += 1
-            for j in range(0,nelnode_connector):
-                meshinpfile.write(', {:d}'.format(connector_t_bot_connectivity[i,j])) 
-            meshinpfile.write('\n')
-        # regular transverse connector element connectivity 
-        meshinpfile.write('*Element, type=T3D2,elset=AllRegConns\n') 
-        for i in range(0,nelem_connector_t_reg):
-            meshinpfile.write('{:d}'.format(count))
-            count += 1
-            for j in range(0,nelnode_connector):
-                meshinpfile.write(', {:d}'.format(connector_t_reg_connectivity[i,j])) 
-            meshinpfile.write('\n')
-        # top transverse connector element connectivity 
-        meshinpfile.write('*Element, type=T3D2,elset=AllTopConns\n') 
-        for i in range(0,nelem_connector_t_top):
-            meshinpfile.write('{:d}'.format(count))
-            count += 1
-            for j in range(0,nelnode_connector):
-                meshinpfile.write(', {:d}'.format(connector_t_top_connectivity[i,j])) 
-            meshinpfile.write('\n')
-        # longitudinal connector element connectivity 
-        meshinpfile.write('*Element, type=T3D2,elset=AllLongConns\n') 
-        for i in range(0,nelem_connector_l):
-            meshinpfile.write('{:d}'.format(count))
-            count += 1
-            for j in range(0,nelnode_connector):
-                meshinpfile.write(', {:d}'.format(connector_l_connectivity[i,j])) 
-            meshinpfile.write('\n')
+    write_elements(np.arange(count,count+nelem),beam_connectivity[:,0:nnode])
+    count += nelem
+
+    # bottom/regular/top transverse connector element connectivity, precracked connectors are collected
+    connector_t_precracked_index = []
+    connector_t_precracked_connectivity = []
+    for elset, connectivity in [('AllBotConns',connector_t_bot_connectivity),\
+                                ('AllRegConns',connector_t_reg_connectivity),\
+                                ('AllTopConns',connector_t_top_connectivity)]:
+        meshinpfile.write('*Element, type=T3D2,elset={:s}\n'.format(elset))
+        ids = np.arange(count,count+connectivity.shape[0])
+        cracked = precracked_rows(connectivity)
+        write_elements(ids[~cracked],connectivity[~cracked,0:nelnode_connector])
+        connector_t_precracked_index.extend(ids[cracked].tolist())
+        connector_t_precracked_connectivity.extend(connectivity[cracked,0:nelnode_connector])
+        count += connectivity.shape[0]
+    # precracked transverse connector element connectivity
+    if connector_t_precracked_index:
+        meshinpfile.write('*Element, type=T3D2,elset=AllPrecrackTConns\n')
+        write_elements(connector_t_precracked_index,connector_t_precracked_connectivity)
+    # longitudinal connector element connectivity (longitudinal connectors are not precracked)
+    meshinpfile.write('*Element, type=T3D2,elset=AllLongConns\n')
+    write_elements(np.arange(count,count+nelem_connector_l),connector_l_connectivity[:,0:nelnode_connector])
+    count += nelem_connector_l
 
     # Ghost mesh for easy visualization
     count_offset = 10**(int(math.log10(count))+1) # set an offset with the order of magnitude of the max number + 1
@@ -2055,73 +1876,27 @@ def AbaqusFile(geoName,NURBS_degree,npatch,IGAvertices,beam_connectivity,\
     
     if NURBS_degree == 2:
         meshinpfile.write('*ELEMENT, TYPE=B32, ELSET=VisualBeams\n')
-        for i in range(0,nelem):
-            meshinpfile.write('{:d}'.format(count))
-            count += 1
-            for j in range(0,nnode):
-                meshinpfile.write(', {:d}'.format(beam_connectivity[i,j])) 
-            meshinpfile.write('\n')
-            
-    if precrackFlag in ON_FLAGS:
-        visual_connector_precracked_index = []
-        for elset, connectivity in [('VisualBotConns',connector_t_bot_connectivity),\
-                                    ('VisualRegConns',connector_t_reg_connectivity),\
-                                    ('VisualTopConns',connector_t_top_connectivity)]:
-            meshinpfile.write('*ELEMENT, TYPE=T3D2, ELSET={:s}\n'.format(elset))
-            for i in range(0,connectivity.shape[0]):
-                if is_precracked(i):
-                    visual_connector_precracked_index.append(count)
-                else:
-                    meshinpfile.write('{:d}'.format(count))
-                    for j in range(0,nelnode_connector):
-                        meshinpfile.write(', {:d}'.format(connectivity[i,j]))
-                    meshinpfile.write('\n')
-                count += 1
-        # precracked transverse connector element connectivity
-        if visual_connector_precracked_index:
-            meshinpfile.write('*ELEMENT, TYPE=T3D2, ELSET=VisualPrecrackTConns\n')
-            for i in range(0,len(connector_t_precracked_connectivity)):
-                meshinpfile.write('{:d}'.format(visual_connector_precracked_index[i]))
-                for j in range(0,nelnode_connector):
-                    meshinpfile.write(', {:d}'.format(connector_t_precracked_connectivity[i][j]))
-                meshinpfile.write('\n')
-        # longitudinal connector element connectivity
-        meshinpfile.write('*ELEMENT, TYPE=T3D2, ELSET=VisualLongConns\n')
-        for i in range(0,nelem_connector_l):
-            meshinpfile.write('{:d}'.format(count))
-            count += 1
-            for j in range(0,nelnode_connector):
-                meshinpfile.write(', {:d}'.format(connector_l_connectivity[i,j]))
-            meshinpfile.write('\n')
-    else:
-        meshinpfile.write('*ELEMENT, TYPE=T3D2, ELSET=VisualBotConns\n')
-        for i in range(0,nelem_connector_t_bot):
-            meshinpfile.write('{:d}'.format(count))
-            count += 1
-            for j in range(0,nelnode_connector):
-                meshinpfile.write(', {:d}'.format(connector_t_bot_connectivity[i,j])) 
-            meshinpfile.write('\n')
-        meshinpfile.write('*ELEMENT, TYPE=T3D2, ELSET=VisualRegConns\n')
-        for i in range(0,nelem_connector_t_reg):
-            meshinpfile.write('{:d}'.format(count))
-            count += 1
-            for j in range(0,nelnode_connector):
-                meshinpfile.write(', {:d}'.format(connector_t_reg_connectivity[i,j])) 
-            meshinpfile.write('\n')
-        meshinpfile.write('*ELEMENT, TYPE=T3D2, ELSET=VisualTopConns\n')
-        for i in range(0,nelem_connector_t_top):
-            meshinpfile.write('{:d}'.format(count))
-            count += 1
-            for j in range(0,nelnode_connector):
-                meshinpfile.write(', {:d}'.format(connector_t_top_connectivity[i,j])) 
-            meshinpfile.write('\n')
-        meshinpfile.write('*ELEMENT, TYPE=T3D2, ELSET=VisualLongConns\n')
-        for i in range(0,nelem_connector_l):
-            meshinpfile.write('{:d}'.format(count))
-            count += 1
-            for j in range(0,nelnode_connector):
-                meshinpfile.write(', {:d}'.format(connector_l_connectivity[i,j])) 
-            meshinpfile.write('\n')
+        write_elements(np.arange(count,count+nelem),beam_connectivity[:,0:nnode])
+        count += nelem
+
+    visual_connector_precracked_index = []
+    for elset, connectivity in [('VisualBotConns',connector_t_bot_connectivity),\
+                                ('VisualRegConns',connector_t_reg_connectivity),\
+                                ('VisualTopConns',connector_t_top_connectivity)]:
+        meshinpfile.write('*ELEMENT, TYPE=T3D2, ELSET={:s}\n'.format(elset))
+        ids = np.arange(count,count+connectivity.shape[0])
+        cracked = precracked_rows(connectivity)
+        write_elements(ids[~cracked],connectivity[~cracked,0:nelnode_connector])
+        visual_connector_precracked_index.extend(ids[cracked].tolist())
+        count += connectivity.shape[0]
+    # precracked transverse connector element connectivity
+    if visual_connector_precracked_index:
+        meshinpfile.write('*ELEMENT, TYPE=T3D2, ELSET=VisualPrecrackTConns\n')
+        write_elements(visual_connector_precracked_index,connector_t_precracked_connectivity)
+    # longitudinal connector element connectivity
+    meshinpfile.write('*ELEMENT, TYPE=T3D2, ELSET=VisualLongConns\n')
+    write_elements(np.arange(count,count+nelem_connector_l),connector_l_connectivity[:,0:nelnode_connector])
+    count += nelem_connector_l
             
     area_connector_t = height_connector_t*cellwallthickness_sparse # sectional area of transverse connectors [mm^2]
     meshinpfile.write('** Section: Section-1\n')
@@ -2562,30 +2337,42 @@ def StlModelFile(geoName,path='meshes'):
     """
 
     try:
-        import vtk
-    except ImportError as e:
-        raise ImportError("STL export (stlFlag = 'on') needs the optional package vtk: pip install 'ringspy[vtk]'") from e
+        # only the VTK modules used here ('import vtk' loads all of VTK, which takes seconds)
+        from vtkmodules.vtkIOXML import vtkXMLUnstructuredGridReader
+        from vtkmodules.vtkFiltersGeometry import vtkDataSetSurfaceFilter
+        from vtkmodules.vtkFiltersCore import vtkTriangleFilter
+        from vtkmodules.vtkIOGeometry import vtkSTLWriter
+    except ImportError:
+        try:
+            from vtk import vtkXMLUnstructuredGridReader, vtkDataSetSurfaceFilter, vtkTriangleFilter, vtkSTLWriter
+        except ImportError as e:
+            raise ImportError("STL export (stlFlag = 'on') needs the optional package vtk: pip install 'ringspy[vtk]'") from e
 
     file_name = str(Path(path, geoName, geoName + '_conns_vol'+'.vtu'))
     stlfilename = str(Path(path, geoName, geoName + '.stl'))
 
     # create a new 'XML Unstructured Grid Reader'
-    reader = vtk.vtkXMLUnstructuredGridReader()
+    reader = vtkXMLUnstructuredGridReader()
     reader.SetFileName(file_name)
     reader.Update()
     output = reader.GetOutputPort()
 
     # Extract the outer (polygonal) surface.
-    surface = vtk.vtkDataSetSurfaceFilter()
+    surface = vtkDataSetSurfaceFilter()
     surface.SetInputConnection(0, output)
     surface.Update()
-    sufaceoutput = surface.GetOutputPort()
+
+    # Split the quads of the surface into triangles. vtkSTLWriter would do the same
+    # split itself, but about 100 times slower.
+    triangles = vtkTriangleFilter()
+    triangles.SetInputConnection(surface.GetOutputPort())
+    triangles.Update()
 
     # Write the stl file to disk
-    stlWriter = vtk.vtkSTLWriter()
+    stlWriter = vtkSTLWriter()
     stlWriter.SetFileTypeToBinary() # ASCII STL files are ~3x larger
     stlWriter.SetFileName(stlfilename)
-    stlWriter.SetInputConnection(sufaceoutput)
+    stlWriter.SetInputConnection(triangles.GetOutputPort())
     stlWriter.Write()
 
 

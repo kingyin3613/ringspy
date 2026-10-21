@@ -171,6 +171,7 @@ The following files should be generated in the `.\meshes\geoName` directory with
     - Paraview vtk file for initial grain solid configuration: `wood_cube_beams.vtu`
     - Paraview vtk file of initial cell ridge configuration: `wood_cube_conns.vtu`
     - Paraview vtk file of initial connector (volume) configuration: `wood_cube_conns_vol.vtu`
+    - The `.vtu` files are written as text. For large models, `rpgen.VisualizationFiles(..., vtk_format='binary')` writes them as binary files instead, which are faster to write and read and about 3 times smaller.
 - (Optional) 3D model files
     - Binary STL file of initial cellular solid configuration: `wood_cube.stl`
 - (Optional) Abaqus input files

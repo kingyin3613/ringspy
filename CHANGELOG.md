@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Performance
+Mesh generation is much faster, with identical output files for the same random seed (checked byte for byte against v1.1.0 for all template scripts, with and without merging, boundary and precracks). The `wood_cube` template takes 2.5 s instead of 28 s with `iter_max = 500` (3.3k cells), and 6 s instead of 106 s with `iter_max = 2000` (10k cells), and needs less memory; `benchmarks/benchmark_pipeline.py` reports the time per stage.
+- STL export: the surface quads are split into triangles with `vtkTriangleFilter` before `vtkSTLWriter`, which splits them about 100 times slower itself (same STL file). Only the needed VTK modules are imported.
+- `CellPlacement_Binary` checks new cells for overlaps only against the placed cells in the neighbouring cells of a grid, instead of all placed cells (same sites).
+- `RebuildVoronoi_merge` finds points by their coordinates with dictionaries instead of comparing with all points, and replaces merged vertex indices in one pass.
+- `VisualizationFiles`, `AbaqusFile` and the `.mesh`/`-mesh.txt` files format their data in large chunks instead of line by line, and `VisualizationFiles`, `GenerateBeamElement`, `ConnectorMeshFile` and `VertexandRidgeinfo` build their arrays without Python loops over vertices, ridges or connectors.
+- The preview plot draws the Voronoi ridges as one `LineCollection` instead of one line per ridge (same image).
+
+### New
+- `VisualizationFiles(..., vtk_format='binary')` writes the ParaView files with raw binary appended data: faster to write and read, and about 3 times smaller. The default is still `'ascii'`.
+
 ## v1.1.0
 
 Maintenance release: RingsPy installs and runs again on current Python, NumPy and setuptools.
