@@ -9,7 +9,6 @@ email: haoyin2022@u.northwestern.edu
 import math
 import bisect
 import numpy as np
-from scipy.spatial.distance import cdist
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from scipy.spatial import cKDTree
@@ -17,10 +16,14 @@ from scipy.spatial import ConvexHull
 from scipy.spatial import Voronoi
 from pathlib import Path
 import datetime
-import time
 
 from . import __version__
 
+# Accepted spellings of the clipping box shapes
+SQUARE_SHAPES = ['square','Square','SQUARE','rectangle','Rectangle','RECTANGLE','cube','Cube','CUBE','s']
+TRIANGLE_SHAPES = ['triangle','Triangle','TRIANGLE','triangular','Triangular','TRIANGULAR','tri','Tri','TRI','^']
+HEXAGON_SHAPES = ['hexagon','Hexagon','HEXAGON','hexagonal','Hexagonal','HEXAGONAL','hex','Hex','HEX','h']
+ON_FLAGS = ['on','On','Y','y','Yes','yes']
 
 
 def cross2D(a, b):
@@ -59,39 +62,16 @@ def check_isinside_boundcircle(circC,generation_center,rmin,rmax):
     return within
 
 def check_isinside_boundTriangle2D(circC,boundaries):
-    """ 
-    A function to check whether point P(x, y)
-    lies inside the triangle formed by
-    A(x1, y1), B(x2, y2) and C(x3, y3)
-    credit to: https://www.geeksforgeeks.org/check-whether-a-given-point-lies-inside-a-triangle-or-not/
     """
-    x = circC[0]
-    y = circC[1]
-    w = circC[2]
-    
-    x1 = boundaries[0][1][0][0]
-    y1 = boundaries[0][1][0][1]
-    x2 = boundaries[1][1][0][0]
-    y2 = boundaries[1][1][0][1]
-    x3 = boundaries[2][1][0][0]
-    y3 = boundaries[2][1][0][1]
-    
-    # Calculate area of triangle ABC
-    A = TriangleArea2D(x1, y1, x2, y2, x3, y3)
- 
-    # Calculate area of triangle PBC
-    A1 = TriangleArea2D(x, y, x2, y2, x3, y3)
-     
-    # Calculate area of triangle PAC
-    A2 = TriangleArea2D(x1, y1, x, y, x3, y3)
-     
-    # Calculate area of triangle PAB
-    A3 = TriangleArea2D(x1, y1, x2, y2, x, y)
-     
-    # Check if sum of A1, A2 and A3 is same as A
-    # within = (A == A1 + A2 + A3)
-    # with tolerance
-    within = (np.abs(A - (A1 + A2 + A3)) <= A*1e-3)
+    A function to check whether point P(x, y) lies strictly inside the
+    triangle formed by the start points of the three boundary lines
+    (P must be on the same side of all three edges)
+    """
+    p = np.asarray(circC[0:2])
+    corners = np.array([boundary[1][0] for boundary in boundaries[0:3]])
+    edges = np.roll(corners,-1,axis=0) - corners
+    sides = cross2D(edges, p - corners)
+    within = bool(np.all(sides > 0) or np.all(sides < 0))
 
     return within
 
@@ -203,7 +183,7 @@ def Clipping_Box(box_shape,box_center,box_size,boundaryFlag):
     clipping box for the 2D Voronoi diagram
     """
     
-    if box_shape in ['square','Square','SQUARE','rectangle','Rectangle','RECTANGLE','cube','Cube','CUBE','s']: # sqaure box
+    if box_shape in SQUARE_SHAPES: # sqaure box
         x_min = box_center[0] - box_size/2
         x_max = box_center[0] + box_size/2 
         y_min = box_center[1] - box_size/2
@@ -216,12 +196,12 @@ def Clipping_Box(box_shape,box_center,box_size,boundaryFlag):
         l3 = [(x_min, y_max), (x_min, y_min)]
         boundaries = [('bottom', l0), ('right', l1), ('top', l2), ('left', l3)]
 
-        if boundaryFlag in ['on','On','Y','y','Yes','yes']:
+        if boundaryFlag in ON_FLAGS:
             boundarylines = patches.Rectangle(boundaries[0][1][0], x_max-x_min, y_max-y_min, linewidth=2, edgecolor='k',facecolor='none')
         else:
             boundarylines = patches.Rectangle(boundaries[0][1][0], x_max-x_min, y_max-y_min, linewidth=2, linestyle='-.', edgecolor='k',facecolor='none')
             
-    elif box_shape in ['triangle','Triangle','TRIANGLE','triangular','Triangular','TRIANGULAR','tri','Tri','TRI','^']: # Triangle box
+    elif box_shape in TRIANGLE_SHAPES: # Triangle box
         x_0 = box_center[0] - box_size
         x_1 = box_center[0]
         x_2 = box_center[0] + box_size
@@ -235,7 +215,7 @@ def Clipping_Box(box_shape,box_center,box_size,boundaryFlag):
         
         boundaries = [('bottom', l0), ('top-right', l1), ('top-left', l2)]
         
-        if boundaryFlag in ['on','On','Y','y','Yes','yes']:
+        if boundaryFlag in ON_FLAGS:
             boundarylines = patches.RegularPolygon((box_center[0]+0,box_center[1]+np.sqrt(3)/3*box_size),numVertices=3,radius=2*np.sqrt(3)/3*box_size,orientation=0,linewidth=2,edgecolor='k',facecolor='none')
         else:
             boundarylines = patches.RegularPolygon((box_center[0]+0,box_center[1]+np.sqrt(3)/3*box_size),numVertices=3,radius=2*np.sqrt(3)/3*box_size,orientation=0,linewidth=2,linestyle='-.',edgecolor='k',facecolor='none')
@@ -245,14 +225,14 @@ def Clipping_Box(box_shape,box_center,box_size,boundaryFlag):
         y_min = y_0
         y_max = y_1
         
-    elif box_shape in ['hexagon','Hexagon','HEXAGON','hexagonal','Hexagonal','HEXAGONAL','hex','Hex','HEX','h']: # hexagonal box
-        x_0 = box_center[1] - box_size
-        x_1 = box_center[1] - box_size/2.0
-        x_2 = box_center[1] + box_size/2.0
-        x_3 = box_center[1] + box_size
-        y_0 = box_center[0] - box_size/2*np.sqrt(3)
-        y_1 = box_center[0]
-        y_2 = box_center[0] + box_size/2*np.sqrt(3)
+    elif box_shape in HEXAGON_SHAPES: # hexagonal box
+        x_0 = box_center[0] - box_size
+        x_1 = box_center[0] - box_size/2.0
+        x_2 = box_center[0] + box_size/2.0
+        x_3 = box_center[0] + box_size
+        y_0 = box_center[1] - box_size/2*np.sqrt(3)
+        y_1 = box_center[1]
+        y_2 = box_center[1] + box_size/2*np.sqrt(3)
         
         boundary_points = np.array([[x_1, y_0], [x_2, y_0], [x_3, y_1], [x_2, y_2], [x_1, y_2], [x_0, y_1]])
         
@@ -265,7 +245,7 @@ def Clipping_Box(box_shape,box_center,box_size,boundaryFlag):
         
         boundaries = [('bottom', l0), ('bottom-right', l1), ('top-right', l2), ('top', l3), ('top-left', l4), ('bottom-left', l5)]
         
-        if boundaryFlag in ['on','On','Y','y','Yes','yes']:
+        if boundaryFlag in ON_FLAGS:
             boundarylines = patches.RegularPolygon(box_center,numVertices=6,radius=box_size,orientation=np.pi/6,linewidth=2,edgecolor='k',facecolor='none')
         else:
             boundarylines = patches.RegularPolygon(box_center,numVertices=6,radius=box_size,orientation=np.pi/6,linewidth=2,linestyle='-.',edgecolor='k',facecolor='none')
@@ -276,10 +256,8 @@ def Clipping_Box(box_shape,box_center,box_size,boundaryFlag):
         y_max = y_2
         
     else:
-        print('box_shape: {:s} is not supported for current version, please check README for more details.'.format(box_shape))
-        print('Now exitting...')
-        exit()
-        
+        raise ValueError('box_shape: {:s} is not supported for current version, please check README for more details.'.format(box_shape))
+
     return x_min,x_max,y_min,y_max,boundaries,boundary_points,boundarylines
 
 
@@ -418,10 +396,7 @@ def CellPlacement_Binary_Lloyd(geoName,path,generation_center,r_max,r_min,\
     inside_cells = 1e-3*(np.random.rand(n_nonoverlapped_cells,2) - [0.5,0.5]) # add cell points in a very small area
     
     sites = np.vstack((PerimeterPointsSites,inside_cells))
-    
-    filenames = []
-    frame_iter = 0
-    
+
     lloyd_iter = 0
     while lloyd_iter < iter_max:
         vor = Voronoi(sites)
@@ -476,7 +451,8 @@ def CellPlacement_Binary_Lloyd(geoName,path,generation_center,r_max,r_min,\
                     
         existing_sites = np.vstack((sites,existing_sites))
         PerimeterPointsSites = np.copy(OuterPerimeterPointsSites)
-    sites = existing_sites
+    # sites are generated around the origin, move them to the generation center
+    sites = existing_sites + np.asarray(generation_center)
 
     return sites, radii
 
@@ -494,7 +470,7 @@ def CellPlacement_Honeycomb(generation_center,r_max,r_min,nrings,box_center,box_
     except ImportError as e:
         raise ImportError("radial_growth_rule 'regular_hexagonal' needs the optional package hexalattice: "
                           "pip install 'ringspy[hex]'") from e
-    
+
     # generate radii for rings
     width = np.concatenate(([width_heart],np.tile([width_sparse,width_dense],nrings)))
     noise = np.random.normal(1,0.25,len(width))
@@ -524,113 +500,15 @@ def CellPlacement_Honeycomb(generation_center,r_max,r_min,nrings,box_center,box_
     return sites, radii
 
 
-def RebuildVoronoi(vor,circles,boundaries,generation_center,x_min,x_max,y_min,y_max,box_center,box_shape,boundaryFlag):
-    """Clip Voronoi mesh by the boundaries, rebuild the new Voronoi mesh"""
-    # Store indices of Voronoi vertices for each finite ridge
-    finite_ridges = []
-    finite_ridges_pointid = []
-    infinite_ridges = []
-    infinite_ridges_pointid = []
-    boundary_points = []
-    
-    # Form two new Voronoi vertices lists with and without out-of-bound vertices
-    voronoi_vertices_in = []
-    voronoi_vertices_out = []
-    
-    if box_shape in ['triangle','Triangle','TRIANGLE','triangular','Triangular','TRIANGULAR','tri','Tri','TRI','^']:
-        for pointidx, simplex in zip(vor.ridge_points, vor.ridge_vertices):
-            simplex = np.asarray(simplex)
-            simplex = np.where(simplex == -1, -9999999999, simplex) # use a large negative number instead of -1 to represent the infinite ridge vertices 
-            if np.all(simplex >= 0) and check_isinside_boundTriangle2D(np.append(vor.vertices[simplex[0]],0),boundaries) and check_isinside_boundTriangle2D(np.append(vor.vertices[simplex[1]],0),boundaries):
-                voronoi_vertices_in.append(vor.vertices[simplex[0]])
-                voronoi_vertices_in.append(vor.vertices[simplex[1]])
-                finite_ridges.append(simplex)
-                finite_ridges_pointid.append(pointidx)
-                plt.plot(vor.vertices[simplex, 0], vor.vertices[simplex, 1], 'k-',linewidth=1)
-            else: # infinite Voronoi ridges and finite ridges with out-of-bound vetices
-                if np.all(simplex >= 0) and (check_isinside_boundTriangle2D(np.append(vor.vertices[simplex[0]],0),boundaries) or check_isinside_boundTriangle2D(np.append(vor.vertices[simplex[1]],0),boundaries)): # finite Voronoi ridge but one vertex is far
-        
-                    if (check_isinside_boundTriangle2D(np.append(vor.vertices[simplex[0]],0),boundaries) == 0):# if vertex is out-of-bound, inverse its index
-                        voronoi_vertices_out.append(vor.vertices[simplex[0]])
-                        if simplex[0] == 0:
-                            simplex[0] = -9999999998 # since inverse of 0 is still zero, we use another large number to represent -0
-                        else:
-                            simplex[0] = -simplex[0]
-                    elif (check_isinside_boundTriangle2D(np.append(vor.vertices[simplex[1]],0),boundaries) == 0):
-                        voronoi_vertices_out.append(vor.vertices[simplex[1]])
-                        if simplex[1] == 0:
-                            simplex[1] = -9999999998 # since inverse of 0 is still zero, we use another large number to represent -0
-                        else:
-                            simplex[1] = -simplex[1]
-                    infinite_ridges.append(simplex)
-                    infinite_ridges_pointid.append(pointidx) 
-                elif check_isinside_boundTriangle2D(np.append(vor.vertices[simplex[simplex >= 0][0]],0),boundaries): # index of finite end Voronoi vertex of the infinite ridge
-                    infinite_ridges.append(simplex)
-                    infinite_ridges_pointid.append(pointidx) 
-    elif box_shape in ['square','Square','SQUARE','rectangle','Rectangle','RECTANGLE','cube','Cube','CUBE','s']:
-        for pointidx, simplex in zip(vor.ridge_points, vor.ridge_vertices):
-            simplex = np.asarray(simplex)
-            simplex = np.where(simplex == -1, -9999999999, simplex) # use a large negative number instead of -1 to represent the infinite ridge vertices 
-            if np.all(simplex >= 0) and check_isinside_boundbox2D(np.append(vor.vertices[simplex[0]],0),x_min,x_max,y_min,y_max) and check_isinside_boundbox2D(np.append(vor.vertices[simplex[1]],0),x_min,x_max,y_min,y_max):
-                voronoi_vertices_in.append(vor.vertices[simplex[0]])
-                voronoi_vertices_in.append(vor.vertices[simplex[1]])
-                finite_ridges.append(simplex)
-                finite_ridges_pointid.append(pointidx)
-                plt.plot(vor.vertices[simplex, 0], vor.vertices[simplex, 1], 'k-',linewidth=1)
-            else: # infinite Voronoi ridges and finite ridges with out-of-bound vetices
-                if np.all(simplex >= 0) and (check_isinside_boundbox2D(np.append(vor.vertices[simplex[0]],0),x_min,x_max,y_min,y_max) or check_isinside_boundbox2D(np.append(vor.vertices[simplex[1]],0),x_min,x_max,y_min,y_max)): # finite Voronoi ridge but one vertex is far
-        
-                    if (check_isinside_boundbox2D(np.append(vor.vertices[simplex[0]],0),x_min,x_max,y_min,y_max) == 0):# if vertex is out-of-bound, inverse its index
-                        voronoi_vertices_out.append(vor.vertices[simplex[0]])
-                        if simplex[0] == 0:
-                            simplex[0] = -9999999998 # since inverse of 0 is still zero, we use another large number to represent -0
-                        else:
-                            simplex[0] = -simplex[0]
-                    elif (check_isinside_boundbox2D(np.append(vor.vertices[simplex[1]],0),x_min,x_max,y_min,y_max) == 0):
-                        voronoi_vertices_out.append(vor.vertices[simplex[1]])
-                        if simplex[1] == 0:
-                            simplex[1] = -9999999998 # since inverse of 0 is still zero, we use another large number to represent -0
-                        else:
-                            simplex[1] = -simplex[1]
-                    infinite_ridges.append(simplex)
-                    infinite_ridges_pointid.append(pointidx) 
-                elif check_isinside_boundbox2D(np.append(vor.vertices[simplex[simplex >= 0][0]],0),x_min,x_max,y_min,y_max): # index of finite end Voronoi vertex of the infinite ridge
-                    infinite_ridges.append(simplex)
-                    infinite_ridges_pointid.append(pointidx) 
-    elif box_shape in ['hexagon','Hexagon','HEXAGON','hexagonal','Hexagonal','HEXAGONAL','hex','Hex','HEX','h']:
+def _inside_clip_box(box_shape,boundaries,x_min,x_max,y_min,y_max,box_center):
+    """Return a function telling whether a 2D point lies strictly inside the clipping box"""
+    if box_shape in TRIANGLE_SHAPES:
+        return lambda p: check_isinside_boundTriangle2D(p,boundaries)
+    elif box_shape in SQUARE_SHAPES:
+        return lambda p: check_isinside_boundbox2D(np.append(p,0),x_min,x_max,y_min,y_max)
+    elif box_shape in HEXAGON_SHAPES:
         L = y_max - y_min
-        box_center = generation_center
-        for pointidx, simplex in zip(vor.ridge_points, vor.ridge_vertices):
-            simplex = np.asarray(simplex)
-            simplex = np.where(simplex == -1, -9999999999, simplex) # use a large negative number instead of -1 to represent the infinite ridge vertices 
-            if np.all(simplex >= 0) and check_isinside_boundHexagon2D(np.append(vor.vertices[simplex[0]],0),L,box_center) and check_isinside_boundHexagon2D(np.append(vor.vertices[simplex[1]],0),L,box_center):
-                voronoi_vertices_in.append(vor.vertices[simplex[0]])
-                voronoi_vertices_in.append(vor.vertices[simplex[1]])
-                
-                finite_ridges.append(simplex)
-                finite_ridges_pointid.append(pointidx)
-                plt.plot(vor.vertices[simplex, 0], vor.vertices[simplex, 1], 'k-',linewidth=1)
-            else: # infinite Voronoi ridges and finite ridges with out-of-bound vetices
-                
-                if np.all(simplex >= 0) and (check_isinside_boundHexagon2D(np.append(vor.vertices[simplex[0]],0),L,box_center) or check_isinside_boundHexagon2D(np.append(vor.vertices[simplex[1]],0),L,box_center)): # finite Voronoi ridge but one vertex is far
-        
-                    if (check_isinside_boundHexagon2D(np.append(vor.vertices[simplex[0]],0),L,box_center) == 0):# if vertex is out-of-bound, inverse its index
-                        voronoi_vertices_out.append(vor.vertices[simplex[0]])
-                        if simplex[0] == 0:
-                            simplex[0] = -9999999998 # since inverse of 0 is still zero, we use another large number to represent -0
-                        else:
-                            simplex[0] = -simplex[0]
-                    elif (check_isinside_boundHexagon2D(np.append(vor.vertices[simplex[1]],0),L,box_center) == 0):
-                        voronoi_vertices_out.append(vor.vertices[simplex[1]])
-                        if simplex[1] == 0:
-                            simplex[1] = -9999999998 # since inverse of 0 is still zero, we use another large number to represent -0
-                        else:
-                            simplex[1] = -simplex[1]
-                    infinite_ridges.append(simplex)
-                    infinite_ridges_pointid.append(pointidx) 
-                elif check_isinside_boundHexagon2D(np.append(vor.vertices[simplex[simplex >= 0][0]],0),L,box_center): # index of finite end Voronoi vertex of the infinite ridge
-                    infinite_ridges.append(simplex)
-                    infinite_ridges_pointid.append(pointidx) 
+        return lambda p: check_isinside_boundHexagon2D(p,L,box_center)
     elif box_shape == 'notched_square': # notched
         x_min = boundaries[0][1][0][0]
         x_max = boundaries[1][1][0][0]
@@ -639,367 +517,202 @@ def RebuildVoronoi(vor,circles,boundaries,generation_center,x_min,x_max,y_min,y_
         x_indent = boundaries[5][1][0][0]
         y_indent_min = boundaries[6][1][0][1]
         y_indent_max = boundaries[4][1][0][1]
-        
-        
-        for pointidx, simplex in zip(vor.ridge_points, vor.ridge_vertices):
-            simplex = np.asarray(simplex)
-            simplex = np.where(simplex == -1, -9999999999, simplex) # use a large negative number instead of -1 to represent the infinite ridge vertices 
-            if np.all(simplex >= 0) and check_isinside_boundbox2Dindent(np.append(vor.vertices[simplex[0]],0),x_min,x_max,y_min,y_max,x_indent,y_indent_min,y_indent_max) and check_isinside_boundbox2Dindent(np.append(vor.vertices[simplex[1]],0),x_min,x_max,y_min,y_max,x_indent,y_indent_min,y_indent_max):
-                voronoi_vertices_in.append(vor.vertices[simplex[0]])
-                voronoi_vertices_in.append(vor.vertices[simplex[1]])
-                finite_ridges.append(simplex)
-                finite_ridges_pointid.append(pointidx)
-                plt.plot(vor.vertices[simplex, 0], vor.vertices[simplex, 1], 'k-')
-            else: # infinite Voronoi ridges and finite ridges with out-of-bound vetices
-                if np.all(simplex >= 0) and (check_isinside_boundbox2Dindent(np.append(vor.vertices[simplex[0]],0),x_min,x_max,y_min,y_max,x_indent,y_indent_min,y_indent_max) or check_isinside_boundbox2Dindent(np.append(vor.vertices[simplex[1]],0),x_min,x_max,y_min,y_max,x_indent,y_indent_min,y_indent_max)): # finite Voronoi ridge but one vertex is far
+        return lambda p: bool(check_isinside_boundbox2Dindent(np.append(p,0),x_min,x_max,y_min,y_max,x_indent,y_indent_min,y_indent_max))
+    else:
+        raise ValueError('box_shape: {:s} is not supported for current version, please check README for more details.'.format(box_shape))
 
-                    if (check_isinside_boundbox2Dindent(np.append(vor.vertices[simplex[0]],0),x_min,x_max,y_min,y_max,x_indent,y_indent_min,y_indent_max) == 0):# if vertex is out-of-bound, inverse its index
-                        voronoi_vertices_out.append(vor.vertices[simplex[0]])
-                        if simplex[0] == 0:
-                            simplex[0] = -9999999998 # since inverse of 0 is still zero, we use another large number to represent -0
-                        else:
-                            simplex[0] = -simplex[0]
-                    elif (check_isinside_boundbox2Dindent(np.append(vor.vertices[simplex[1]],0),x_min,x_max,y_min,y_max,x_indent,y_indent_min,y_indent_max) == 0):
-                        voronoi_vertices_out.append(vor.vertices[simplex[1]])
-                        if simplex[1] == 0:
-                            simplex[1] = -9999999998 # since inverse of 0 is still zero, we use another large number to represent -0
-                        else:
-                            simplex[1] = -simplex[1]
-                    infinite_ridges.append(simplex)
-                    infinite_ridges_pointid.append(pointidx) 
-                elif check_isinside_boundbox2Dindent(np.append(vor.vertices[simplex[simplex >= 0][0]],0),x_min,x_max,y_min,y_max,x_indent,y_indent_min,y_indent_max): # index of finite end Voronoi vertex of the infinite ridge
-                    infinite_ridges.append(simplex)
-                    infinite_ridges_pointid.append(pointidx) 
-    else:
-        return
-                    
-    voronoi_vertices_in = np.unique(voronoi_vertices_in,axis=0)
-    voronoi_vertices_out = np.unique(voronoi_vertices_out,axis=0)
-    # plt.plot(voronoi_vertices_in[:, 0], voronoi_vertices_in[:, 1], 'ro')
-    
-    
-            
-    # Find the intersect point of infinite ridges (rays) with the boundary lines
-    # Ref: https://stackoverflow.com/questions/14307158/how-do-you-check-for-intersection-between-a-line-segment-and-a-line-ray-emanatin#:~:text=Let%20r%20%3D%20(cos%20%CE%B8%2C,0%20%E2%89%A4%20u%20%E2%89%A4%201).&text=Then%20your%20line%20segment%20intersects,0%20%E2%89%A4%20u%20%E2%89%A4%201.
-    for pointidx, simplex in zip(infinite_ridges_pointid, infinite_ridges):
+
+def _ray_boundary_intersection(p,direction,boundaries):
+    """
+    Closest intersection point of the ray p + t*direction (t >= 0) with the boundary line segments
+    Ref: https://stackoverflow.com/questions/14307158/how-do-you-check-for-intersection-between-a-line-segment-and-a-line-ray-emanatin
+    """
+    t_final = np.inf
+    for boundary in boundaries: # loop over boundary lines
+        q = np.asarray(boundary[1][0],dtype=float)
+        s = np.asarray(boundary[1][1],dtype=float) - q
+        denom = cross2D(direction,s)
+        if denom == 0: # ray parallel to the boundary line
+            continue
+        t = cross2D((q-p),s)/denom
+        u = cross2D((q-p),direction)/denom
+        if (-1e-9 <= u <= 1+1e-9) and (0 <= t < t_final):
+            t_final = t
+    if not np.isfinite(t_final):
+        raise RuntimeError('Voronoi ridge starting at {} does not cross the clipping box boundary.'.format(p))
+    return p + direction*t_final
+
+
+def _boundary_ridges_along_perimeter(boundary_points,boundaries):
+    """
+    Connect the boundary points into a closed line path by sorting them by their
+    position along the perimeter of the clipping box (boundary lines are ordered
+    around the box). Returns pairs of indices of boundary_points.
+    """
+    starts = np.array([boundary[1][0] for boundary in boundaries],dtype=float)
+    ends = np.array([boundary[1][1] for boundary in boundaries],dtype=float)
+    segments = ends - starts
+    # closest position of each point on each boundary line
+    rel = boundary_points[:,np.newaxis,:] - starts[np.newaxis,:,:]
+    u = np.clip(np.einsum('nmk,mk->nm',rel,segments)/np.einsum('mk,mk->m',segments,segments),0,1)
+    closest = starts[np.newaxis,:,:] + u[:,:,np.newaxis]*segments[np.newaxis,:,:]
+    iboundary = np.linalg.norm(boundary_points[:,np.newaxis,:] - closest,axis=2).argmin(axis=1)
+    perimeter_position = iboundary + u[np.arange(len(iboundary)),iboundary]
+    order = np.argsort(perimeter_position,kind='stable')
+    return np.column_stack((order,np.roll(order,-1)))
+
+
+def _project_into_convex_box(points,boundaries):
+    """
+    Move points lying outside a convex clipping box (boundary lines ordered
+    counter-clockwise) onto the closest point of its boundary
+    """
+    starts = np.array([boundary[1][0] for boundary in boundaries],dtype=float)
+    ends = np.array([boundary[1][1] for boundary in boundaries],dtype=float)
+    segments = ends - starts
+    lengths = np.linalg.norm(segments,axis=1)
+    # signed distances to the boundary lines (positive inside)
+    distance = cross2D(segments[np.newaxis,:,:],points[:,np.newaxis,:] - starts[np.newaxis,:,:])/lengths
+    outside = distance.min(axis=1) < -1e-12*lengths.max()
+    if not np.any(outside):
+        return points
+    rel = points[outside][:,np.newaxis,:] - starts[np.newaxis,:,:]
+    u = np.clip(np.einsum('nmk,mk->nm',rel,segments)/lengths**2,0,1)
+    closest = starts[np.newaxis,:,:] + u[:,:,np.newaxis]*segments[np.newaxis,:,:]
+    nearest = np.linalg.norm(rel - u[:,:,np.newaxis]*segments[np.newaxis,:,:],axis=2).argmin(axis=1)
+    points = np.copy(points)
+    points[outside] = closest[np.arange(len(nearest)),nearest]
+    return points
+
+
+def _clip_voronoi(vor,circles,boundaries,generation_center,inside,boundaryFlag,plot=False):
+    """
+    Clip the Voronoi diagram by the clipping box. Ridges with both vertices inside
+    are kept; finite ridges with one vertex outside and infinite ridges are cut at
+    the box boundary.
+
+    Returns
+    -------
+    voronoi_vertices_in :: unique vertices inside the box
+    boundary_points :: cut points (one per cut ridge), followed by the box corners if boundaryFlag is on
+    boundary_points_featured :: the box corners appended to boundary_points
+    ncut :: number of cut points
+    finite_ridges :: ridges inside the box (indices of vor.vertices)
+    finite_ridges_new :: ridges inside the box (indices of voronoi_vertices_in)
+    infinite_ridges_new :: cut ridges (indices of [voronoi_vertices_in, boundary_points])
+    """
+    generation_center = np.asarray(generation_center)
+    vertex_in = np.array([inside(vertex) for vertex in vor.vertices],dtype=bool)
+
+    finite_ridges = []
+    cut_vertex = [] # index of the inside vertex of each cut ridge
+    cut_first = [] # whether the inside vertex is the first vertex of the cut ridge
+    cut_direction = [] # direction from the inside vertex towards the box boundary
+    for pointidx, simplex in zip(vor.ridge_points, vor.ridge_vertices):
         simplex = np.asarray(simplex)
-            
-        i = simplex[simplex >= 0][0] # index of finite end Voronoi vertex of the infinite ridge
-        p = vor.vertices[i]
-        s = circles[pointidx[1],0:2] - circles[pointidx[0],0:2]
-        if simplex[simplex < 0][0] == -9999999999:
-            tangent = s / np.linalg.norm(s)
-            normal = np.array([-tangent[1], tangent[0]]) # normal
-            midpoint = circles[:,0:2][pointidx].mean(axis=0) # midpoint between site points
-            for boundary in boundaries: # loop over boundary lines
-                q = np.asarray(boundary[1][0])
-                s = np.asarray(boundary[1][1]) - np.asarray(boundary[1][0])
-                t = cross2D((q-p),s)/cross2D(normal,s)
-                u = cross2D((q-p),normal)/cross2D(normal,s)
-                
-                if (u >= 0) and (u <= 1):
-                    if np.sign(np.dot(midpoint - generation_center, normal)) == 1: # facing outwards
-                        if (t >= 0) and math.isfinite(t):
-                            t_final = t
-                    elif np.sign(np.dot(midpoint - generation_center, normal)) == -1: # facing inwards
-                        if (t < 0) and math.isfinite(t):
-                            t_final = t
-                            
-        elif simplex[simplex < 0][0] == -9999999998:
-            t_final = np.inf
-            normal = (vor.vertices[0] - p)/np.linalg.norm(vor.vertices[0] - p)
-            for boundary in boundaries: # loop over boundary lines
-                q = np.asarray(boundary[1][0])
-                s = np.asarray(boundary[1][1]) - np.asarray(boundary[1][0])
-                t = cross2D((q-p),s)/cross2D(normal,s)
-                u = cross2D((q-p),normal)/cross2D(normal,s)
-                
-                if (u >= 0) and (u <= 1):
-                    if (t >= 0) and (t < t_final):
-                        t_final = t
-        else:
-            t_final = np.inf
-            normal = (vor.vertices[-simplex[simplex < 0][0]] - p)/np.linalg.norm(vor.vertices[-simplex[simplex < 0][0]] - p)
-            for boundary in boundaries: # loop over boundary lines
-                q = np.asarray(boundary[1][0])
-                s = np.asarray(boundary[1][1]) - np.asarray(boundary[1][0])
-                t = cross2D((q-p),s)/cross2D(normal,s)
-                u = cross2D((q-p),normal)/cross2D(normal,s)
-                
-                if (u >= 0) and (u <= 1):
-                    if (t >= 0) and (t < t_final):
-                        t_final = t
-                            
-        intersect_point = p + normal * t_final
-        boundary_points.append(intersect_point)
-        
-        plt.plot([vor.vertices[i,0], intersect_point[0]], [vor.vertices[i,1], intersect_point[1]], 'k-',linewidth=1)
-            
-    if boundaryFlag in ['on','On','Y','y','Yes','yes']:
-        boundary_points = np.asarray(boundary_points)
-        boundary_points_featured = [x[1][0] for x in boundaries]
-        boundary_points_featured = np.reshape(np.asarray(boundary_points_featured),(-1,2))
-        nboundary_pts_featured = boundary_points_featured.shape[0]
+        if np.all(simplex >= 0):
+            in0 = vertex_in[simplex[0]]
+            in1 = vertex_in[simplex[1]]
+            if in0 and in1:
+                finite_ridges.append(simplex)
+            elif in0 or in1: # finite Voronoi ridge but one vertex is out of bound
+                i, j = (simplex[0], simplex[1]) if in0 else (simplex[1], simplex[0])
+                direction = vor.vertices[j] - vor.vertices[i]
+                cut_vertex.append(i)
+                cut_first.append(in0)
+                cut_direction.append(direction/np.linalg.norm(direction))
+        else: # infinite Voronoi ridge
+            i = simplex[simplex >= 0][0] # index of finite end Voronoi vertex of the infinite ridge
+            if vertex_in[i]:
+                tangent = circles[pointidx[1],0:2] - circles[pointidx[0],0:2]
+                tangent = tangent/np.linalg.norm(tangent)
+                normal = np.array([-tangent[1], tangent[0]])
+                midpoint = circles[pointidx,0:2].mean(axis=0) # midpoint between site points
+                if np.dot(midpoint - generation_center, normal) < 0: # make the ray face outwards
+                    normal = -normal
+                cut_vertex.append(i)
+                cut_first.append(simplex[0] >= 0)
+                cut_direction.append(normal)
+
+    if len(finite_ridges) == 0:
+        raise ValueError('No Voronoi ridge lies inside the clipping box, please check the generation and clipping box parameters.')
+    finite_ridges = np.asarray(finite_ridges)
+    nfinite_ridge = finite_ridges.shape[0]
+    ncut = len(cut_vertex)
+
+    # unique vertices inside the box (vertices with identical coordinates are merged)
+    used_vertices = np.concatenate((finite_ridges.ravel(),np.asarray(cut_vertex,dtype=int)))
+    voronoi_vertices_in, inverse = np.unique(vor.vertices[used_vertices],axis=0,return_inverse=True)
+    inverse = inverse.reshape(-1)
+    nvertices_in = voronoi_vertices_in.shape[0]
+    finite_ridges_new = inverse[:2*nfinite_ridge].reshape(-1,2)
+
+    # Find the intersect points of the cut ridges with the boundary lines
+    boundary_points = np.array([_ray_boundary_intersection(vor.vertices[i],direction,boundaries) \
+                                for i, direction in zip(cut_vertex,cut_direction)]).reshape(-1,2)
+    cut_inside = inverse[2*nfinite_ridge:]
+    cut_boundary = nvertices_in + np.arange(ncut)
+    infinite_ridges_new = np.where(np.asarray(cut_first,dtype=bool)[:,np.newaxis],
+                                   np.column_stack((cut_inside,cut_boundary)),
+                                   np.column_stack((cut_boundary,cut_inside))).reshape(-1,2).astype(int)
+
+    if plot:
+        ridges = vor.vertices[finite_ridges]
+        plt.plot(ridges[:,:,0].T, ridges[:,:,1].T, 'k-',linewidth=1)
+        if ncut > 0:
+            cut_start = vor.vertices[cut_vertex]
+            plt.plot(np.vstack((cut_start[:,0],boundary_points[:,0])), np.vstack((cut_start[:,1],boundary_points[:,1])), 'k-',linewidth=1)
+
+    if boundaryFlag in ON_FLAGS:
+        boundary_points_featured = np.reshape(np.asarray([x[1][0] for x in boundaries],dtype=float),(-1,2))
         boundary_points = np.vstack((boundary_points,boundary_points_featured))
-        nvertices_in = voronoi_vertices_in.shape[0]
-        nboundary_pts = boundary_points.shape[0]
-        finite_ridges = np.asarray(finite_ridges)
-        nfinite_ridge = finite_ridges.shape[0]
-        infinite_ridges = np.asarray(infinite_ridges)
-        ninfinite_ridge = infinite_ridges.shape[0]
-           
     else:
-        boundary_points = np.asarray(boundary_points)
-        nboundary_pts_featured = 0
-        nvertices_in = voronoi_vertices_in.shape[0]
-        nboundary_pts = boundary_points.shape[0]
-        finite_ridges = np.asarray(finite_ridges)
-        nfinite_ridge = finite_ridges.shape[0]
-        infinite_ridges = np.asarray(infinite_ridges)
-        ninfinite_ridge = infinite_ridges.shape[0]
-           
-    # reconstruct the connectivity for ridges since the unique operation rearrange the order of vertices (need to find a more efficient way like vectorize)
-    finite_ridges_new = np.copy(finite_ridges)
-    for i in range(0,nfinite_ridge): # loop over voronoi ridges in original finite_ridge list 
-        ii = np.where(np.all(voronoi_vertices_in==vor.vertices[finite_ridges[i,0]],axis=1))[0][0]  # index of first vertex in voronoi_vertices_in array
-        jj = np.where(np.all(voronoi_vertices_in==vor.vertices[finite_ridges[i,1]],axis=1))[0][0]  # index of second vertex in voronoi_vertices_in array
-        finite_ridges_new[i,:] = [ii,jj]
-            
-    infinite_ridges_new = np.copy(infinite_ridges)
-    for i in range(0,ninfinite_ridge): # loop over voronoi ridges in original infinite_ridge list
-        if (infinite_ridges[i,:] < 0).argmax(axis=0) == 0: # first vertex is of negative index
-            ii = nvertices_in + i
-            jj = np.where(np.all(voronoi_vertices_in==vor.vertices[infinite_ridges[i,1]],axis=1))[0][0]  # index of finite vertex in voronoi_vertices_in array
-        else:
-            ii = np.where(np.all(voronoi_vertices_in==vor.vertices[infinite_ridges[i,0]],axis=1))[0][0]  # index of finite vertex in voronoi_vertices_in array
-            jj = nvertices_in + i
-        infinite_ridges_new[i,:] = [ii,jj]
-    
-    if boundaryFlag in ['on','On','Y','y','Yes','yes']:
+        boundary_points_featured = np.zeros((0,2))
+
+    return voronoi_vertices_in,boundary_points,boundary_points_featured,ncut,\
+        finite_ridges,finite_ridges_new,infinite_ridges_new
+
+
+def RebuildVoronoi(vor,circles,boundaries,generation_center,x_min,x_max,y_min,y_max,box_center,box_shape,boundaryFlag):
+    """Clip Voronoi mesh by the boundaries, rebuild the new Voronoi mesh"""
+    inside = _inside_clip_box(box_shape,boundaries,x_min,x_max,y_min,y_max,box_center)
+    [voronoi_vertices_in,boundary_points,boundary_points_featured,nboundary_pts_ini,\
+     finite_ridges,finite_ridges_new,infinite_ridges_new] = \
+        _clip_voronoi(vor,circles,boundaries,generation_center,inside,boundaryFlag,plot=True)
+
+    nvertices_in = voronoi_vertices_in.shape[0]
+    nboundary_pts = boundary_points.shape[0]
+    nboundary_pts_featured = boundary_points_featured.shape[0]
+    nfinite_ridge = finite_ridges.shape[0]
+
+    if boundaryFlag in ON_FLAGS:
         # construct the connectivity for a line path consisting of the boundary points
-        boundary_ridges_new = np.zeros(boundary_points.shape)
-        boundary_points_new = np.copy(boundary_points) 
-        next_point = np.copy(boundary_points_new[0])  # get first point
-        boundary_points_new[0] = [np.inf,np.inf]
-        
-        for i in range(0,boundary_points_new.shape[0]-1):
-            next_point_id = cdist([next_point], boundary_points_new).argmin()
-            if check_iscollinear(next_point,boundary_points_new[next_point_id],boundaries) > 0: # check if the new line segment is collinear with any boundary line segment
-                boundary_ridges_new[i,1] = next_point_id
-                boundary_ridges_new[i+1,0] = next_point_id
-                next_point = np.copy(boundary_points_new[next_point_id])
-                boundary_points_new[next_point_id] = [np.inf,np.inf]
-            else:
-                boundary_points_new_check = np.copy(boundary_points_new)
-                while check_iscollinear(next_point,boundary_points_new_check[next_point_id],boundaries) == 0:
-                    boundary_points_new_check[next_point_id] = [np.inf,np.inf]
-                    next_point_id = cdist([next_point], boundary_points_new_check).argmin()
-                    
-                boundary_ridges_new[i,1] = next_point_id
-                boundary_ridges_new[i+1,0] = next_point_id
-                next_point = np.copy(boundary_points_new[next_point_id])
-                boundary_points_new[next_point_id] = [np.inf,np.inf]
-                
-        boundary_ridges_new = (boundary_ridges_new+nvertices_in).astype(int) # shift the indices with "nvertices_in"
-        
-        voronoi_vertices = np.vstack((voronoi_vertices_in,boundary_points)) # vertical stack "in" vetices and "cross" boundary points
-        nvertex = voronoi_vertices.shape[0]
+        boundary_ridges_new = _boundary_ridges_along_perimeter(boundary_points,boundaries) + nvertices_in
         boundary_ridges_new = np.vstack((infinite_ridges_new,boundary_ridges_new))
-        nboundary_ridge = boundary_ridges_new.shape[0]
-        voronoi_ridges = np.vstack((finite_ridges_new,boundary_ridges_new))
-        nridge = voronoi_ridges.shape[0]
     else:
-        voronoi_vertices = np.vstack((voronoi_vertices_in,boundary_points)) # vertical stack "in" vetices and "cross" boundary points
-        nvertex = voronoi_vertices.shape[0]
         boundary_ridges_new = np.copy(infinite_ridges_new)
-        nboundary_ridge = boundary_ridges_new.shape[0]
-        voronoi_ridges = np.vstack((finite_ridges_new,boundary_ridges_new))
-        nridge = voronoi_ridges.shape[0]
-    
+
+    voronoi_vertices = np.vstack((voronoi_vertices_in,boundary_points)) # vertical stack "in" vetices and "cross" boundary points
+    nvertex = voronoi_vertices.shape[0]
+    nboundary_ridge = boundary_ridges_new.shape[0]
+    voronoi_ridges = np.vstack((finite_ridges_new,boundary_ridges_new))
+    nridge = voronoi_ridges.shape[0]
+
     return voronoi_vertices,finite_ridges,boundary_points,finite_ridges_new,\
         boundary_ridges_new,nvertex,nvertices_in,nfinite_ridge,nboundary_ridge,\
             nboundary_pts,nboundary_pts_featured,voronoi_ridges,nridge
 
 def RebuildVoronoi_merge(vor,circles,boundaries,generation_center,x_min,x_max,y_min,y_max,box_center,box_shape,merge_tol,boundaryFlag):
     """Clip Voronoi mesh by the boundaries, merge short Voronoi ridges, and rebuild the new Voronoi mesh"""
-    # Store indices of Voronoi vertices for each finite ridge
-    finite_ridges = []
-    finite_ridges_pointid = []
-    infinite_ridges = []
-    infinite_ridges_pointid = []
-    boundary_points = []
-    
-    # Form two new Voronoi vertices lists with and without out-of-bound vertices
-    voronoi_vertices_in = []
-    voronoi_vertices_out = []
-    
-    if box_shape == 'notched_square': # notched
-        
-        x_min = boundaries[0][1][0][0]
-        x_max = boundaries[1][1][0][0]
-        y_min = boundaries[0][1][0][1]
-        y_max = boundaries[2][1][0][1]
-        x_indent = boundaries[5][1][0][0]
-        y_indent_min = boundaries[6][1][0][1]
-        y_indent_max = boundaries[4][1][0][1]
-        
-        for pointidx, simplex in zip(vor.ridge_points, vor.ridge_vertices):
-            simplex = np.asarray(simplex)
-            simplex = np.where(simplex == -1, -9999999999, simplex) # use a large negative number instead of -1 to represent the infinite ridge vertices 
-            if np.all(simplex >= 0) and check_isinside_boundbox2Dindent(np.append(vor.vertices[simplex[0]],0),x_min,x_max,y_min,y_max,x_indent,y_indent_min,y_indent_max) and check_isinside_boundbox2Dindent(np.append(vor.vertices[simplex[1]],0),x_min,x_max,y_min,y_max,x_indent,y_indent_min,y_indent_max):
-                voronoi_vertices_in.append(vor.vertices[simplex[0]])
-                voronoi_vertices_in.append(vor.vertices[simplex[1]])
-                finite_ridges.append(simplex)
-                finite_ridges_pointid.append(pointidx)
-                plt.plot(vor.vertices[simplex, 0], vor.vertices[simplex, 1], 'k-')
-            else: # infinite Voronoi ridges and finite ridges with out-of-bound vetices
-                if np.all(simplex >= 0) and (check_isinside_boundbox2Dindent(np.append(vor.vertices[simplex[0]],0),x_min,x_max,y_min,y_max,x_indent,y_indent_min,y_indent_max) or check_isinside_boundbox2Dindent(np.append(vor.vertices[simplex[1]],0),x_min,x_max,y_min,y_max,x_indent,y_indent_min,y_indent_max)): # finite Voronoi ridge but one vertex is far
-                    if (check_isinside_boundbox2Dindent(np.append(vor.vertices[simplex[0]],0),x_min,x_max,y_min,y_max,x_indent,y_indent_min,y_indent_max) == 0):# if vertex is out-of-bound, inverse its index
-                        voronoi_vertices_out.append(vor.vertices[simplex[0]])
-                        if simplex[0] == 0:
-                            simplex[0] = -9999999998 # since inverse of 0 is still zero, we use another large number to represent -0
-                        else:
-                            simplex[0] = -simplex[0]
-                    elif (check_isinside_boundbox2Dindent(np.append(vor.vertices[simplex[1]],0),x_min,x_max,y_min,y_max,x_indent,y_indent_min,y_indent_max) == 0):
-                        voronoi_vertices_out.append(vor.vertices[simplex[1]])
-                        if simplex[1] == 0:
-                            simplex[1] = -9999999998 # since inverse of 0 is still zero, we use another large number to represent -0
-                        else:
-                            simplex[1] = -simplex[1]
-                    infinite_ridges.append(simplex)
-                    infinite_ridges_pointid.append(pointidx) 
-                elif check_isinside_boundbox2Dindent(np.append(vor.vertices[simplex[simplex >= 0][0]],0),x_min,x_max,y_min,y_max,x_indent,y_indent_min,y_indent_max): # index of finite end Voronoi vertex of the infinite ridge
-                    infinite_ridges.append(simplex)
-                    infinite_ridges_pointid.append(pointidx) 
-    else:
-        for pointidx, simplex in zip(vor.ridge_points, vor.ridge_vertices):
-            simplex = np.asarray(simplex)
-            simplex = np.where(simplex == -1, -9999999999, simplex) # use a large negative number instead of -1 to represent the infinite ridge vertices 
-            if np.all(simplex >= 0) and check_isinside_boundbox2D(np.append(vor.vertices[simplex[0]],0),x_min,x_max,y_min,y_max) and check_isinside_boundbox2D(np.append(vor.vertices[simplex[1]],0),x_min,x_max,y_min,y_max):
-                voronoi_vertices_in.append(vor.vertices[simplex[0]])
-                voronoi_vertices_in.append(vor.vertices[simplex[1]])
-                finite_ridges.append(simplex)
-                finite_ridges_pointid.append(pointidx)
-            else: # infinite Voronoi ridges and finite ridges with out-of-bound vetices
-                if np.all(simplex >= 0) and (check_isinside_boundbox2D(np.append(vor.vertices[simplex[0]],0),x_min,x_max,y_min,y_max) or check_isinside_boundbox2D(np.append(vor.vertices[simplex[1]],0),x_min,x_max,y_min,y_max)): # finite Voronoi ridge but one vertex is far
-        
-                    if (check_isinside_boundbox2D(np.append(vor.vertices[simplex[0]],0),x_min,x_max,y_min,y_max) == 0):# if vertex is out-of-bound, inverse its index
-                        voronoi_vertices_out.append(vor.vertices[simplex[0]])
-                        voronoi_vertices_in.append(vor.vertices[simplex[1]])
-                        if simplex[0] == 0:
-                            simplex[0] = -9999999998 # since inverse of 0 is still zero, we use another large number to represent -0
-                        else:
-                            simplex[0] = -simplex[0]
-                    elif (check_isinside_boundbox2D(np.append(vor.vertices[simplex[1]],0),x_min,x_max,y_min,y_max) == 0):
-                        voronoi_vertices_out.append(vor.vertices[simplex[1]])
-                        voronoi_vertices_in.append(vor.vertices[simplex[0]])
-                        if simplex[1] == 0:
-                            simplex[1] = -9999999998 # since inverse of 0 is still zero, we use another large number to represent -0
-                        else:
-                            simplex[1] = -simplex[1]
-                    infinite_ridges.append(simplex)
-                    infinite_ridges_pointid.append(pointidx) 
-                elif check_isinside_boundbox2D(np.append(vor.vertices[simplex[simplex >= 0][0]],0),x_min,x_max,y_min,y_max): # index of finite end Voronoi vertex of the infinite ridge
-                    infinite_ridges.append(simplex)
-                    infinite_ridges_pointid.append(pointidx) 
-     
-    voronoi_vertices_in = np.unique(voronoi_vertices_in,axis=0)
-    voronoi_vertices_out = np.unique(voronoi_vertices_out,axis=0)
-            
-    # Find the intersect point of infinite ridges (rays) with the boundary lines
-    # Ref: https://stackoverflow.com/questions/14307158/how-do-you-check-for-intersection-between-a-line-segment-and-a-line-ray-emanatin#:~:text=Let%20r%20%3D%20(cos%20%CE%B8%2C,0%20%E2%89%A4%20u%20%E2%89%A4%201).&text=Then%20your%20line%20segment%20intersects,0%20%E2%89%A4%20u%20%E2%89%A4%201.
-    for pointidx, simplex in zip(infinite_ridges_pointid, infinite_ridges):
-        simplex = np.asarray(simplex)
-        i = simplex[simplex >= 0][0] # index of finite end Voronoi vertex of the infinite ridge
-        p = vor.vertices[i]
-        s = circles[pointidx[1],0:2] - circles[pointidx[0],0:2]
-        if simplex[simplex < 0][0] == -9999999999:
-            tangent = s / np.linalg.norm(s)
-            normal = np.array([-tangent[0,1], tangent[0,0]]) # normal
-            midpoint = circles[:,0:2][pointidx].mean(axis=0) # midpoint between site points
-            for boundary in boundaries: # loop over boundary lines
-                q = np.asarray(boundary[1][0])
-                s = np.asarray(boundary[1][1]) - np.asarray(boundary[1][0])
-                t = cross2D((q-p),s)/cross2D(normal,s)
-                u = cross2D((q-p),normal)/cross2D(normal,s)
-                
-                if (u>= 0) and (u<=1):
-                    if np.sign(np.dot(midpoint - generation_center, normal)) == 1: # facing outwards
-                        if (t >= 0) and math.isfinite(t):
-                            t_final = t
-                    elif np.sign(np.dot(midpoint - generation_center, normal)) == -1: # facing inwards
-                        if (t < 0) and math.isfinite(t):
-                            t_final = t
-                            
-        elif simplex[simplex < 0][0] == -9999999998:
-            t_final = np.inf
-            normal = (vor.vertices[0] - p)/np.linalg.norm(vor.vertices[0] - p)
-            for boundary in boundaries: # loop over boundary lines
-                q = np.asarray(boundary[1][0])
-                s = np.asarray(boundary[1][1]) - np.asarray(boundary[1][0])
-                t = cross2D((q-p),s)/cross2D(normal,s)
-                u = cross2D((q-p),normal)/cross2D(normal,s)
-                
-                if (u >= 0) and (u <= 1):
-                    if (t > 0) and (t < t_final):
-                        t_final = t
-        else:
-            t_final = np.inf
-            normal = (vor.vertices[-simplex[simplex < 0][0]] - p)/np.linalg.norm(vor.vertices[-simplex[simplex < 0][0]] - p)
-            for boundary in boundaries: # loop over boundary lines
-                q = np.asarray(boundary[1][0])
-                s = np.asarray(boundary[1][1]) - np.asarray(boundary[1][0])
-                t = cross2D((q-p),s)/cross2D(normal,s)
-                u = cross2D((q-p),normal)/cross2D(normal,s)
-                
-                if (u >= 0) and (u <= 1):
-                    if (t > 0) and (t < t_final):
-                        t_final = t
-                            
-        intersect_point = p + normal * t_final
-        boundary_points.append(intersect_point)
-            
-    if boundaryFlag in ['on','On','Y','y','Yes','yes']:            
-        boundary_points = np.asarray(boundary_points)
-        boundary_points_featured = [x[1][0] for x in boundaries]
-        boundary_points_featured = np.reshape(np.asarray(boundary_points_featured),(-1,2))
-        nboundary_pts_ini = boundary_points.shape[0]
-        nboundary_pts_featured = boundary_points_featured.shape[0]
-        boundary_points = np.vstack((boundary_points,boundary_points_featured))
-        
-        nvertices_in = voronoi_vertices_in.shape[0]
-        nboundary_pts = boundary_points.shape[0]
-        finite_ridges = np.asarray(finite_ridges)
-        nfinite_ridge = finite_ridges.shape[0]
-        infinite_ridges = np.asarray(infinite_ridges)
-        ninfinite_ridge = infinite_ridges.shape[0]
-    else:
-        boundary_points = np.asarray(boundary_points)
-        nboundary_pts_featured = 0
-        nvertices_in = voronoi_vertices_in.shape[0]
-        nboundary_pts = boundary_points.shape[0]
-        finite_ridges = np.asarray(finite_ridges)
-        nfinite_ridge = finite_ridges.shape[0]
-        infinite_ridges = np.asarray(infinite_ridges)
-        ninfinite_ridge = infinite_ridges.shape[0]
-        
-    # reconstruct the connectivity for ridges since the unique operation rearrange the order of vertices (need to find a more efficient way like vectorize)
-    finite_ridges_new = np.copy(finite_ridges)
-    for i in range(0,nfinite_ridge): # loop over voronoi ridges in original finite_ridge list 
-        ii = np.where(np.all(voronoi_vertices_in==vor.vertices[finite_ridges[i,0]],axis=1))[0][0]  # index of first vertex in voronoi_vertices_in array
-        jj = np.where(np.all(voronoi_vertices_in==vor.vertices[finite_ridges[i,1]],axis=1))[0][0]  # index of second vertex in voronoi_vertices_in array
-        finite_ridges_new[i,:] = [ii,jj]
-            
-    infinite_ridges_new = np.copy(infinite_ridges)
-    for i in range(0,ninfinite_ridge): # loop over voronoi ridges in original infinite_ridge list
-        if (infinite_ridges[i,:] < 0).argmax(axis=0) == 0: # first vertex is of negative index
-            ii = nvertices_in + i
-            jj = np.where(np.all(voronoi_vertices_in==vor.vertices[infinite_ridges[i,1]],axis=1))[0][0]  # index of finite vertex in voronoi_vertices_in array
-        else:
-            ii = np.where(np.all(voronoi_vertices_in==vor.vertices[infinite_ridges[i,0]],axis=1))[0][0]  # index of finite vertex in voronoi_vertices_in array
-            jj = nvertices_in + i
-        infinite_ridges_new[i,:] = [ii,jj]
-    
+    inside = _inside_clip_box(box_shape,boundaries,x_min,x_max,y_min,y_max,box_center)
+    [voronoi_vertices_in,boundary_points,boundary_points_featured,nboundary_pts_ini,\
+     finite_ridges,finite_ridges_new,infinite_ridges_new] = \
+        _clip_voronoi(vor,circles,boundaries,generation_center,inside,boundaryFlag)
+
+    nvertices_in = voronoi_vertices_in.shape[0]
+    nboundary_pts = boundary_points.shape[0]
+    nboundary_pts_featured = boundary_points_featured.shape[0]
+    nfinite_ridge = finite_ridges.shape[0]
     
     # Merge operation
     # Case 1 merge
@@ -1062,24 +775,9 @@ def RebuildVoronoi_merge(vor,circles,boundaries,generation_center,x_min,x_max,y_
     zero_rows = np.where((infinite_ridges_merged[:,0] - infinite_ridges_merged[:,1]) == 0)[0]
     infinite_ridges_merged = np.delete(infinite_ridges_merged,zero_rows,0)
     
-    if boundaryFlag in ['on','On','Y','y','Yes','yes']: 
+    if boundaryFlag in ON_FLAGS: 
         # construct the connectivity for a line path consisting of the boundary points
-        ####################################################################################################################################################
-        # The algorithm here needs improve: bug contains when searching for the closest point, the closest point may be on the other sides
-        ####################################################################################################################################################
-        boundary_points_ini = np.copy(boundary_points) 
-        boundary_ridges_new = np.zeros(boundary_points.shape)
-        boundary_points_new = np.copy(boundary_points) 
-        next_point = np.copy(boundary_points_new[0])  # get first point
-        boundary_points_new[0] = [np.inf,np.inf]
-        
-        for i in range(0,boundary_points_new.shape[0]-1):
-            next_point_id = cdist([next_point], boundary_points_new).argmin()
-            boundary_ridges_new[i,1] = next_point_id
-            boundary_ridges_new[i+1,0] = next_point_id
-            next_point = np.copy(boundary_points_new[next_point_id])
-            boundary_points_new[next_point_id] = [np.inf,np.inf]
-        boundary_ridges_new = (boundary_ridges_new+nvertices_in).astype(int) # shift the indices with "nvertices_in"
+        boundary_ridges_new = _boundary_ridges_along_perimeter(boundary_points,boundaries) + nvertices_in # shift the indices with "nvertices_in"
         
         # Case 2 merge
         tree_boundary_points = cKDTree(boundary_points)
@@ -1193,8 +891,8 @@ def RebuildVoronoi_merge(vor,circles,boundaries,generation_center,x_min,x_max,y_
         all_ridges_merged = np.vstack((finite_ridges_merged,infinite_ridges_merged))
         
     # Visualize merged mesh   
-    for vpair in all_ridges_merged:
-        plt.plot([voronoi_vertices_whole[vpair[0],0], voronoi_vertices_whole[vpair[1],0]],[voronoi_vertices_whole[vpair[0],1], voronoi_vertices_whole[vpair[1],1]], 'g--')
+    merged_ridges = voronoi_vertices_whole[all_ridges_merged]
+    plt.plot(merged_ridges[:,:,0].T, merged_ridges[:,:,1].T, 'g--')
     
     
     voronoi_vertices = np.unique(np.reshape(voronoi_vertices_whole[all_ridges_merged],(-1,2)),axis=0)
@@ -1205,10 +903,14 @@ def RebuildVoronoi_merge(vor,circles,boundaries,generation_center,x_min,x_max,y_
     for i in range(0,len(infinite_ridges_merged)):
         infinite_ridges_merged[i,0] = np.where(np.all(voronoi_vertices==voronoi_vertices_whole[infinite_ridges_merged[i,0],:],axis=1))[0][0]
         infinite_ridges_merged[i,1] = np.where(np.all(voronoi_vertices==voronoi_vertices_whole[infinite_ridges_merged[i,1],:],axis=1))[0][0]
-    if boundaryFlag in ['on','On','Y','y','Yes','yes']:  
+    if boundaryFlag in ON_FLAGS:  
         for i in range(0,len(boundary_ridges_merged)):
             boundary_ridges_merged[i,0] = np.where(np.all(voronoi_vertices==voronoi_vertices_whole[boundary_ridges_merged[i,0],:],axis=1))[0][0]
             boundary_ridges_merged[i,1] = np.where(np.all(voronoi_vertices==voronoi_vertices_whole[boundary_ridges_merged[i,1],:],axis=1))[0][0]
+    # merged points are rounded to multiples of merge_tol, which can push them slightly
+    # across slanted box edges (triangle/hexagon): move them back onto the boundary
+    if box_shape in SQUARE_SHAPES + TRIANGLE_SHAPES + HEXAGON_SHAPES:
+        voronoi_vertices = _project_into_convex_box(voronoi_vertices,boundaries)
     # delete rows with identical indices and reverse indices in finite_ridges_merged
     zero_rows = np.where((finite_ridges_merged[:,0] - finite_ridges_merged[:,1]) == 0)[0]
     finite_ridges_merged = np.delete(finite_ridges_merged,zero_rows,0)
@@ -1216,7 +918,7 @@ def RebuildVoronoi_merge(vor,circles,boundaries,generation_center,x_min,x_max,y_
     zero_rows = np.where((infinite_ridges_merged[:,0] - infinite_ridges_merged[:,1]) == 0)[0]
     infinite_ridges_merged = np.delete(infinite_ridges_merged,zero_rows,0)
     
-    if boundaryFlag in ['on','On','Y','y','Yes','yes']: 
+    if boundaryFlag in ON_FLAGS: 
         # delete rows with identical indices and reverse indices in boundary_ridges_merged
         zero_rows = np.where((boundary_ridges_merged[:,0] - boundary_ridges_merged[:,1]) == 0)[0]
         boundary_ridges_merged = np.delete(boundary_ridges_merged,zero_rows,0)
@@ -1225,7 +927,7 @@ def RebuildVoronoi_merge(vor,circles,boundaries,generation_center,x_min,x_max,y_
     nvertex = voronoi_vertices.shape[0]
     finite_ridges_new = finite_ridges_merged
     nfinite_ridge = finite_ridges_new.shape[0]
-    if boundaryFlag in ['on','On','Y','y','Yes','yes']: 
+    if boundaryFlag in ON_FLAGS: 
         boundary_ridges_new = np.vstack((infinite_ridges_merged,boundary_ridges_merged))
         nboundary_ridge = boundary_ridges_new.shape[0]
         voronoi_ridges = np.vstack((finite_ridges_new,boundary_ridges_new))
@@ -1342,7 +1044,7 @@ def RidgeMidQuarterPts(voronoi_vertices,nvertex,nvertices_in,voronoi_ridges,\
 
 def VertexandRidgeinfo(all_pts_2D,all_ridges,npt_per_layer,npt_per_layer_normal,\
                        npt_per_layer_vtk,nridge,geoName,radii,generation_center,\
-                       cellwallthickness_sparse,cellwallthickness_dense):
+                       cellwallthickness_sparse,cellwallthickness_dense,path='meshes'):
     
     """Generate the vertex and ridge info 
        Vertex info includes: coordinates, ridge indices, indices of another vertex for each ridge, ridge lengths, ridge angles, ridge width
@@ -1423,7 +1125,7 @@ def VertexandRidgeinfo(all_pts_2D,all_ridges,npt_per_layer,npt_per_layer_normal,
     
     # Save info to txt files
     all_vertices_2D = np.hstack((all_pts_2D[0:npt_per_layer,:],all_vertices_info_2D_nparray))
-    np.savetxt(Path('meshes/' + geoName + '/' + geoName +'-vertex.mesh'), all_vertices_2D, fmt='%.16g', delimiter=' '\
+    np.savetxt(Path(path, geoName, geoName +'-vertex.mesh'), all_vertices_2D, fmt='%.16g', delimiter=' '\
         ,header='Vertex Data Generated with RingsPy Mesh Generation Tool\n\
 Number of vertices\n'+ str(npt_per_layer) +
     '\n\
@@ -1431,7 +1133,7 @@ Max number of wings for one vertex\n'+ str(max_wings) +
     '\n\
 [xcoord ycoord nwings ridge1 ... ridgen farvertex1 ... farvertexn length1 ... lengthn width1 ... widthn angle1 ... anglen]', comments='')
     
-    np.savetxt(Path('meshes/' + geoName + '/' + geoName +'-ridge.mesh'), all_ridges, fmt='%d', delimiter=' '\
+    np.savetxt(Path(path, geoName, geoName +'-ridge.mesh'), all_ridges, fmt='%d', delimiter=' '\
         ,header='Ridge Data Generated with RingsPy Mesh Generation Tool\n\
 Number of ridges\n'+ str(nridge) +
     '\n\
@@ -1558,7 +1260,7 @@ def ConnectorMeshFile(geoName,IGAvertices,connector_t_bot_connectivity,\
                       connector_t_reg_connectivity,connector_t_top_connectivity,\
                       connector_l_connectivity,all_vertices_2D,\
                       max_wings,flattened_all_vertices_2D,nsegments,segment_length,\
-                      nctrlpt_per_beam,theta,nridge,connector_l_vertex_dict):
+                      nctrlpt_per_beam,theta,nridge,connector_l_vertex_dict,path='meshes'):
 ######### txt File stores the connector data for Abaqus analyses ##############
     nelem_connector_t_bot = connector_t_bot_connectivity.shape[0]
     nelem_connector_t_reg = connector_t_reg_connectivity.shape[0]
@@ -1629,7 +1331,7 @@ def ConnectorMeshFile(geoName,IGAvertices,connector_t_bot_connectivity,\
     Meshdata[:,0:2] = np.concatenate((connector_t_bot_connectivity,connector_t_reg_connectivity,connector_t_top_connectivity,connector_l_connectivity))
     Meshdata = np.delete(Meshdata,[2,3,4,5],1)
     
-    np.savetxt(Path('meshes/' + geoName + '/' + geoName+'-mesh.txt'), Meshdata, fmt='%.16g', delimiter=' '\
+    np.savetxt(Path(path, geoName, geoName+'-mesh.txt'), Meshdata, fmt='%.16g', delimiter=' '\
     ,header='# Connector Data Generated with RingsPy Mesh Generation Tool\n\
 Number of bot connectors\n'+ str(nelem_connector_t_bot) +
 '\n\
@@ -1648,27 +1350,36 @@ def insert_precracks(all_pts_2D,all_ridges,nridge,npt_per_layer,\
                      npt_per_layer_normal,npt_per_layer_vtk,\
                      nlayers,precrack_nodes,precrack_widths,\
                      cellsize_sparse,):
-    
+    """
+    Find the cell walls (Voronoi ridges) crossed by the precrack line segments
+    precrack_nodes = [[x1 y1 x2 y2], ...]. Returns the ridge indices; the
+    transverse connectors of these ridges are precracked in all segments.
+    """
     precrack_midpts = (precrack_nodes[:,0:2]+precrack_nodes[:,2:4])/2.0
+    precrack_lengths = np.linalg.norm(precrack_nodes[:,2:4]-precrack_nodes[:,0:2],axis=1)
     ridge_midpts = all_pts_2D[all_ridges[:,2]]
     ridge_midpts_tree = cKDTree(ridge_midpts)
     near_ridges = []
-    for midpt in precrack_midpts:
-        near_ridges.append(ridge_midpts_tree.query_ball_point(midpt,3*cellsize_sparse))
-        
-    # Find the intersect point of neighboring ridges (lines) with the precrack line
+    for midpt, length in zip(precrack_midpts,precrack_lengths):
+        near_ridges.append(ridge_midpts_tree.query_ball_point(midpt,length/2+3*cellsize_sparse))
+
+    # Find the ridges (line segments) intersecting the precrack line segments
     precracked_elem = []
     for i in range(0,len(precrack_nodes)):
         p = precrack_nodes[i,0:2]
-        normal = (precrack_nodes[i,2:4] - p)/np.linalg.norm(precrack_nodes[i,2:4] - p)
+        normal = (precrack_nodes[i,2:4] - p)/precrack_lengths[i]
         for ridge in near_ridges[i]:
             q = all_pts_2D[all_ridges[ridge,0],:]
             s = all_pts_2D[all_ridges[ridge,1],:] - q
-            u = cross2D((q-p),normal)/cross2D(normal,s)
-            if (u >= 0) and (u <= 1):
+            denom = cross2D(normal,s)
+            if denom == 0: # parallel
+                continue
+            t = cross2D((q-p),s)/denom # position along the precrack
+            u = cross2D((q-p),normal)/denom # position along the ridge
+            if (u >= 0) and (u <= 1) and (t >= 0) and (t <= precrack_lengths[i]) and (ridge not in precracked_elem):
                 precracked_elem.append(ridge)
-                
-    nconnector_t_precrack = len(precracked_elem)
+
+    nconnector_t_precrack = len(precracked_elem) # number of precracked cell walls (ridges)
     nconnector_l_precrack = 0
 
     # Visualize the precracks in the preview plot
@@ -1682,7 +1393,7 @@ def VisualizationFiles(geoName,NURBS_degree,nlayers,npt_per_layer_vtk,all_pts_2D
                        voronoi_ridges,generation_center,all_ridges,nvertex,\
                        nconnector_t,nconnector_l,nctrlpt_per_beam,ConnMeshData,\
                        conn_l_tangents,all_vertices_2D,max_wings,\
-                       flattened_all_vertices_2D):
+                       flattened_all_vertices_2D,path='meshes'):
     
     # Calculate model parameters
     ngrain = nvertex
@@ -1839,7 +1550,7 @@ def VisualizationFiles(geoName,NURBS_degree,nlayers,npt_per_layer_vtk,all_pts_2D
 
     ncell_vertices = VTKcell_types_vertices.shape[0]
 
-    vtkfile_vertices = open (Path('meshes/' + geoName + '/' + geoName + '_vertices'+'.vtu'),'w')
+    vtkfile_vertices = open (Path(path, geoName, geoName + '_vertices'+'.vtu'),'w')
     
     vtkfile_vertices.write('<VTKFile type="UnstructuredGrid" version="2.0" byte_order="LittleEndian">'+'\n')
     vtkfile_vertices.write('<UnstructuredGrid>'+'\n')
@@ -1919,7 +1630,7 @@ def VisualizationFiles(geoName,NURBS_degree,nlayers,npt_per_layer_vtk,all_pts_2D
   
     ncell_beams = VTKcell_types_beams.shape[0]
 
-    vtkfile_beams = open (Path('meshes/' + geoName + '/' + geoName + '_beams'+'.vtu'),'w')
+    vtkfile_beams = open (Path(path, geoName, geoName + '_beams'+'.vtu'),'w')
     
     vtkfile_beams.write('<VTKFile type="UnstructuredGrid" version="2.0" byte_order="LittleEndian">'+'\n')
     vtkfile_beams.write('<UnstructuredGrid>'+'\n')
@@ -1991,7 +1702,7 @@ def VisualizationFiles(geoName,NURBS_degree,nlayers,npt_per_layer_vtk,all_pts_2D
     
     Quad_width_vtk = np.tile(Quad_width,(2))
 
-    vtkfile_conns = open (Path('meshes/' + geoName + '/' + geoName + '_conns'+'.vtu'),'w')
+    vtkfile_conns = open (Path(path, geoName, geoName + '_conns'+'.vtu'),'w')
     
     vtkfile_conns.write('<VTKFile type="UnstructuredGrid" version="2.0" byte_order="LittleEndian">'+'\n')
     vtkfile_conns.write('<UnstructuredGrid>'+'\n')
@@ -2083,7 +1794,7 @@ def VisualizationFiles(geoName,NURBS_degree,nlayers,npt_per_layer_vtk,all_pts_2D
     
     Quad_width_vtk = np.tile(Quad_width,(2))
 
-    vtkfile_conns_vol = open (Path('meshes/' + geoName + '/' + geoName + '_conns_vol'+'.vtu'),'w')
+    vtkfile_conns_vol = open (Path(path, geoName, geoName + '_conns_vol'+'.vtu'),'w')
     
     vtkfile_conns_vol.write('<VTKFile type="UnstructuredGrid" version="2.0" byte_order="LittleEndian">'+'\n')
     vtkfile_conns_vol.write('<UnstructuredGrid>'+'\n')
@@ -2165,9 +1876,9 @@ def BezierExtraction(NURBS_degree,nbeam_total):
         
 
 def BezierBeamFile(geoName,NURBS_degree,nctrlpt_per_beam,\
-                   nconnector_t_per_beam,npatch,knotVec):
+                   nconnector_t_per_beam,npatch,knotVec,path='meshes'):
 ############################# Abaqus txt File #################################
-    txtfile = open (Path('meshes/' + geoName + '/' + geoName + 'IGA.txt'),'w')
+    txtfile = open (Path(path, geoName, geoName + 'IGA.txt'),'w')
     txtfile.write('# Dimension of beam elements \n')
     txtfile.write('1 \n')
     txtfile.write('# Order of basis function \n')
@@ -2198,150 +1909,22 @@ def AbaqusFile(geoName,NURBS_degree,npatch,IGAvertices,beam_connectivity,\
                x_max,x_min,y_max,y_min,z_coord,box_shape,box_size,\
                cellwallthickness_sparse,cellwallthickness_dense,\
                merge_operation,merge_tol,\
-               precrackFlag='off',precrack_elem=[]):
+               precrackFlag='off',precrack_elem=None,path='meshes'):
     
-    # IGA beam parameters
-    ninstance = 1
-    nsvars_beam = 27 # number of svars for beam
-    nsecgp = 4 # number of gauss points for beam sectional integration
-    nsvars_secgp = 16 # number of svars at each gauss point
-    iprops_beam = np.zeros(6)
-    iprops_beam[0]    = 1 # section type index
-    iprops_beam[1]    = 1 # number of instances
-    iprops_beam[2]    = nconnector_t # number of transverse connectors
-    iprops_beam[3]    = nconnector_t_precrack # number of precracked transverse connectors
-    iprops_beam[4]    = nconnector_l # number of longitudinal connectors
-    iprops_beam[5]    = nconnector_l_precrack # number of precracked longitudinal connectors
-    iprops_beam = [int(x) for x in iprops_beam] 
+    """Write the Abaqus input file (geoName.inp) with beam (B32) and connector (T3D2) elements"""
+    if precrack_elem is None:
+        precrack_elem = []
+    height_connector_t = segment_length/4 # height of bot/top transverse connectors [mm]
+    area_connector_l = cellwallthickness_sparse*cellwallthickness_dense # sectional area of longitudinal connectors [mm^2]
     
-    props_beam = np.zeros(16)
-    props_beam[0]     = 1.5E-9 # Cell substance density [tonne/mm^3]
-    props_beam[1]     = 1.75E+6 # Mesoscale elastic modulus [MPa]
-    props_beam[2]     = 0.3 # Beam Poisson's ratio
-    props_beam[3]     = cellwallthickness_sparse # Cross-sectional height [mm]
-    props_beam[4]     = cellwallthickness_sparse # Cross-sectional width [mm]
-    props_beam[5]     = 100 # Tensile Strength [MPa]
-    props_beam[6]     = 200 # Tensile fracture energy [mJ/mm^2]
-    props_beam[7]     = 4.1 # Shear Strength Ratio
-    props_beam[8]     = 0.2 # Softening Exponent
-    props_beam[9]     = 0.2 # Initial Friction
-    props_beam[10]    = 0.0 # Asymptotic Friction
-    props_beam[11]    = 600 # Transitional Stress [MPa]
-    props_beam[12]    = 0.0 # Tensile Unloading
-    props_beam[13]    = 0.0 # Shear Unloading
-    props_beam[14]    = 0.0 # Shear Softening
-    props_beam[15]    = 1.0 # Elastic Analysis Flag
-    
-    # Transverse connector parameters
-    nsvars_conn_t = 32  # number of svars for transverse connector
-    iprops_connector_t_bot = np.zeros(7)
-    props_connector_t_bot = np.zeros(26)
-    height_connector_t = segment_length/4
-    
-    props_connector_t_bot[0]     = 1.5E-9 # Cell substance density [tonne/mm^3]
-    props_connector_t_bot[1]     = 6.6E+8 # Mesoscale elastic modulus [MPa]
-    props_connector_t_bot[2]     = 0.25 # Shear-Normal coupling coefficient
-    props_connector_t_bot[3]     = height_connector_t # Connector height [mm]
-    props_connector_t_bot[4]     = 0 # M-Distance [mm]
-    props_connector_t_bot[5]     = -height_connector_t/2 # L-Distance [mm]
-    props_connector_t_bot[6]     = 10.0 # Tensile Strength [MPa]
-    props_connector_t_bot[7]     = 5.0 # Tensile characteristic length [mm] will be updated to # Tensile fracture energy [mJ/mm^2]
-    props_connector_t_bot[8]     = 2.6 # Shear Strength Ratio
-    props_connector_t_bot[9]     = 0.2 # Softening Exponent
-    props_connector_t_bot[10]    = 0.2 # Initial Friction
-    props_connector_t_bot[11]    = 0.0 # Asymptotic Friction
-    props_connector_t_bot[12]    = 600 # Transitional Stress [MPa]
-    props_connector_t_bot[12]    = 0.0 # Tensile Unloading
-    props_connector_t_bot[14]    = 0.0 # Shear Unloading
-    props_connector_t_bot[15]    = 0.0 # Shear Softening
-    props_connector_t_bot[16]    = 0.0 # Elastic Analysis Flag
-    props_connector_t_bot[17]    = 0.2 # Compressive Yielding Strength [MPa]
-    props_connector_t_bot[18]    = 600 # Initial Hardening Modulus Ratio
-    props_connector_t_bot[19]    = 0.0 # Transitional Strain Ratio
-    props_connector_t_bot[20]    = 0.0 # Deviatoric Strain Threshold Ratio
-    props_connector_t_bot[21]    = 0.0 # Deviatoric Damage Parameter
-    props_connector_t_bot[22]    = 0.0 # Final Hardening Modulus Ratio
-    props_connector_t_bot[23]    = 0.0 # Densification Ratio
-    props_connector_t_bot[24]    = 0.0 # Volumetric Deviatoric Coupling
-    props_connector_t_bot[25]    = 0.0 # Compressive Unloading
-    
-    iprops_connector_t_bot = [3,ninstance,nbeamElem,nconnector_t,nconnector_t_precrack,nconnector_l,nconnector_l_precrack]
-    iprops_connector_t_bot = [int(x) for x in iprops_connector_t_bot] 
-    iprops_connector_t_top = [2,ninstance,nbeamElem,nconnector_t,nconnector_t_precrack,nconnector_l,nconnector_l_precrack]
-    iprops_connector_t_top = [int(x) for x in iprops_connector_t_top] 
-    iprops_connector_t_reg = [1,ninstance,nbeamElem,nconnector_t,nconnector_t_precrack,nconnector_l,nconnector_l_precrack]
-    iprops_connector_t_reg = [int(x) for x in iprops_connector_t_reg] 
-    
-    props_connector_t_reg = np.copy(props_connector_t_bot)
-    props_connector_t_reg[3] = height_connector_t*2
-    props_connector_t_reg[5] = 0
-    props_connector_t_top = np.copy(props_connector_t_bot)
-    props_connector_t_top[5] = height_connector_t/2
-    
-    # Longitudinal connector parameters
-    nsvars_conn_l = 32  # number of svars for transverse connector
-    iprops_connector_l = np.zeros(7)
-    props_connector_l = np.zeros(24)
-    # height_connector_l = segment_length/((nconnector_l_per_grain-1)*2)
-    
-    props_connector_l[0]     = 1.5E-9 # Cell substance density [tonne/mm^3]
-    props_connector_l[1]     = 6.0E+06 # Mesoscale elastic modulus [MPa]
-    props_connector_l[2]     = 0.25 # Shear-Normal coupling coefficient
-    props_connector_l[3]     = cellwallthickness_sparse*cellwallthickness_dense # Connector sectional area [mm^2]
-    props_connector_l[4]     = 20 # Tensile Strength [MPa]
-    props_connector_l[5]     = long_connector_ratio*segment_length*1.05# 0.0105 # Tensile characteristic length [mm] will be updated to # Tensile fracture energy [mJ/mm^2]
-    props_connector_l[6]     = 2.6 # Shear Strength Ratio
-    props_connector_l[7]     = 0.2 # Softening Exponent
-    props_connector_l[8]     = 0.2 # Initial Friction
-    props_connector_l[9]     = 0.0 # Asymptotic Friction
-    props_connector_l[10]    = 600 # Transitional Stress [MPa]
-    props_connector_l[11]    = 0.0 # Tensile Unloading
-    props_connector_l[12]    = 0.0 # Shear Unloading
-    props_connector_l[13]    = 0.0 # Shear Softening
-    props_connector_l[14]    = 0.0 # Elastic Analysis Flag
-    props_connector_l[15]    = 0.2 # Compressive Yielding Strength [MPa]
-    props_connector_l[16]    = 600 # Initial Hardening Modulus Ratio
-    props_connector_l[17]    = 0.0 # Transitional Strain Ratio
-    props_connector_l[18]    = 0.0 # Deviatoric Strain Threshold Ratio
-    props_connector_l[19]    = 0.0 # Deviatoric Damage Parameter
-    props_connector_l[20]    = 0.0 # Final Hardening Modulus Ratio
-    props_connector_l[21]    = 0.0 # Densification Ratio
-    props_connector_l[22]    = 0.0 # Volumetric Deviatoric Coupling
-    props_connector_l[23]    = 0.0 # Compressive Unloading
-    
-    iprops_connector_l = [1,ninstance,nbeamElem,nconnector_t,nconnector_t_precrack,nconnector_l,nconnector_l_precrack]
-    iprops_connector_l = [int(x) for x in iprops_connector_l] 
-    
-    # Strain rate effect parameters
-    props_strainrate = np.zeros(4)
-    props_strainrate[0] = 1.0 # Strain rate effect flag 
-    props_strainrate[1] = 5.0 # Physical time scaling factor
-    props_strainrate[2] = 1.0E-5 # Strain rate effect constant c0
-    props_strainrate[3] = 5.0E-2 # Strain rate effect constant c1
-    
-    
-    timestep     = 5.0E-8
-    totaltime    = 5.0E-2
     z_min = np.min(z_coord)
     z_max = np.max(z_coord)
     # boundary_conditions = ['Hydrostatic']
     boundary_conditions = ['Bottom','Top','Left','Right','Front','Back']
-    BC_velo_dof = 1 # 1-x, 2-y, 3-z
-    BC_velo_value = box_size*0.03 # mm/s
 
-    # Beam
-    nelnode = NURBS_degree + 1
-    noGPs = NURBS_degree + 1
-    if NURBS_degree == 2:
-        eltype = 201
-    elif NURBS_degree == 3:
-        eltype = 202
-    else:
-        print('Current NURBS degree is not supported. Check variable NURBS_degree.')
-        exit()
+    if NURBS_degree not in [2,3]:
+        raise ValueError('NURBS degree {} is not supported. Check variable NURBS_degree.'.format(NURBS_degree))
     nelnode_connector = 2
-    eltype_connector_t = 501
-    eltype_connector_l = 601
     
     numnode = IGAvertices.shape[0]
     nelem = beam_connectivity.shape[0]
@@ -2350,17 +1933,22 @@ def AbaqusFile(geoName,NURBS_degree,npatch,IGAvertices,beam_connectivity,\
     nelem_connector_t_reg = connector_t_reg_connectivity.shape[0]
     nelem_connector_t_top = connector_t_top_connectivity.shape[0]
     nelem_connector_l = connector_l_connectivity.shape[0]
-    nconnector_t_precrack = iprops_connector_l[4]
-    nconnector_l_precrack = iprops_connector_l[6]
-    nelem_total = nelem + nelem_connector_t_bot + nelem_connector_t_reg + nelem_connector_t_top\
-                + nelem_connector_l + nconnector_t_precrack + nconnector_l_precrack
+    # precracked connectors are taken out of the bot/reg/top transverse connectors, they are not extra elements
+    nelem_total = nelem + nelem_connector_t_bot + nelem_connector_t_reg + nelem_connector_t_top + nelem_connector_l
+    
+    # transverse connectors of precracked ridges (cell walls) are cracked in every segment
+    nsegments = len(z_coord)//(2*NURBS_degree+1)
+    nridge = nelem_connector_t_bot//nsegments
+    precrack_ridges = set(int(ridge) for ridge in precrack_elem)
+    def is_precracked(i): # i: row in the bot/reg/top transverse connector arrays, which repeat every nridge rows
+        return (i % nridge) in precrack_ridges
     
     xaxis = 1
     yaxis = 2
     zaxis = 3
 
     # Generate a .inp file which can be directly imported and played in Abaqus
-    meshinpfile = open(Path('meshes/' + geoName + '/' + geoName + '.inp'),'w')
+    meshinpfile = open(Path(path, geoName, geoName + '.inp'),'w')
     meshinpfile.write('*HEADING'+'\n')
     meshinpfile.write('** Job name: {0} Model name: Model-{1}\n'.format(geoName,geoName))
     meshinpfile.write('** Generated with RingsPy Mesh Generation Tool V{}\n'.format(__version__))
@@ -2393,76 +1981,39 @@ def AbaqusFile(geoName,NURBS_degree,npatch,IGAvertices,beam_connectivity,\
             meshinpfile.write(', {:d}'.format(beam_connectivity[i,j])) 
         meshinpfile.write('\n')
         
-    if precrackFlag in ['on','On','Y','y','Yes','yes']:
+    if precrackFlag in ON_FLAGS:
         connector_t_precracked_index = []
         connector_t_precracked_connectivity = []
-        connector_l_precracked_index = []
-        connector_l_precracked_connectivity = []
-        # bottom transverse connector element connectivity 
-        meshinpfile.write('*Element, type=T3D2,elset=AllBotConns\n') 
-        for i in range(0,nelem_connector_t_bot):
-            if i in precrack_elem:
-                connector_t_precracked_index.append(count)
+        # bottom/regular/top transverse connector element connectivity, precracked connectors are collected
+        for elset, connectivity in [('AllBotConns',connector_t_bot_connectivity),\
+                                    ('AllRegConns',connector_t_reg_connectivity),\
+                                    ('AllTopConns',connector_t_top_connectivity)]:
+            meshinpfile.write('*Element, type=T3D2,elset={:s}\n'.format(elset))
+            for i in range(0,connectivity.shape[0]):
+                if is_precracked(i):
+                    connector_t_precracked_index.append(count)
+                    connector_t_precracked_connectivity.append(connectivity[i,:])
+                else:
+                    meshinpfile.write('{:d}'.format(count))
+                    for j in range(0,nelnode_connector):
+                        meshinpfile.write(', {:d}'.format(connectivity[i,j]))
+                    meshinpfile.write('\n')
                 count += 1
-                connector_t_precracked_connectivity.append(connector_t_bot_connectivity[i,:])
-            else:
-                meshinpfile.write('{:d}'.format(count))
-                count += 1
+        # precracked transverse connector element connectivity
+        if connector_t_precracked_index:
+            meshinpfile.write('*Element, type=T3D2,elset=AllPrecrackTConns\n')
+            for i in range(0,len(connector_t_precracked_connectivity)):
+                meshinpfile.write('{:d}'.format(connector_t_precracked_index[i]))
                 for j in range(0,nelnode_connector):
-                    meshinpfile.write(', {:d}'.format(connector_t_bot_connectivity[i,j])) 
+                    meshinpfile.write(', {:d}'.format(connector_t_precracked_connectivity[i][j]))
                 meshinpfile.write('\n')
-        # regular transverse connector element connectivity 
-        meshinpfile.write('*Element, type=T3D2,elset=AllRegConns\n') 
-        for i in range(0,nelem_connector_t_reg):
-            if i in precrack_elem:
-                connector_t_precracked_index.append(count)
-                count += 1
-                connector_t_precracked_connectivity.append(connector_t_reg_connectivity[i,:])
-            else:
-                meshinpfile.write('{:d}'.format(count))
-                count += 1
-                for j in range(0,nelnode_connector):
-                    meshinpfile.write(', {:d}'.format(connector_t_reg_connectivity[i,j])) 
-                meshinpfile.write('\n')
-        # top transverse connector element connectivity 
-        meshinpfile.write('*Element, type=T3D2,elset=AllTopConns\n') 
-        for i in range(0,nelem_connector_t_top):
-            if i in precrack_elem:
-                connector_t_precracked_index.append(count)
-                count += 1
-                connector_t_precracked_connectivity.append(connector_t_top_connectivity[i,:])
-            else:
-                meshinpfile.write('{:d}'.format(count))
-                count += 1
-                for j in range(0,nelnode_connector):
-                    meshinpfile.write(', {:d}'.format(connector_t_top_connectivity[i,j])) 
-                meshinpfile.write('\n')
-        # precracked transverse connector element connectivity 
-        meshinpfile.write('*Element, type=T3D2,elset=AllPrecrackTConns\n') 
-        for i in range(0,len(connector_t_precracked_connectivity)):
-            meshinpfile.write('{:d}'.format(connector_t_precracked_index[i]))
-            for j in range(0,nelnode_connector):
-                meshinpfile.write(', {:d}'.format(connector_t_precracked_connectivity[i][j]))
-            meshinpfile.write('\n')
-        # longitudinal connector element connectivity 
-        meshinpfile.write('*Element, type=T3D2,elset=AllLongConns\n') 
+        # longitudinal connector element connectivity (longitudinal connectors are not precracked)
+        meshinpfile.write('*Element, type=T3D2,elset=AllLongConns\n')
         for i in range(0,nelem_connector_l):
-            if i in precrack_elem:
-                connector_l_precracked_index.append(count)
-                count += 1
-                connector_l_precracked_connectivity.append(connector_l_connectivity[i,:])
-            else:
-                meshinpfile.write('{:d}'.format(count))
-                count += 1
-                for j in range(0,nelnode_connector):
-                    meshinpfile.write(', {:d}'.format(connector_l_connectivity[i,j])) 
-                meshinpfile.write('\n')
-        # precracked longitudinal connector element connectivity 
-        meshinpfile.write('*Element, type=T3D2,elset=AllPrecrackLConns\n') 
-        for i in range(0,len(connector_l_precracked_connectivity)):
-            meshinpfile.write('{:d}'.format(connector_l_precracked_index[i]))
+            meshinpfile.write('{:d}'.format(count))
+            count += 1
             for j in range(0,nelnode_connector):
-                meshinpfile.write(', {:d}'.format(connector_l_precracked_connectivity[i][j]))
+                meshinpfile.write(', {:d}'.format(connector_l_connectivity[i,j]))
             meshinpfile.write('\n')
     else:
         # bottom transverse connector element connectivity 
@@ -2511,69 +2062,37 @@ def AbaqusFile(geoName,NURBS_degree,npatch,IGAvertices,beam_connectivity,\
                 meshinpfile.write(', {:d}'.format(beam_connectivity[i,j])) 
             meshinpfile.write('\n')
             
-    if precrackFlag in ['on','On','Y','y','Yes','yes']:
+    if precrackFlag in ON_FLAGS:
         visual_connector_precracked_index = []
-        meshinpfile.write('*ELEMENT, TYPE=T3D2, ELSET=VisualBotConns\n')
-        for i in range(0,nelem_connector_t_bot):
-            if i in precrack_elem:
-                visual_connector_precracked_index.append(count)
+        for elset, connectivity in [('VisualBotConns',connector_t_bot_connectivity),\
+                                    ('VisualRegConns',connector_t_reg_connectivity),\
+                                    ('VisualTopConns',connector_t_top_connectivity)]:
+            meshinpfile.write('*ELEMENT, TYPE=T3D2, ELSET={:s}\n'.format(elset))
+            for i in range(0,connectivity.shape[0]):
+                if is_precracked(i):
+                    visual_connector_precracked_index.append(count)
+                else:
+                    meshinpfile.write('{:d}'.format(count))
+                    for j in range(0,nelnode_connector):
+                        meshinpfile.write(', {:d}'.format(connectivity[i,j]))
+                    meshinpfile.write('\n')
                 count += 1
-            else:
-                meshinpfile.write('{:d}'.format(count))
-                count += 1
+        # precracked transverse connector element connectivity
+        if visual_connector_precracked_index:
+            meshinpfile.write('*ELEMENT, TYPE=T3D2, ELSET=VisualPrecrackTConns\n')
+            for i in range(0,len(connector_t_precracked_connectivity)):
+                meshinpfile.write('{:d}'.format(visual_connector_precracked_index[i]))
                 for j in range(0,nelnode_connector):
-                    meshinpfile.write(', {:d}'.format(connector_t_bot_connectivity[i,j])) 
+                    meshinpfile.write(', {:d}'.format(connector_t_precracked_connectivity[i][j]))
                 meshinpfile.write('\n')
-        meshinpfile.write('*ELEMENT, TYPE=T3D2, ELSET=VisualRegConns\n')
-        for i in range(0,nelem_connector_t_reg):
-            if i in precrack_elem:
-                visual_connector_precracked_index.append(count)
-                count += 1
-            else:
-                meshinpfile.write('{:d}'.format(count))
-                count += 1
-                for j in range(0,nelnode_connector):
-                    meshinpfile.write(', {:d}'.format(connector_t_reg_connectivity[i,j])) 
-                meshinpfile.write('\n')
-        meshinpfile.write('*ELEMENT, TYPE=T3D2, ELSET=VisualTopConns\n')
-        for i in range(0,nelem_connector_t_top):
-            if i in precrack_elem:
-                visual_connector_precracked_index.append(count)
-                count += 1
-            else:
-                meshinpfile.write('{:d}'.format(count))
-                count += 1
-                for j in range(0,nelnode_connector):
-                    meshinpfile.write(', {:d}'.format(connector_t_top_connectivity[i,j])) 
-                meshinpfile.write('\n')
-        # precracked transverse connector element connectivity 
-        meshinpfile.write('*ELEMENT, TYPE=T3D2, ELSET=VisualPrecrackTConns\n')
-        for i in range(0,len(connector_t_precracked_connectivity)):
-            meshinpfile.write('{:d}'.format(visual_connector_precracked_index[i]))
-            for j in range(0,nelnode_connector):
-                meshinpfile.write(', {:d}'.format(connector_t_precracked_connectivity[i][j]))
-            meshinpfile.write('\n')
-        # longitudinal connector element connectivity 
-        meshinpfile.write('*Element, type=T3D2,elset=VisualLConns\n') 
+        # longitudinal connector element connectivity
+        meshinpfile.write('*ELEMENT, TYPE=T3D2, ELSET=VisualLongConns\n')
         for i in range(0,nelem_connector_l):
-            if i in precrack_elem:
-                connector_l_precracked_index.append(count)
-                count += 1
-                connector_l_precracked_connectivity.append(connector_l_connectivity[i,:])
-            else:
-                meshinpfile.write('{:d}'.format(count))
-                count += 1
-                for j in range(0,nelnode_connector):
-                    meshinpfile.write(', {:d}'.format(connector_l_connectivity[i,j])) 
-                meshinpfile.write('\n')
-        # precracked longitudinal connector element connectivity 
-        meshinpfile.write('*Element, type=T3D2,elset=VisualPrecrackLConns\n')
-        meshinpfile.write('\n')
-        # for i in range(0,len(connector_l_precracked_connectivity)):
-        #     meshinpfile.write('{:d}'.format(connector_l_precracked_index[i]))
-        #     for j in range(0,nelnode_connector):
-        #         meshinpfile.write(', {:d}'.format(connector_l_precracked_connectivity[i][j]))
-        #     meshinpfile.write('\n')      
+            meshinpfile.write('{:d}'.format(count))
+            count += 1
+            for j in range(0,nelnode_connector):
+                meshinpfile.write(', {:d}'.format(connector_l_connectivity[i,j]))
+            meshinpfile.write('\n')
     else:
         meshinpfile.write('*ELEMENT, TYPE=T3D2, ELSET=VisualBotConns\n')
         for i in range(0,nelem_connector_t_bot):
@@ -2604,69 +2123,48 @@ def AbaqusFile(geoName,NURBS_degree,npatch,IGAvertices,beam_connectivity,\
                 meshinpfile.write(', {:d}'.format(connector_l_connectivity[i,j])) 
             meshinpfile.write('\n')
             
+    area_connector_t = height_connector_t*cellwallthickness_sparse # sectional area of transverse connectors [mm^2]
     meshinpfile.write('** Section: Section-1\n')
     meshinpfile.write('*Solid Section, elset=VisualBotConns, material=VisualTConns\n')
-    meshinpfile.write('{:8.4E}\n'.format(props_connector_t_bot[3]*cellwallthickness_sparse))
+    meshinpfile.write('{:8.4E}\n'.format(area_connector_t))
     meshinpfile.write('** Section: Section-2\n')
     meshinpfile.write('*Solid Section, elset=VisualRegConns, material=VisualTConns\n')
-    meshinpfile.write('{:8.4E}\n'.format(props_connector_t_bot[3]*cellwallthickness_sparse))
+    meshinpfile.write('{:8.4E}\n'.format(area_connector_t))
     meshinpfile.write('** Section: Section-3\n')
     meshinpfile.write('*Solid Section, elset=VisualTopConns, material=VisualTConns\n')
-    meshinpfile.write('{:8.4E}\n'.format(props_connector_t_bot[3]*cellwallthickness_sparse))
+    meshinpfile.write('{:8.4E}\n'.format(area_connector_t))
     meshinpfile.write('** Section: Section-11\n')
     meshinpfile.write('*Solid Section, elset=AllBotConns, material=VisualTConns\n')
-    meshinpfile.write('{:8.4E}\n'.format(props_connector_t_bot[3]*cellwallthickness_sparse))
+    meshinpfile.write('{:8.4E}\n'.format(area_connector_t))
     meshinpfile.write('** Section: Section-12\n')
     meshinpfile.write('*Solid Section, elset=AllRegConns, material=VisualTConns\n')
-    meshinpfile.write('{:8.4E}\n'.format(props_connector_t_bot[3]*cellwallthickness_sparse))
+    meshinpfile.write('{:8.4E}\n'.format(area_connector_t))
     meshinpfile.write('** Section: Section-13\n')
     meshinpfile.write('*Solid Section, elset=AllTopConns, material=VisualTConns\n')
-    meshinpfile.write('{:8.4E}\n'.format(props_connector_t_bot[3]*cellwallthickness_sparse))
-    if precrackFlag in ['on','On','Y','y','Yes','yes']:
-        meshinpfile.write('** Section: Section-4\n')
-        meshinpfile.write('*Solid Section, elset=VisualPrecrackTConns, material=VisualTConns\n')
-        meshinpfile.write('{:8.4E}\n'.format(props_connector_t_bot[3]*cellwallthickness_sparse))
-        meshinpfile.write('** Section: Section-5\n')
-        meshinpfile.write('*Solid Section, elset=VisualLongConns, material=VisualLConns\n')
-        meshinpfile.write('{:8.4E}\n'.format(props_connector_l[3]))
+    meshinpfile.write('{:8.4E}\n'.format(area_connector_t))
+    if precrackFlag in ON_FLAGS and connector_t_precracked_index:
         meshinpfile.write('** Section: Section-6\n')
-        meshinpfile.write('*Solid Section, elset=VisualPrecrackLConns, material=VisualLConns\n')
-        meshinpfile.write('{:8.4E}\n'.format(props_connector_l[3]))
-        meshinpfile.write('** Section: Section-14\n')
-        meshinpfile.write('*Solid Section, elset=AllPrecrackTConns, material=VisualTConns\n')
-        meshinpfile.write('{:8.4E}\n'.format(props_connector_t_bot[3]*cellwallthickness_sparse))
-        meshinpfile.write('** Section: Section-15\n')
-        meshinpfile.write('*Solid Section, elset=AllLongConns, material=VisualLConns\n')
-        meshinpfile.write('{:8.4E}\n'.format(props_connector_l[3]))
+        meshinpfile.write('*Solid Section, elset=VisualPrecrackTConns, material=VisualTConns\n')
+        meshinpfile.write('{:8.4E}\n'.format(area_connector_t))
         meshinpfile.write('** Section: Section-16\n')
-        meshinpfile.write('*Solid Section, elset=AllPrecrackLConns, material=VisualLConns\n')
-        meshinpfile.write('{:8.4E}\n'.format(props_connector_l[3]))
-        if NURBS_degree == 2:
-            meshinpfile.write('** Section: Section-7  Profile: Profile-1\n')
-            meshinpfile.write('*Beam Section, elset=VisualBeams, material=VisualBeams, temperature=GRADIENTS, section=RECT\n')
-            meshinpfile.write('{:8.4E}, {:8.4E}\n'.format(props_beam[3],props_beam[4]))
-            meshinpfile.write('1.,0.,0.\n')
-            meshinpfile.write('** Section: Section-17  Profile: Profile-1\n')
-            meshinpfile.write('*Beam Section, elset=AllBeams, material=VisualBeams, temperature=GRADIENTS, section=RECT\n')
-            meshinpfile.write('{:8.4E}, {:8.4E}\n'.format(props_beam[3],props_beam[4]))
-            meshinpfile.write('1.,0.,0.\n')  
-    else:
-        meshinpfile.write('** Section: Section-4\n')
-        meshinpfile.write('*Solid Section, elset=VisualLongConns, material=VisualLConns\n')
-        meshinpfile.write('{:8.4E}\n'.format(props_connector_l[3]))
-        meshinpfile.write('** Section: Section-14\n')
-        meshinpfile.write('*Solid Section, elset=AllLongConns, material=VisualLConns\n')
-        meshinpfile.write('{:8.4E}\n'.format(props_connector_l[3]))
-        if NURBS_degree == 2:
-            meshinpfile.write('** Section: Section-5  Profile: Profile-1\n')
-            meshinpfile.write('*Beam Section, elset=VisualBeams, material=VisualBeams, temperature=GRADIENTS, section=RECT\n')
-            meshinpfile.write('{:8.4E}, {:8.4E}\n'.format(props_beam[3],props_beam[4]))
-            meshinpfile.write('1.,0.,0.\n')
-            meshinpfile.write('** Section: Section-15  Profile: Profile-1\n')
-            meshinpfile.write('*Beam Section, elset=AllBeams, material=VisualBeams, temperature=GRADIENTS, section=RECT\n')
-            meshinpfile.write('{:8.4E}, {:8.4E}\n'.format(props_beam[3],props_beam[4]))
-            meshinpfile.write('1.,0.,0.\n')
-            
+        meshinpfile.write('*Solid Section, elset=AllPrecrackTConns, material=VisualTConns\n')
+        meshinpfile.write('{:8.4E}\n'.format(area_connector_t))
+    meshinpfile.write('** Section: Section-4\n')
+    meshinpfile.write('*Solid Section, elset=VisualLongConns, material=VisualLConns\n')
+    meshinpfile.write('{:8.4E}\n'.format(area_connector_l))
+    meshinpfile.write('** Section: Section-14\n')
+    meshinpfile.write('*Solid Section, elset=AllLongConns, material=VisualLConns\n')
+    meshinpfile.write('{:8.4E}\n'.format(area_connector_l))
+    if NURBS_degree == 2:
+        meshinpfile.write('** Section: Section-5  Profile: Profile-1\n')
+        meshinpfile.write('*Beam Section, elset=VisualBeams, material=VisualBeams, temperature=GRADIENTS, section=RECT\n')
+        meshinpfile.write('{:8.4E}, {:8.4E}\n'.format(cellwallthickness_sparse,cellwallthickness_sparse))
+        meshinpfile.write('1.,0.,0.\n')
+        meshinpfile.write('** Section: Section-15  Profile: Profile-1\n')
+        meshinpfile.write('*Beam Section, elset=AllBeams, material=VisualBeams, temperature=GRADIENTS, section=RECT\n')
+        meshinpfile.write('{:8.4E}, {:8.4E}\n'.format(cellwallthickness_sparse,cellwallthickness_sparse))
+        meshinpfile.write('1.,0.,0.\n')
+    
     meshinpfile.write('*End Instance\n') 
     meshinpfile.write('** \n')
     # NODE SETS
@@ -2841,7 +2339,7 @@ def AbaqusFile(geoName,NURBS_degree,npatch,IGAvertices,beam_connectivity,\
                 for i in range(0,math.ceil(len(BackNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
                     meshinpfile.write(''.join(','.join(map(str, BackNodes[0][15*i:15*(i+1)])))+',\n')
     else:
-        if merge_operation in ['on','On','Y','y','Yes','yes']:
+        if merge_operation in ON_FLAGS:
             # boundary nodes
             if box_shape == 'square':
                 if any(item in boundary_conditions for item in ['left','Left','L']):
@@ -3026,64 +2524,51 @@ def ReadSavedSites(sites_path, radial_growth_rule):
 
     Returns
     -------
-    pathlib.Path, the location of the first file found or
-    None, if none was found
+    sites and radii arrays loaded from the first directory containing both
+    the sites file and the matching radii file (name with '_sites' -> '_radii')
+
+    Raises
+    ------
+    FileNotFoundError, if no directory up to the root contains the files
     """
-    
+
     sitesfile = radial_growth_rule
     radiifile = radial_growth_rule.strip().replace("_sites", '_radii')
-    root = Path(Path(sites_path).root)
-    
-    # add a timeout condtion
-    tCurrent = time.time()
-    timeout_limit = 180 # seconds
+    sites_path = Path(sites_path).resolve()
 
-    while sites_path != root:
-        
-        # free up CPU cycles during timeout check, see Anthony's answer in
-        # https://stackoverflow.com/questions/13293269/how-would-i-stop-a-while-loop-after-n-amount-of-time
-        time.sleep(0.25) # sleep for 250 milliseconds
-        
+    while True:
         sites_attempt = sites_path / sitesfile
         radii_attempt = sites_path / radiifile
         if sites_attempt.exists() and radii_attempt.exists():
             print('Sites info from file: {:s} has been loaded.'.format(str(sites_attempt)))
             print('Radii info from file: {:s} has been loaded.'.format(str(radii_attempt)))
             return np.load(sites_attempt), np.load(radii_attempt)
+        if sites_path == sites_path.parent: # reached the root (e.g. / or C:\)
+            break
         sites_path = sites_path.parent
-        
-        if time.time() >= tCurrent + timeout_limit:
-            print('Could not find file: {:s}, please check if the existing site file is under the same directory with the input script.'.format(radial_growth_rule))
-            print('Now exitting...')
-            exit()
-            return None
+
+    raise FileNotFoundError('Could not find files: {:s} and {:s}, please check if the existing site files are under the same directory with the input script.'.format(sitesfile,radiifile))
 
 
-def StlModelFile(geoName):
-    
-    """Generate the 3D model file (geoName.stl file) for the generated geometry.
+def StlModelFile(geoName,path='meshes'):
+
+    """Generate the 3D model file (geoName.stl file, binary) for the generated geometry
+    from the connector volume file (geoName_conns_vol.vtu).
 
     Arguments:
     ---------
     geoName :: string, geometry name.
-
-    Returns
-    -------
-    None or error message, if generation failed (TBD)
+    path :: folder containing the geoName folder.
     """
-    
+
     try:
         import vtk
     except ImportError as e:
         raise ImportError("STL export (stlFlag = 'on') needs the optional package vtk: pip install 'ringspy[vtk]'") from e
-    import os
-    
-    vtufilename = geoName + '_conns_vol'+'.vtu'
-    cwd = os.getcwd()
-    vtupath = os.path.join(cwd,'meshes',geoName)
-    stlfilename = os.path.join(vtupath, geoName+".stl")
-    file_name = os.path.join(vtupath,vtufilename)
-    
+
+    file_name = str(Path(path, geoName, geoName + '_conns_vol'+'.vtu'))
+    stlfilename = str(Path(path, geoName, geoName + '.stl'))
+
     # create a new 'XML Unstructured Grid Reader'
     reader = vtk.vtkXMLUnstructuredGridReader()
     reader.SetFileName(file_name)
@@ -3098,6 +2583,7 @@ def StlModelFile(geoName):
 
     # Write the stl file to disk
     stlWriter = vtk.vtkSTLWriter()
+    stlWriter.SetFileTypeToBinary() # ASCII STL files are ~3x larger
     stlWriter.SetFileName(stlfilename)
     stlWriter.SetInputConnection(sufaceoutput)
     stlWriter.Write()
@@ -3141,7 +2627,7 @@ def LogFile(geoName,iter_max,r_min,r_max,nrings,width_heart,width_sparse,width_d
         NURBS_degree,nctrlpt_per_beam,nconnector_t_precrack,nconnector_l_precrack,\
         nParticles,nbeamElem,skeleton_density,mass,volume,density,porosity,\
         stlFlag,inpFlag,inpType,radial_growth_rule,\
-        startTime,placementTime,voronoiTime,RebuildvorTime,BeamTime,FileTime):
+        startTime,placementTime,voronoiTime,RebuildvorTime,BeamTime,FileTime,path='meshes'):
     
     """Generate the log file (geoName.log file) for the generation procedure.
 
@@ -3159,7 +2645,8 @@ def LogFile(geoName,iter_max,r_min,r_max,nrings,width_heart,width_sparse,width_d
     current_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     
     # Generate log file
-    logfile = open(Path('meshes/' + geoName + '/' + geoName + '-report.log'),'w')                                      
+    prefix = str(Path(path, geoName, geoName))
+    logfile = open(Path(path, geoName, geoName + '-report.log'),'w')
     logfile.write('################################################################################\n')
     logfile.write('##             Log Created with RingsPy Mesh Generation Tool V' + __version__ + '           ##\n')
     logfile.write('##             Files generated at local time: ' + current_time + '             ##\n')
@@ -3187,7 +2674,7 @@ def LogFile(geoName,iter_max,r_min,r_max,nrings,width_heart,width_sparse,width_d
     logfile.write('cellwallthickness_sparse:                ' + str(cellwallthickness_sparse) + '\n')
     logfile.write('cellwallthickness_dense:                 ' + str(cellwallthickness_dense) + '\n')
 
-    if merge_operation in ['on','On','Y','y','Yes','yes']: 
+    if merge_operation in ON_FLAGS: 
         logfile.write('merge_tol:                               ' + str(merge_tol) + '\n')
 
     logfile.write('\n')
@@ -3196,7 +2683,7 @@ def LogFile(geoName,iter_max,r_min,r_max,nrings,width_heart,width_sparse,width_d
     logfile.write('box_center:                              ' + str(box_center) + '\n')
     logfile.write('box_size:                                ' + str(box_size) + '\n')
     logfile.write('precrackFlag:                            ' + precrackFlag + '\n')
-    if precrackFlag in ['on','On','Y','y','Yes','yes']:
+    if precrackFlag in ON_FLAGS:
         logfile.write('\n')
         logfile.write('PRECRACK INSERTION PARAMETERS:\n')
         logfile.write('precrack_widths:                         ' + str(precrack_widths) + '\n')
@@ -3230,32 +2717,32 @@ def LogFile(geoName,iter_max,r_min,r_max,nrings,width_heart,width_sparse,width_d
     logfile.write('Total Time:                              ' + str(FileTime - startTime) + '\n')
     logfile.write('\n')
     logfile.write('FILE CREATION:\n')  
-    logfile.write('Cross-sectional Image File:              ./meshes/' + geoName + '/' + geoName \
+    logfile.write('Cross-sectional Image File:              ' + prefix \
         + '.png\n')
-    logfile.write('NURBS Beam File:                         ./meshes/' + geoName + '/' + geoName \
+    logfile.write('NURBS Beam File:                         ' + prefix \
         + 'IGA.txt\n')
-    logfile.write('Connector Data File:                     ./meshes/' + geoName + '/' + geoName \
+    logfile.write('Connector Data File:                     ' + prefix \
         + '-mesh.txt\n')
-    logfile.write('Grain-ridge Data File:                   ./meshes/' + geoName + '/' + geoName \
+    logfile.write('Grain-ridge Data File:                   ' + prefix \
         + '-vertex.mesh\n')
-    logfile.write('Ridge Data File:                         ./meshes/' + geoName + '/' + geoName \
+    logfile.write('Ridge Data File:                         ' + prefix \
         + '-ridge.mesh\n')
-    logfile.write('Paraview Vertices File:                  ./meshes/' + geoName + '/' + geoName
+    logfile.write('Paraview Vertices File:                  ' + prefix
                   
         + '_vertices'+'.vtu\n')
-    logfile.write('Paraview Beams File:                     ./meshes/' + geoName + '/' \
-        + geoName + '_beams'+'.vtu\n')
-    logfile.write('Paraview Connectors File:                ./meshes/' + geoName + '/' + geoName \
+    logfile.write('Paraview Beams File:                     ' + prefix \
+        + '_beams'+'.vtu\n')
+    logfile.write('Paraview Connectors File:                ' + prefix \
         + '_conns'+'.vtu\n')
-    logfile.write('Paraview Connectors (Volume) File:       ./meshes/' + geoName + '/' + geoName \
+    logfile.write('Paraview Connectors (Volume) File:       ' + prefix \
         + '_conns_vol'+'.vtu\n')
-    if stlFlag in ['on','On','Y','y','Yes','yes']:
-        logfile.write('3D Model File:                           ./meshes/' + geoName + '/' + geoName \
+    if stlFlag in ON_FLAGS:
+        logfile.write('3D Model File:                           ' + prefix \
             + '.stl\n')
-    if inpFlag in ['on','On','Y','y','Yes','yes']:
+    if inpFlag in ON_FLAGS:
         if inpType in ['abaqus','Abaqus','ABQ','abq','ABAQUS','Abq']:
-            logfile.write('Abaqus Input File:                       ./meshes/' + geoName + '/' + geoName \
+            logfile.write('Abaqus Input File:                       ' + prefix \
             + '.inp\n') 
-    logfile.write('Log File:                                ./meshes/' + geoName + '/' + geoName \
+    logfile.write('Log File:                                ' + prefix \
         + '-report.log\n')
     logfile.close()

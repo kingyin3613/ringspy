@@ -116,12 +116,11 @@ def test_lloyd():
     elif os.path.splitext(radial_growth_rule)[1] == '.npy':
         # ----------------------------------
         # load saved cell sites and radii data
-        sites,radii = rpgen.ReadSavedSites(radial_growth_rule)
+        sites_path = Path(os.path.dirname(os.path.abspath(__file__)))
+        sites,radii = rpgen.ReadSavedSites(sites_path,radial_growth_rule)
     
     else:
-        print('Growth rule: {:s} is not supported for the current version, please check the README for more details.'.format(radial_growth_rule))
-        print('Now exitting...')
-        exit()
+        raise ValueError('Growth rule: {:s} is not supported for the current version, please check the README for more details.'.format(radial_growth_rule))
         
     placementTime = time.time()
     nParticles = len(sites)
@@ -192,7 +191,7 @@ def test_lloyd():
         rpgen.VertexandRidgeinfo(all_pts_2D,all_ridges,\
                            npt_per_layer,npt_per_layer_normal,\
                            npt_per_layer_vtk,nridge,geoName,radii,generation_center,\
-                           cellwallthickness_sparse,cellwallthickness_dense)
+                           cellwallthickness_sparse,cellwallthickness_dense,path=path)
         
     ###############################################################################
     # Extrude in the parallel-to-grain (longitudinal) direction
@@ -234,7 +233,7 @@ def test_lloyd():
                      connector_t_reg_connectivity,connector_t_top_connectivity,\
                      connector_l_connectivity,all_vertices_2D,\
                      max_wings,flattened_all_vertices_2D,nsegments,segment_length,\
-                     nctrlpt_per_beam,theta,nridge,connector_l_vertex_dict)
+                     nctrlpt_per_beam,theta,nridge,connector_l_vertex_dict,path=path)
     
     # ==================================================================
     # Calculate model properties
@@ -247,7 +246,7 @@ def test_lloyd():
     npatch = beam_connectivity_original.shape[0]
     
     mkBezierBeamFile = rpgen.BezierBeamFile(geoName,NURBS_degree,nctrlpt_per_beam,\
-                       nconnector_t_per_beam,npatch,knotVec)
+                       nconnector_t_per_beam,npatch,knotVec,path=path)
     
     # ==================================================================
     # Generate Paraview visulization files
@@ -255,14 +254,14 @@ def test_lloyd():
                        segment_length,theta,z_coord,nsegments,nridge,\
                        voronoi_ridges,generation_center,all_ridges,nvertex,nconnector_t,\
                        nconnector_l,nctrlpt_per_beam,ConnMeshData,conn_l_tangents,\
-                       all_vertices_2D,max_wings,flattened_all_vertices_2D)
+                       all_vertices_2D,max_wings,flattened_all_vertices_2D,path=path)
         
-    plt.savefig(Path('meshes/' + geoName + '/' + geoName + '.png'))
+    plt.savefig(Path(path, geoName, geoName + '.png'))
     
     # ==================================================================
     # Generate 3D model files
     if stlFlag in ['on','On','Y','y','Yes','yes']:
-        rpgen.StlModelFile(geoName)
+        rpgen.StlModelFile(geoName,path=path)
     
     # ==================================================================
     # Generate input files for numerical simulations
@@ -276,14 +275,12 @@ def test_lloyd():
                             x_max,x_min,y_max,y_min,z_coord,box_shape,box_size,\
                             cellwallthickness_sparse,cellwallthickness_dense,\
                             merge_operation,merge_tol,\
-                            precrackFlag,precrack_elem)
+                            precrackFlag,precrack_elem,path=path)
         else:
-            np.save(Path('meshes/' + geoName + '/' + geoName + '_sites.npy'),sites)
-            np.save(Path('meshes/' + geoName + '/' + geoName + '_radii.npy'),radii)
-            print('Input files type: {:s} is not supported for the current version, please check the README for more details.'.format(inpType))
+            np.save(Path(path, geoName, geoName + '_sites.npy'),sites)
+            np.save(Path(path, geoName, geoName + '_radii.npy'),radii)
             print('Generated cells and rings info has been saved.')
-            print('Now exitting...')
-            exit()
+            raise ValueError('Input files type: {:s} is not supported for the current version, please check the README for more details.'.format(inpType))
     
     FileTime = time.time() 
     print('Files generated in {:.3f} seconds'.format(FileTime - BeamTime))
@@ -298,7 +295,7 @@ def test_lloyd():
             NURBS_degree,nctrlpt_per_beam,nconnector_t_precrack,nconnector_l_precrack,\
             nParticles,nbeamElem,skeleton_density,mass,bulk_volume,bulk_density,porosity,\
             stlFlag,inpFlag,inpType,radial_growth_rule,\
-            startTime,placementTime,voronoiTime,RebuildvorTime,BeamTime,FileTime)
+            startTime,placementTime,voronoiTime,RebuildvorTime,BeamTime,FileTime,path=path)
             
 if __name__ == "__main__":
     test_lloyd()
