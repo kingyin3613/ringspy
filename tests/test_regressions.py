@@ -96,6 +96,18 @@ def test_lloyd_ring_narrower_than_one_cell(keep_global_random_state):
         assert np.count_nonzero(np.isclose(distance, radii[i+1], rtol=0, atol=1e-12)) == np.ceil(2*np.pi*radii[i+1]/(2*0.02))
 
 
+@pytest.mark.parametrize("width_heart", [0.003, 0.006], ids=["1_perimeter_point", "2_perimeter_points"])
+def test_lloyd_heart_narrower_than_one_cell(keep_global_random_state, width_heart):
+    # a heart narrower than one cell has no cells inside: the Lloyd relaxation of its 1 or 2
+    # perimeter points alone crashed in Voronoi (QhullError)
+    np.random.seed(0)
+    sites, radii = rpgen.CellPlacement_Binary_Lloyd("lloyd", "meshes", (0.0, 0.0), 1.0, 0.0, 2,
+                                                    width_heart, 0.3, 0.1, 0.04, 0.02, 5, 1000)
+    assert np.ceil(2*np.pi*radii[1]/(2*0.02)) <= 2
+    assert np.all(np.isfinite(sites))
+    Voronoi(sites[:, 0:2])
+
+
 @pytest.mark.parametrize("merge", [False, True], ids=["no_merge", "merge"])
 @pytest.mark.parametrize("shape", ["square", "triangle", "hexagon"])
 @pytest.mark.parametrize("npts,span,box_size,center", [

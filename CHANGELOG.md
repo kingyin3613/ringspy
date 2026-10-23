@@ -16,6 +16,7 @@ Mesh generation is much faster, with identical output files for the same random 
 ### Fixes
 - `merge_operation = 'on'` crashed in `GenerateBeamElement` (`IndexError`, or `ValueError` from `np.repeat`) in about 5% of the random `wood_cube` geometries. A vertex near a box corner whose neighbouring vertices are all outside the box has only cut ridges, and `RebuildVoronoi_merge` left it out of `nvertices_in`, so `npt_per_layer` was one less than the number of vertices. `RidgeMidQuarterPts` now raises a clear error if these counts disagree. Meshes that were generated before are unchanged.
 - `CellPlacement_Binary_Lloyd` crashed (`ValueError: need at least one array to concatenate`) when the random ring widths made a ring narrower than one cell. Such a ring now only gets the cells on its outer edge.
+- `CellPlacement_Binary_Lloyd` crashed (`QhullError`) when the heart region was narrower than about 2/3 of a cell. A heart narrower than one cell has no cells inside, so the Lloyd relaxation is now skipped for it; the innermost cells of the first ring cover the centre, as they already did for hearts between 2/3 and 1 cell wide.
 
 ## v1.1.0
 

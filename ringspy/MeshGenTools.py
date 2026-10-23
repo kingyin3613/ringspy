@@ -427,7 +427,7 @@ def CellPlacement_Binary_Lloyd(geoName,path,generation_center,r_max,r_min,\
     sites = np.vstack((PerimeterPointsSites,inside_cells))
 
     lloyd_iter = 0
-    while lloyd_iter < iter_max:
+    while lloyd_iter < iter_max and n_nonoverlapped_cells > 0: # a heart narrower than one cell has no cells inside to relax
         vor = Voronoi(sites)
         sites = relax_points(vor,omega)
         
