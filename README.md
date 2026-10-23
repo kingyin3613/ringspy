@@ -272,6 +272,6 @@ If you wish to contribute code/algorithms to this project, or to propose a colla
 ## License
 ![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-blue.svg)
 
-Distributed under the GPL v3 license. Copyright 2023 Hao Yin.
+Distributed under the GPL v3 license.
 
 
