@@ -82,6 +82,20 @@ def test_lloyd_honors_generation_center():
     np.testing.assert_allclose(sites[:, 0:2].mean(axis=0), generation_center, atol=0.1)
 
 
+def test_lloyd_ring_narrower_than_one_cell(keep_global_random_state):
+    # a ring narrower than one cell has no sub-rings inside: np.concatenate of no sub-rings crashed
+    np.random.seed(0)
+    sites, radii = rpgen.CellPlacement_Binary_Lloyd("lloyd", "meshes", (0.0, 0.0), 1.0, 0.0, 2,
+                                                    0.1, 0.3, 0.01, 0.04, 0.02, 5, 1000)
+    widths = np.diff(radii)
+    assert (widths[[2, 4]] < 0.02).all()  # the dense rings
+    assert np.all(np.isfinite(sites))
+    # the cells on the outer edge of the narrow rings are placed
+    distance = np.linalg.norm(sites, axis=1)
+    for i in [2, 4]:
+        assert np.count_nonzero(np.isclose(distance, radii[i+1], rtol=0, atol=1e-12)) == np.ceil(2*np.pi*radii[i+1]/(2*0.02))
+
+
 @pytest.mark.parametrize("merge", [False, True], ids=["no_merge", "merge"])
 @pytest.mark.parametrize("shape", ["square", "triangle", "hexagon"])
 @pytest.mark.parametrize("npts,span,box_size,center", [
@@ -97,6 +111,32 @@ def test_clipped_mesh_inside_box_and_closed(shape, merge, npts, span, box_size, 
     # every vertex closes at least two cell walls: no dangling walls at the boundary
     degree = np.bincount(ridges.ravel(), minlength=len(vertices))
     assert (degree >= 2).all()
+
+
+@pytest.mark.parametrize("boundaryFlag", ["on", "off"])
+def test_merge_counts_vertices_with_only_cut_ridges(keep_global_random_state, boundaryFlag):
+    # with the wood_cube cells of seed 35, a vertex near a box corner has its three neighbouring
+    # vertices outside the box, so all its ridges are cut. It was not counted in nvertices_in.
+    np.random.seed(35)
+    sites, _ = rpgen.CellPlacement_Binary((0, 0), 4, 0, 4, 0.3, 0.7, 0.3, 0.02, 0.01, 500, 10**9)
+    x_min, x_max, y_min, y_max, boundaries, _, _ = rpgen.Clipping_Box("square", (0, 0), 4.0, boundaryFlag)
+    out = rpgen.RebuildVoronoi_merge(Voronoi(sites[:, 0:2]), sites, boundaries, (0, 0), x_min, x_max, y_min, y_max,
+                                     (0, 0), "square", 0.01, boundaryFlag)
+    voronoi_vertices, finite_ridges_new, nvertex, nvertices_in, nboundary_pts = out[0], out[3], out[5], out[6], out[9]
+    inside = np.all(np.abs(voronoi_vertices) < 2 - 1e-6, axis=1)
+    assert np.any(inside & (np.bincount(finite_ridges_new.ravel(), minlength=nvertex) == 0))
+    assert nvertices_in + nboundary_pts == nvertex == len(voronoi_vertices)
+
+
+def test_wood_cube_with_vertices_with_only_cut_ridges(keep_global_random_state):
+    # ~7% of unseeded wood_cube runs crashed in GenerateBeamElement (npt_per_layer was nvertex - 1)
+    np.random.seed(35)
+    run_template("test_wood_cube", stlFlag="off")
+    out = Path("meshes", "wood_cube")
+    nvertex = int((out / "wood_cube-vertex.mesh").read_text().splitlines()[2])
+    ridges = np.loadtxt(out / "wood_cube-ridge.mesh", skiprows=4, usecols=(0, 1), dtype=int)
+    assert set(np.unique(ridges).tolist()) == set(range(nvertex))
+    assert (out / "wood_cube.inp").is_file()
 
 
 def test_read_saved_sites_searches_parent_folders(tmp_path):

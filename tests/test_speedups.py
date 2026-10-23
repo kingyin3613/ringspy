@@ -14,13 +14,7 @@ import pytest
 import ringspy.MeshGenTools as rpgen
 from test_regressions import run_template
 
-
-@pytest.fixture(autouse=True)
-def keep_global_random_state():
-    """These tests seed np.random: restore its state afterwards, the template tests use it unseeded"""
-    state = np.random.get_state()
-    yield
-    np.random.set_state(state)
+pytestmark = pytest.mark.usefixtures("keep_global_random_state") # these tests seed np.random
 
 
 def brute_force_binary_placement(generation_center, r_max, r_min, nrings, width_heart, width_sparse,

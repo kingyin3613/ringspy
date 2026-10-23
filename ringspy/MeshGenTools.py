@@ -463,7 +463,7 @@ def CellPlacement_Binary_Lloyd(geoName,path,generation_center,r_max,r_min,\
         
         subnpoints =np.ceil(2*np.pi*subradii/(2*cellsize)).astype(int)
         
-        circles = []
+        circles = [np.zeros((0,2))] # no sub-rings (nsubrings = 0) if the ring is narrower than one cell
         
         for subr, subnpoint in zip(subradii, subnpoints):
             t = np.linspace(0, 2*np.pi, subnpoint, endpoint=False)
@@ -1004,16 +1004,16 @@ def RebuildVoronoi_merge(vor,circles,boundaries,generation_center,x_min,x_max,y_
         voronoi_ridges = np.vstack((finite_ridges_new,boundary_ridges_new))
         nridge = voronoi_ridges.shape[0]
         
-        intersect_temp = intersect2D(np.unique(np.reshape(voronoi_vertices_whole[finite_ridges_merged],(-1,2)),axis=0),np.unique(np.reshape(voronoi_vertices_whole[boundary_ridges_merged],(-1,2)),axis=0))
-        nvertices_in = np.unique(np.reshape(voronoi_vertices_whole[finite_ridges_merged],(-1,2)),axis=0).shape[0] - len(intersect_temp)
-        nboundary_pts = np.unique(np.reshape(voronoi_vertices_whole[boundary_ridges_merged],(-1,2)),axis=0).shape[0]
+        nboundary_pts = np.unique(boundary_ridges_merged).shape[0] # vertices on the box perimeter
     else:
         boundary_ridges_new = np.copy(infinite_ridges_merged)  
         nboundary_ridge = boundary_ridges_new.shape[0]
         voronoi_ridges = np.vstack((finite_ridges_new,boundary_ridges_new))
         nridge = voronoi_ridges.shape[0]
-        
-        nvertices_in = np.unique(np.reshape(voronoi_vertices_whole[finite_ridges_merged],(-1,2)),axis=0).shape[0]
+        # nboundary_pts is the number of cut points
+    # all other vertices are inside the box. Not all of them belong to a finite ridge: a vertex
+    # near a box corner whose neighbouring vertices are all outside the box has only cut ridges
+    nvertices_in = nvertex - nboundary_pts
 
     return voronoi_vertices,finite_ridges,boundary_points,finite_ridges_new,\
            boundary_ridges_new,nvertex,nvertices_in,nfinite_ridge,nboundary_ridge,\
@@ -1100,6 +1100,8 @@ def RidgeMidQuarterPts(voronoi_vertices,nvertex,nvertices_in,voronoi_ridges,\
     
     
     npt_per_layer = nvertices_in + nboundary_pts
+    if npt_per_layer != nvertex:
+        raise ValueError('Inconsistent vertex counts: {:d} vertices inside the box + {:d} on its boundary != {:d} vertices.'.format(nvertices_in,nboundary_pts,nvertex))
     npt_per_layer_normal = npt_per_layer - nboundary_pts_featured
     npt_per_layer_vtk = nfinitept_per_layer + nboundary_pt_per_layer
     

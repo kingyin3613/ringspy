@@ -13,6 +13,10 @@ Mesh generation is much faster, with identical output files for the same random 
 ### New
 - `VisualizationFiles(..., vtk_format='binary')` writes the ParaView files with raw binary appended data: faster to write and read, and about 3 times smaller. The default is still `'ascii'`.
 
+### Fixes
+- `merge_operation = 'on'` crashed in `GenerateBeamElement` (`IndexError`, or `ValueError` from `np.repeat`) in about 5% of the random `wood_cube` geometries. A vertex near a box corner whose neighbouring vertices are all outside the box has only cut ridges, and `RebuildVoronoi_merge` left it out of `nvertices_in`, so `npt_per_layer` was one less than the number of vertices. `RidgeMidQuarterPts` now raises a clear error if these counts disagree. Meshes that were generated before are unchanged.
+- `CellPlacement_Binary_Lloyd` crashed (`ValueError: need at least one array to concatenate`) when the random ring widths made a ring narrower than one cell. Such a ring now only gets the cells on its outer edge.
+
 ## v1.1.0
 
 Maintenance release: RingsPy installs and runs again on current Python, NumPy and setuptools.
