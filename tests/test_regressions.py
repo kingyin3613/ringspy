@@ -1,11 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-Regression tests for fixed bugs, plus end-to-end checks of the generated files.
-The end-to-end checks run the template scripts in this folder with a few
-parameters overridden.
+Regression tests for fixed bugs, plus end-to-end checks of the generated files
+(examples/ configurations with a few parameters changed).
 """
 
-import os
 import re
 import subprocess
 import sys
@@ -14,24 +12,13 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from matplotlib.path import Path as MplPath
 from scipy.spatial import Voronoi
 
+import ringspy
 import ringspy.MeshGenTools as rpgen
+from helpers import EXAMPLES_DIR, OUTPUT_SUFFIXES, inside_polygon
 
-TESTS_DIR = Path(__file__).parent
-
-
-def run_template(name, **overrides):
-    """Run tests/<name>.py's generation function with some input parameters replaced"""
-    src = (TESTS_DIR / (name + ".py")).read_text()
-    for key, value in overrides.items():
-        src, n = re.subn(r"^(\s*)" + key + r" = .*$", lambda m: m.group(1) + key + " = " + repr(value),
-                         src, count=1, flags=re.M)
-        assert n == 1, key
-    namespace = {"__file__": str(TESTS_DIR / (name + ".py")), "__name__": "template"}
-    exec(compile(src, name + ".py", "exec"), namespace)
-    namespace[name]()
+HONEYCOMB_HEX = EXAMPLES_DIR / "honeycomb_hex.toml"
 
 
 def clip(shape, merge, npts, span, box_size=1.0, center=(0.0, 0.0), seed=1):
@@ -50,11 +37,6 @@ def clip(shape, merge, npts, span, box_size=1.0, center=(0.0, 0.0), seed=1):
                                    center, shape, "on")
     voronoi_vertices, voronoi_ridges = out[0], out[11]
     return voronoi_vertices, voronoi_ridges, boundary_points
-
-
-def inside_polygon(points, polygon, tol=1e-9):
-    path = MplPath(polygon)
-    return path.contains_points(points, radius=tol) | path.contains_points(points, radius=-tol)
 
 
 def test_import_without_pkg_resources():
@@ -143,7 +125,7 @@ def test_merge_counts_vertices_with_only_cut_ridges(keep_global_random_state, bo
 def test_wood_cube_with_vertices_with_only_cut_ridges(keep_global_random_state):
     # ~7% of unseeded wood_cube runs crashed in GenerateBeamElement (npt_per_layer was nvertex - 1)
     np.random.seed(35)
-    run_template("test_wood_cube", stlFlag="off")
+    ringspy.generate(EXAMPLES_DIR / "wood_cube.toml", seed=None, stlFlag=False)  # cells from the global random state
     out = Path("meshes", "wood_cube")
     nvertex = int((out / "wood_cube-vertex.mesh").read_text().splitlines()[2])
     ridges = np.loadtxt(out / "wood_cube-ridge.mesh", skiprows=4, usecols=(0, 1), dtype=int)
@@ -174,11 +156,10 @@ def test_unknown_box_shape_raises():
 
 def test_honeycomb_hexagon_off_origin_writes_to_path():
     box_center = (0.25, 0.1)
-    run_template("test_hexalattice_hex", geoName="hex_off_origin", path="custom_out", box_center=box_center)
+    ringspy.generate(HONEYCOMB_HEX, geoName="hex_off_origin", path="custom_out", box_center=box_center)
     out = Path("custom_out", "hex_off_origin")
     assert not Path("meshes").exists()
-    for suffix in ["-vertex.mesh", "-ridge.mesh", "-mesh.txt", "IGA.txt", "_vertices.vtu", "_beams.vtu",
-                   "_conns.vtu", "_conns_vol.vtu", ".png", ".stl", ".inp", "-report.log"]:
+    for suffix in OUTPUT_SUFFIXES + [".stl", ".inp"]:
         assert (out / ("hex_off_origin" + suffix)).is_file(), suffix
     # binary STL: 80-byte header, triangle count, 50 bytes per triangle
     stl = (out / "hex_off_origin.stl").read_bytes()
@@ -214,8 +195,9 @@ def parse_inp(path):
 
 def test_precracked_inp_is_consistent():
     nsegments = 2
-    run_template("test_hexalattice_hex", geoName="precrack", box_shape="square", stlFlag="off",
-                 precrackFlag="on", nsegments=nsegments, x_precrack_size=0.6, y_precrack=0.013)
+    # a crack across several cells: from 0.12 to 0.72 of the box width, just above the center
+    ringspy.generate(HONEYCOMB_HEX, geoName="precrack", box_shape="square", stlFlag=False, precrackFlag=True,
+                     nsegments=nsegments, precrack_nodes=[[-0.38, 0.013, 0.22, 0.013]])
     elsets, sections, all_elles = parse_inp(Path("meshes", "precrack", "precrack.inp"))
     # every section refers to a non-empty element set (VisualLongConns was missing before)
     for elset in sections:

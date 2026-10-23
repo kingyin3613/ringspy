@@ -11,24 +11,25 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+import ringspy
 import ringspy.MeshGenTools as rpgen
-from test_regressions import run_template
+from helpers import EXAMPLES_DIR
 
 pytestmark = pytest.mark.usefixtures("keep_global_random_state") # these tests seed np.random
 
 
 def brute_force_binary_placement(generation_center, r_max, r_min, nrings, width_heart, width_sparse,
-                                 width_dense, cellsize_sparse, cellsize_dense, iter_max):
+                                 width_dense, cellsize_sparse, cellsize_dense, iter_max, rng=np.random):
     """CellPlacement_Binary of RingsPy 1.1.0: every try is checked against all placed cells"""
     width = np.concatenate(([width_heart], np.tile([width_sparse, width_dense], nrings)))
-    noise = np.random.normal(1, 0.25, len(width))
+    noise = rng.normal(1, 0.25, len(width))
     width = np.multiply(width, noise)
     radii = np.concatenate(([0], np.cumsum(width)))
     circles = []
     for ibin in range(0, nrings*2+1):
         for _ in range(iter_max):
-            r = (radii[ibin+1]-radii[ibin])*math.sqrt(np.random.random()) + radii[ibin]
-            t = np.random.random()*2*math.pi
+            r = (radii[ibin+1]-radii[ibin])*math.sqrt(rng.random()) + radii[ibin]
+            t = rng.random()*2*math.pi
             x = r*math.cos(t) + generation_center[0]
             y = r*math.sin(t) + generation_center[1]
             w = cellsize_dense if ibin % 2 == 0 else cellsize_sparse
@@ -42,23 +43,34 @@ def brute_force_binary_placement(generation_center, r_max, r_min, nrings, width_
     return np.delete(sites, outofbound, 0), radii
 
 
+@pytest.mark.parametrize("random_source", ["global", "generator"])
 @pytest.mark.parametrize("seed", [0, 1, 2])
 @pytest.mark.parametrize("generation_center,cellsize_sparse,cellsize_dense", [
     ((0.0, 0.0), 0.04, 0.02),
     ((0.3, -5.2), 0.03, 0.03),
 ])
-def test_binary_placement_same_sites_as_brute_force(seed, generation_center, cellsize_sparse, cellsize_dense):
+def test_binary_placement_same_sites_as_brute_force(random_source, seed, generation_center, cellsize_sparse,
+                                                     cellsize_dense):
     # the grid search only skips cells too far away to overlap: same accepted sites, same random numbers
     args = (generation_center, 1.0, 0.0, 2, 0.15, 0.35, 0.15, cellsize_sparse, cellsize_dense, 300)
-    np.random.seed(seed)
-    expected_sites, expected_radii = brute_force_binary_placement(*args)
-    expected_next_random = np.random.random()
-    np.random.seed(seed)
-    sites, radii = rpgen.CellPlacement_Binary(*args, 10**9)
+    if random_source == "global":
+        np.random.seed(seed)
+        expected_sites, expected_radii = brute_force_binary_placement(*args)
+        expected_next_random = np.random.random()
+        np.random.seed(seed)
+        sites, radii = rpgen.CellPlacement_Binary(*args, 10**9)
+        next_random = np.random.random()
+    else:
+        rng = np.random.default_rng(seed)
+        expected_sites, expected_radii = brute_force_binary_placement(*args, rng=rng)
+        expected_next_random = rng.random()
+        rng = np.random.default_rng(seed)
+        sites, radii = rpgen.CellPlacement_Binary(*args, 10**9, rng=rng)
+        next_random = rng.random()
     assert len(sites) > 100
     np.testing.assert_array_equal(sites, expected_sites)
     np.testing.assert_array_equal(radii, expected_radii)
-    assert np.random.random() == expected_next_random
+    assert next_random == expected_next_random
 
 
 @pytest.mark.parametrize("fmt", ["%.16g", "%d", "%11.8e"])
@@ -96,11 +108,10 @@ def read_vtu(path):
 
 def test_binary_vtu_files_match_ascii(monkeypatch):
     pytest.importorskip("vtkmodules.vtkIOXML")
-    np.random.seed(0)
-    run_template("test_hexalattice_hex", geoName="ascii")
+    honeycomb_hex = EXAMPLES_DIR / "honeycomb_hex.toml"
+    ringspy.generate(honeycomb_hex, geoName="ascii", seed=0)
     monkeypatch.setattr(rpgen, "VisualizationFiles", functools.partial(rpgen.VisualizationFiles, vtk_format="binary"))
-    np.random.seed(0)
-    run_template("test_hexalattice_hex", geoName="binary")
+    ringspy.generate(honeycomb_hex, geoName="binary", seed=0)
     for suffix in ["_vertices", "_beams", "_conns", "_conns_vol"]:
         ascii_file = Path("meshes", "ascii", "ascii" + suffix + ".vtu")
         binary_file = Path("meshes", "binary", "binary" + suffix + ".vtu")

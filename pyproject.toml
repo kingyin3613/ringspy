@@ -15,6 +15,7 @@ dependencies = [
     "numpy",
     "scipy",
     "matplotlib>=3.2.2",
+    "tomli>=1.1; python_version < '3.11'",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -28,8 +29,11 @@ classifiers = [
     "Topic :: Software Development :: Libraries",
 ]
 
+[project.scripts]
+ringspy = "ringspy.cli:main"
+
 [project.optional-dependencies]
-vtk = ["vtk"]                       # STL export (stlFlag = 'on')
+vtk = ["vtk"]                       # STL export (stlFlag = true)
 hex = ["hexalattice>=1.2.1"]        # radial_growth_rule = 'regular_hexagonal'
 all = ["vtk", "hexalattice>=1.2.1"]
 test = ["pytest>=7", "pytest-cov", "vtk", "hexalattice>=1.2.1"]
@@ -49,3 +53,4 @@ ringspy = ["py.typed"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = ["slow: end-to-end runs of the examples (skip them with: pytest -m 'not slow')"]

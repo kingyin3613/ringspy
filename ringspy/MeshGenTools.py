@@ -24,6 +24,32 @@ SQUARE_SHAPES = ['square','Square','SQUARE','rectangle','Rectangle','RECTANGLE',
 TRIANGLE_SHAPES = ['triangle','Triangle','TRIANGLE','triangular','Triangular','TRIANGULAR','tri','Tri','TRI','^']
 HEXAGON_SHAPES = ['hexagon','Hexagon','HEXAGON','hexagonal','Hexagonal','HEXAGONAL','hex','Hex','HEX','h']
 ON_FLAGS = ['on','On','Y','y','Yes','yes']
+ABAQUS_TYPES = ['abaqus','Abaqus','ABQ','abq','ABAQUS','Abq']
+
+
+def _is_on(flag):
+    """Whether an on/off flag is on: a boolean, or one of the ON_FLAGS strings"""
+    if isinstance(flag, (bool, np.bool_)):
+        return bool(flag)
+    return flag in ON_FLAGS
+
+
+def _flag_text(flag):
+    """Flag as written in the report log: 'on'/'off' for booleans, strings unchanged"""
+    if isinstance(flag, (bool, np.bool_)):
+        return 'on' if flag else 'off'
+    return str(flag)
+
+
+def _rng(rng):
+    """Random number source for the cell placement functions.
+    None: the global NumPy random state (np.random.seed controls it); an int: a seed for
+    np.random.default_rng; otherwise a np.random.Generator (or RandomState) used as is."""
+    if rng is None:
+        return np.random
+    if isinstance(rng, (int, np.integer)) and not isinstance(rng, bool):
+        return np.random.default_rng(rng)
+    return rng
 
 
 def cross2D(a, b):
@@ -223,7 +249,7 @@ def Clipping_Box(box_shape,box_center,box_size,boundaryFlag):
         l3 = [(x_min, y_max), (x_min, y_min)]
         boundaries = [('bottom', l0), ('right', l1), ('top', l2), ('left', l3)]
 
-        if boundaryFlag in ON_FLAGS:
+        if _is_on(boundaryFlag):
             boundarylines = patches.Rectangle(boundaries[0][1][0], x_max-x_min, y_max-y_min, linewidth=2, edgecolor='k',facecolor='none')
         else:
             boundarylines = patches.Rectangle(boundaries[0][1][0], x_max-x_min, y_max-y_min, linewidth=2, linestyle='-.', edgecolor='k',facecolor='none')
@@ -242,7 +268,7 @@ def Clipping_Box(box_shape,box_center,box_size,boundaryFlag):
         
         boundaries = [('bottom', l0), ('top-right', l1), ('top-left', l2)]
         
-        if boundaryFlag in ON_FLAGS:
+        if _is_on(boundaryFlag):
             boundarylines = patches.RegularPolygon((box_center[0]+0,box_center[1]+np.sqrt(3)/3*box_size),numVertices=3,radius=2*np.sqrt(3)/3*box_size,orientation=0,linewidth=2,edgecolor='k',facecolor='none')
         else:
             boundarylines = patches.RegularPolygon((box_center[0]+0,box_center[1]+np.sqrt(3)/3*box_size),numVertices=3,radius=2*np.sqrt(3)/3*box_size,orientation=0,linewidth=2,linestyle='-.',edgecolor='k',facecolor='none')
@@ -272,7 +298,7 @@ def Clipping_Box(box_shape,box_center,box_size,boundaryFlag):
         
         boundaries = [('bottom', l0), ('bottom-right', l1), ('top-right', l2), ('top', l3), ('top-left', l4), ('bottom-left', l5)]
         
-        if boundaryFlag in ON_FLAGS:
+        if _is_on(boundaryFlag):
             boundarylines = patches.RegularPolygon(box_center,numVertices=6,radius=box_size,orientation=np.pi/6,linewidth=2,edgecolor='k',facecolor='none')
         else:
             boundarylines = patches.RegularPolygon(box_center,numVertices=6,radius=box_size,orientation=np.pi/6,linewidth=2,linestyle='-.',edgecolor='k',facecolor='none')
@@ -342,14 +368,17 @@ def find_centroid(vertices,omega):
 
 def CellPlacement_Binary(generation_center,r_max,r_min,nrings,width_heart,
                          width_sparse,width_dense,cellsize_sparse,cellsize_dense,\
-                         iter_max,print_interval):
+                         iter_max,print_interval,rng=None):
     """
     packing cells by randomly placing new cells in the generation rings
+
+    rng :: None (global np.random state), an int seed, or a np.random.Generator
     """
-    
+    rng = _rng(rng)
+
     # generate radii for rings
     width = np.concatenate(([width_heart],np.tile([width_sparse,width_dense],nrings)))
-    noise = np.random.normal(1,0.25,len(width))
+    noise = rng.normal(1,0.25,len(width))
     width = np.multiply(width,noise)
     radii = np.concatenate(([0],np.cumsum(width)))
     
@@ -360,8 +389,8 @@ def CellPlacement_Binary(generation_center,r_max,r_min,nrings,width_heart,
     for ibin in range(0,nrings*2+1):
         iter = 0 
         while iter < iter_max:
-            r = (radii[ibin+1]-radii[ibin])*math.sqrt(np.random.random()) + radii[ibin]  # randomly generate a point in the domain
-            t = np.random.random()*2*math.pi 
+            r = (radii[ibin+1]-radii[ibin])*math.sqrt(rng.random()) + radii[ibin]  # randomly generate a point in the domain
+            t = rng.random()*2*math.pi 
             
             x = r*math.cos(t) + generation_center[0]
             y = r*math.sin(t) + generation_center[1]
@@ -400,13 +429,16 @@ def CellPlacement_Binary(generation_center,r_max,r_min,nrings,width_heart,
 def CellPlacement_Binary_Lloyd(geoName,path,generation_center,r_max,r_min,\
                                nrings,width_heart,width_sparse,width_dense,\
                                cellsize_sparse,cellsize_dense,iter_max,\
-                               print_interval,omega=1.0):
+                               print_interval,omega=1.0,rng=None):
     """
     packing cells by firstly placing new cells and then performing Lloyd's relaxation in the generation rings
+
+    rng :: None (global np.random state), an int seed, or a np.random.Generator
     """
+    rng = _rng(rng)
     # generate radii for rings
     radii = np.concatenate(([width_heart],np.tile([width_sparse,width_dense],nrings)))
-    noise = np.random.normal(1,0.25,len(radii))
+    noise = rng.normal(1,0.25,len(radii))
     radii = np.multiply(radii,noise)
     radii = np.concatenate(([0],np.cumsum(radii)))
 
@@ -422,7 +454,7 @@ def CellPlacement_Binary_Lloyd(geoName,path,generation_center,r_max,r_min,\
     
     #generate internal points for heart region
     n_nonoverlapped_cells = int(2*np.floor((radii[1]/cellsize_dense)**2))
-    inside_cells = 1e-3*(np.random.rand(n_nonoverlapped_cells,2) - [0.5,0.5]) # add cell points in a very small area
+    inside_cells = 1e-3*(rng.random((n_nonoverlapped_cells,2)) - [0.5,0.5]) # add cell points in a very small area
     
     sites = np.vstack((PerimeterPointsSites,inside_cells))
 
@@ -473,7 +505,7 @@ def CellPlacement_Binary_Lloyd(geoName,path,generation_center,r_max,r_min,\
             
         inside_cells = np.concatenate(circles, axis=0)
         
-        noise = (np.random.rand(len(inside_cells),2) - [0.5,0.5])*cellsize
+        noise = (rng.random((len(inside_cells),2)) - [0.5,0.5])*cellsize
         inside_cells = inside_cells + 0.25*noise
 
         sites = np.vstack((OuterPerimeterPointsSites,inside_cells))
@@ -490,10 +522,13 @@ def CellPlacement_Honeycomb(generation_center,r_max,r_min,nrings,box_center,box_
                             width_heart,width_sparse,width_dense,\
                             cellsize_sparse,cellsize_dense,\
                             cellwallthickness_sparse,cellwallthickness_dense,\
-                            iter_max,print_interval):
+                            iter_max,print_interval,rng=None):
     """
     packing cells in hexagonal grids
+
+    rng :: None (global np.random state), an int seed, or a np.random.Generator
     """
+    rng = _rng(rng)
     try:
         from hexalattice.hexalattice import create_hex_grid
     except ImportError as e:
@@ -502,7 +537,7 @@ def CellPlacement_Honeycomb(generation_center,r_max,r_min,nrings,box_center,box_
 
     # generate radii for rings
     width = np.concatenate(([width_heart],np.tile([width_sparse,width_dense],nrings)))
-    noise = np.random.normal(1,0.25,len(width))
+    noise = rng.normal(1,0.25,len(width))
     width = np.multiply(width,noise)
     radii = np.concatenate(([0],np.cumsum(width)))
     
@@ -708,7 +743,7 @@ def _clip_voronoi(vor,circles,boundaries,generation_center,inside,boundaryFlag,p
         if ncut > 0:
             _plot_segments(np.stack((vor.vertices[cut_vertex],boundary_points),axis=1),'k',linewidth=1)
 
-    if boundaryFlag in ON_FLAGS:
+    if _is_on(boundaryFlag):
         boundary_points_featured = np.reshape(np.asarray([x[1][0] for x in boundaries],dtype=float),(-1,2))
         boundary_points = np.vstack((boundary_points,boundary_points_featured))
     else:
@@ -730,7 +765,7 @@ def RebuildVoronoi(vor,circles,boundaries,generation_center,x_min,x_max,y_min,y_
     nboundary_pts_featured = boundary_points_featured.shape[0]
     nfinite_ridge = finite_ridges.shape[0]
 
-    if boundaryFlag in ON_FLAGS:
+    if _is_on(boundaryFlag):
         # construct the connectivity for a line path consisting of the boundary points
         boundary_ridges_new = _boundary_ridges_along_perimeter(boundary_points,boundaries) + nvertices_in
         boundary_ridges_new = np.vstack((infinite_ridges_new,boundary_ridges_new))
@@ -860,7 +895,7 @@ def RebuildVoronoi_merge(vor,circles,boundaries,generation_center,x_min,x_max,y_
     zero_rows = np.where((infinite_ridges_merged[:,0] - infinite_ridges_merged[:,1]) == 0)[0]
     infinite_ridges_merged = np.delete(infinite_ridges_merged,zero_rows,0)
     
-    if boundaryFlag in ON_FLAGS: 
+    if _is_on(boundaryFlag): 
         # construct the connectivity for a line path consisting of the boundary points
         boundary_ridges_new = _boundary_ridges_along_perimeter(boundary_points,boundaries) + nvertices_in # shift the indices with "nvertices_in"
         
@@ -976,7 +1011,7 @@ def RebuildVoronoi_merge(vor,circles,boundaries,generation_center,x_min,x_max,y_
     index_vertices = _PointIndex(voronoi_vertices)
     finite_ridges_merged[:] = index_vertices.lookup(voronoi_vertices_whole[finite_ridges_merged])
     infinite_ridges_merged[:] = index_vertices.lookup(voronoi_vertices_whole[infinite_ridges_merged])
-    if boundaryFlag in ON_FLAGS:  
+    if _is_on(boundaryFlag):
         boundary_ridges_merged[:] = index_vertices.lookup(voronoi_vertices_whole[boundary_ridges_merged])
     # merged points are rounded to multiples of merge_tol, which can push them slightly
     # across slanted box edges (triangle/hexagon): move them back onto the boundary
@@ -989,7 +1024,7 @@ def RebuildVoronoi_merge(vor,circles,boundaries,generation_center,x_min,x_max,y_
     zero_rows = np.where((infinite_ridges_merged[:,0] - infinite_ridges_merged[:,1]) == 0)[0]
     infinite_ridges_merged = np.delete(infinite_ridges_merged,zero_rows,0)
     
-    if boundaryFlag in ON_FLAGS: 
+    if _is_on(boundaryFlag): 
         # delete rows with identical indices and reverse indices in boundary_ridges_merged
         zero_rows = np.where((boundary_ridges_merged[:,0] - boundary_ridges_merged[:,1]) == 0)[0]
         boundary_ridges_merged = np.delete(boundary_ridges_merged,zero_rows,0)
@@ -998,7 +1033,7 @@ def RebuildVoronoi_merge(vor,circles,boundaries,generation_center,x_min,x_max,y_
     nvertex = voronoi_vertices.shape[0]
     finite_ridges_new = finite_ridges_merged
     nfinite_ridge = finite_ridges_new.shape[0]
-    if boundaryFlag in ON_FLAGS: 
+    if _is_on(boundaryFlag): 
         boundary_ridges_new = np.vstack((infinite_ridges_merged,boundary_ridges_merged))
         nboundary_ridge = boundary_ridges_new.shape[0]
         voronoi_ridges = np.vstack((finite_ridges_new,boundary_ridges_new))
@@ -1809,7 +1844,7 @@ def AbaqusFile(geoName,NURBS_degree,npatch,IGAvertices,beam_connectivity,\
     # transverse connectors of precracked ridges (cell walls) are cracked in every segment
     nsegments = len(z_coord)//(2*NURBS_degree+1)
     nridge = nelem_connector_t_bot//nsegments
-    precrack_ridges = [int(ridge) for ridge in precrack_elem] if precrackFlag in ON_FLAGS else []
+    precrack_ridges = [int(ridge) for ridge in precrack_elem] if _is_on(precrackFlag) else []
     def precracked_rows(connectivity): # rows of the bot/reg/top transverse connector arrays, which repeat every nridge rows
         return np.isin(np.arange(connectivity.shape[0]) % max(nridge,1),precrack_ridges)
     
@@ -1919,7 +1954,7 @@ def AbaqusFile(geoName,NURBS_degree,npatch,IGAvertices,beam_connectivity,\
     meshinpfile.write('** Section: Section-13\n')
     meshinpfile.write('*Solid Section, elset=AllTopConns, material=VisualTConns\n')
     meshinpfile.write('{:8.4E}\n'.format(area_connector_t))
-    if precrackFlag in ON_FLAGS and connector_t_precracked_index:
+    if _is_on(precrackFlag) and connector_t_precracked_index:
         meshinpfile.write('** Section: Section-6\n')
         meshinpfile.write('*Solid Section, elset=VisualPrecrackTConns, material=VisualTConns\n')
         meshinpfile.write('{:8.4E}\n'.format(area_connector_t))
@@ -2116,7 +2151,7 @@ def AbaqusFile(geoName,NURBS_degree,npatch,IGAvertices,beam_connectivity,\
                 for i in range(0,math.ceil(len(BackNodes[0])/15)): # Abaqus only accepts maximum 15 items per row
                     meshinpfile.write(''.join(','.join(map(str, BackNodes[0][15*i:15*(i+1)])))+',\n')
     else:
-        if merge_operation in ON_FLAGS:
+        if _is_on(merge_operation):
             # boundary nodes
             if box_shape == 'square':
                 if any(item in boundary_conditions for item in ['left','Left','L']):
@@ -2416,14 +2451,15 @@ def LogFile(geoName,iter_max,r_min,r_max,nrings,width_heart,width_sparse,width_d
         NURBS_degree,nctrlpt_per_beam,nconnector_t_precrack,nconnector_l_precrack,\
         nParticles,nbeamElem,skeleton_density,mass,volume,density,porosity,\
         stlFlag,inpFlag,inpType,radial_growth_rule,\
-        startTime,placementTime,voronoiTime,RebuildvorTime,BeamTime,FileTime,path='meshes'):
-    
+        startTime,placementTime,voronoiTime,RebuildvorTime,BeamTime,FileTime,path='meshes',seed=None):
+
     """Generate the log file (geoName.log file) for the generation procedure.
 
     Arguments:
     ---------
     geoName :: string, geometry name.
     -
+    seed :: int seed of the cell placement, or None for the global NumPy random state.
 
     Returns
     -------
@@ -2447,8 +2483,9 @@ def LogFile(geoName,iter_max,r_min,r_max,nrings,width_heart,width_sparse,width_d
     logfile.write('GENERATION PARAMETERS:\n')
     logfile.write('iter_max:                                ' + str(iter_max) + '\n')
     logfile.write('radial_growth_rule:                      ' + str(radial_growth_rule) + '\n')
-    logfile.write('merge_operation:                         ' + merge_operation + '\n')
-    logfile.write('boundaryFlag:                            ' + boundaryFlag + '\n')
+    logfile.write('seed:                                    ' + str(seed) + '\n')
+    logfile.write('merge_operation:                         ' + _flag_text(merge_operation) + '\n')
+    logfile.write('boundaryFlag:                            ' + _flag_text(boundaryFlag) + '\n')
     logfile.write('\n')
     logfile.write('GEOMETRY PARAMETERS:\n')                   
     logfile.write('r_min:                                   ' + str(r_min) + '\n')
@@ -2463,7 +2500,7 @@ def LogFile(geoName,iter_max,r_min,r_max,nrings,width_heart,width_sparse,width_d
     logfile.write('cellwallthickness_sparse:                ' + str(cellwallthickness_sparse) + '\n')
     logfile.write('cellwallthickness_dense:                 ' + str(cellwallthickness_dense) + '\n')
 
-    if merge_operation in ON_FLAGS: 
+    if _is_on(merge_operation): 
         logfile.write('merge_tol:                               ' + str(merge_tol) + '\n')
 
     logfile.write('\n')
@@ -2471,8 +2508,8 @@ def LogFile(geoName,iter_max,r_min,r_max,nrings,width_heart,width_sparse,width_d
     logfile.write('box_shape:                               ' + str(box_shape) + '\n')
     logfile.write('box_center:                              ' + str(box_center) + '\n')
     logfile.write('box_size:                                ' + str(box_size) + '\n')
-    logfile.write('precrackFlag:                            ' + precrackFlag + '\n')
-    if precrackFlag in ON_FLAGS:
+    logfile.write('precrackFlag:                            ' + _flag_text(precrackFlag) + '\n')
+    if _is_on(precrackFlag):
         logfile.write('\n')
         logfile.write('PRECRACK INSERTION PARAMETERS:\n')
         logfile.write('precrack_widths:                         ' + str(precrack_widths) + '\n')
@@ -2525,11 +2562,11 @@ def LogFile(geoName,iter_max,r_min,r_max,nrings,width_heart,width_sparse,width_d
         + '_conns'+'.vtu\n')
     logfile.write('Paraview Connectors (Volume) File:       ' + prefix \
         + '_conns_vol'+'.vtu\n')
-    if stlFlag in ON_FLAGS:
+    if _is_on(stlFlag):
         logfile.write('3D Model File:                           ' + prefix \
             + '.stl\n')
-    if inpFlag in ON_FLAGS:
-        if inpType in ['abaqus','Abaqus','ABQ','abq','ABAQUS','Abq']:
+    if _is_on(inpFlag):
+        if inpType in ABAQUS_TYPES:
             logfile.write('Abaqus Input File:                       ' + prefix \
             + '.inp\n') 
     logfile.write('Log File:                                ' + prefix \
