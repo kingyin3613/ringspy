@@ -1,9 +1,51 @@
 [build-system]
-requires = ["setuptools", "wheel"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
-[tool.pytest.ini_options]
-addopts = "--cov=ringspy"
-testpaths = [
-    "tests",
+[project]
+name = "ringspy"
+dynamic = ["version"]
+description = "A geometric generation tool for prismatic cellular solids"
+readme = "README.md"
+license = "GPL-3.0-only"
+license-files = ["LICENSE"]
+authors = [{ name = "Hao Yin", email = "haoyin2022@u.northwestern.edu" }]
+requires-python = ">=3.9"
+dependencies = [
+    "numpy",
+    "scipy",
+    "matplotlib>=3.2.2",
 ]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Topic :: Software Development :: Libraries",
+]
+
+[project.optional-dependencies]
+vtk = ["vtk"]                       # STL export (stlFlag = 'on')
+hex = ["hexalattice>=1.2.1"]        # radial_growth_rule = 'regular_hexagonal'
+all = ["vtk", "hexalattice>=1.2.1"]
+test = ["pytest>=7", "pytest-cov", "vtk", "hexalattice>=1.2.1"]
+
+[project.urls]
+Homepage = "https://github.com/kingyin3613/ringspy"
+Paper = "https://doi.org/10.21105/joss.04945"
+
+[tool.setuptools]
+packages = ["ringspy"]
+
+[tool.setuptools.dynamic]
+version = { attr = "ringspy.__version__" }
+
+[tool.setuptools.package-data]
+ringspy = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
