@@ -42,8 +42,8 @@ def legacy_template():
     
     cellsize_sparse = 0.04
     cellsize_dense = 0.02
-    cellwallthickness_sparse = 0.010
-    cellwallthickness_dense = 0.006
+    cellwallthickness_sparse = 0.006
+    cellwallthickness_dense = 0.010
     
     # clipping box parameters
     boundaryFlag = 'on'

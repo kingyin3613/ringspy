@@ -86,8 +86,8 @@ generation_center = [0, 0]      # coordinates of generation domain center
 
 cellsize_sparse = 0.02
 cellsize_dense = 0.01
-cellwallthickness_sparse = 0.010
-cellwallthickness_dense = 0.006
+cellwallthickness_sparse = 0.006
+cellwallthickness_dense = 0.010
 
 # Clipping box
 boundaryFlag = true

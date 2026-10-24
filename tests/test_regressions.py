@@ -213,3 +213,20 @@ def test_precracked_inp_is_consistent():
     assert ncracked_walls > 0
     assert len(elsets["allprecracktconns"]) == ncracked_walls * 3 * nsegments
     assert len(elsets["visualprecracktconns"]) == ncracked_walls * 3 * nsegments
+
+
+def test_wall_thickness_follows_the_parameter_names():
+    # cellwallthickness_sparse went to the dense rings and cellwallthickness_dense to the sparse ones
+    import ringspy
+    res = ringspy.generate(dict(geoName='thickness', seed=1, r_max=1.2, nrings=3, box_size=1.5, box_center=[0.6, 0],
+                                iter_max=300, stlFlag=False, inpFlag=False,
+                                cellwallthickness_sparse=0.004, cellwallthickness_dense=0.009))
+    lines = (res.output_dir / 'thickness-vertex.mesh').read_text().splitlines()
+    max_wings = int(lines[4])
+    table = np.loadtxt(lines[6:])
+    width = table[:, 3 + 3*max_wings]
+    ring = np.searchsorted(res.radii, np.linalg.norm(table[:, :2], axis=1), side='right') - 1
+    sparse_rings = (ring % 2 == 1)
+    dense_rings = (ring % 2 == 0)
+    assert np.mean(np.isclose(width[sparse_rings], 0.004)) > 0.8
+    assert np.mean(np.isclose(width[dense_rings], 0.009)) > 0.8
