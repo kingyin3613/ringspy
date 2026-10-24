@@ -1,0 +1,42 @@
+# Input file of the README animation contents/ringspy_hero.gif (built by contents/make_hero_gif.py):
+# a hexagonal log of 12 growth rings around the pith, extruded with a spiral-grain twist.
+#     ringspy run contents/hero_log.toml --path <folder>
+geoName = "hero_log"
+path = "meshes"
+seed = 7
+
+# cell placement: binary growth rule, sparse (earlywood) and dense (latewood) rings
+radial_growth_rule = "binary"
+iter_max = 40000
+print_interval = 1000000
+r_min = 0.0
+r_max = 7.0
+nrings = 12
+generation_center = [0.0, 0.0]
+cellsize_sparse = 0.03
+cellsize_dense = 0.015
+# latewood (dense rings) gets the thicker walls
+cellwallthickness_sparse = 0.004
+cellwallthickness_dense = 0.008
+
+# clipping box: hexagon centred on the pith
+boundaryFlag = true
+box_shape = "hexagon"
+box_center = [0.0, 0.0]
+box_size = 5.0
+
+# longitudinal extrusion with a twist of 0.35 rad
+nsegments = 4
+theta_min = 0.0
+theta_max = 0.35
+z_min = 0.0
+z_max = 3.0
+long_connector_ratio = 0.02
+
+merge_operation = true
+merge_tol = 0.01
+precrackFlag = false
+
+stlFlag = true
+inpFlag = true
+inpType = "Abaqus"
