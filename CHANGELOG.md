@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixes
+- Wall thickness: `cellwallthickness_sparse` was applied to the heart and dense rings and `cellwallthickness_dense` to the sparse rings, opposite to the names and the README (present since v1.0). The parameters now act on the rings they name. To keep the meshes of the examples unchanged, the defaults and the examples swapped their values (sparse 0.006, dense 0.010); meshes you made with your own values need the two values swapped to stay the same. The Abaqus section sizes that used `cellwallthickness_sparse` now use `cellwallthickness_dense`, so they keep their old values with the swapped defaults.
+
 ## v1.2.0
 
 A real entry point instead of copying a template script, and much faster mesh generation.
