@@ -94,9 +94,8 @@ def check_latewood_walls(vertex_mesh, radii, c):
     sparse = width[bins % 2 == 1].mean()
     print('mean wall thickness: dense rings {:.4f}, sparse rings {:.4f}'.format(dense, sparse))
     if not dense > sparse:
-        raise RuntimeError('The dense (latewood) rings do not have the thicker walls. If RingsPy now applies '
-                           'cellwallthickness_sparse/_dense to the sparse/dense rings as named, swap the two '
-                           'values in contents/hero_log.toml.')
+        raise RuntimeError('The dense (latewood) rings do not have the thicker walls: check '
+                           'cellwallthickness_sparse/_dense in contents/hero_log.toml.')
 
 
 def connector_volume_surface(vtu, vtp):

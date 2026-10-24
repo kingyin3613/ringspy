@@ -15,10 +15,9 @@ nrings = 12
 generation_center = [0.0, 0.0]
 cellsize_sparse = 0.03
 cellsize_dense = 0.015
-# RingsPy <= 1.2 applies cellwallthickness_sparse to the dense rings and cellwallthickness_dense
-# to the sparse rings; with these values the latewood (dense) rings get the thicker walls.
-cellwallthickness_sparse = 0.008
-cellwallthickness_dense = 0.004
+# latewood (dense rings) gets the thicker walls
+cellwallthickness_sparse = 0.004
+cellwallthickness_dense = 0.008
 
 # clipping box: hexagon centred on the pith
 boundaryFlag = true
