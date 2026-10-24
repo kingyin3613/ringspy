@@ -32,8 +32,5 @@ jobs:
       with:
         name: dist
         path: dist/
-    # Uses the PYPI_TOKEN secret while it exists; delete the secret after adding this
-    # workflow as a Trusted Publisher on PyPI to publish without a stored token.
+    # PyPI Trusted Publishing (no token): the publisher is configured on pypi.org
     - uses: pypa/gh-action-pypi-publish@release/v1
-      with:
-        password: ${{ secrets.PYPI_TOKEN }}
