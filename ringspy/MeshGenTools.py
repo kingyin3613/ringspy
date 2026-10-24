@@ -1173,7 +1173,7 @@ def VertexandRidgeinfo(all_pts_2D,all_ridges,npt_per_layer,npt_per_layer_normal,
     
     vertex_distance2logcenter = np.linalg.norm(all_pts_2D - generation_center, axis=1) # calc distance between vertex and logcenter
     for i in range(0,npt_per_layer):
-        if (bisect.bisect(radii,vertex_distance2logcenter[i]) % 2) != 0: # if odd, sparse cells
+        if (bisect.bisect(radii,vertex_distance2logcenter[i]) % 2) == 0: # bisect = ring index + 1: even, sparse rings
             vertex_cellwallthickness_2D[i] = cellwallthickness_sparse
         else: # if even, dense cells
             vertex_cellwallthickness_2D[i] = cellwallthickness_dense
@@ -1935,7 +1935,7 @@ def AbaqusFile(geoName,NURBS_degree,npatch,IGAvertices,beam_connectivity,\
     write_elements(np.arange(count,count+nelem_connector_l),connector_l_connectivity[:,0:nelnode_connector])
     count += nelem_connector_l
             
-    area_connector_t = height_connector_t*cellwallthickness_sparse # sectional area of transverse connectors [mm^2]
+    area_connector_t = height_connector_t*cellwallthickness_dense # sectional area of transverse connectors [mm^2]
     meshinpfile.write('** Section: Section-1\n')
     meshinpfile.write('*Solid Section, elset=VisualBotConns, material=VisualTConns\n')
     meshinpfile.write('{:8.4E}\n'.format(area_connector_t))
@@ -1970,11 +1970,11 @@ def AbaqusFile(geoName,NURBS_degree,npatch,IGAvertices,beam_connectivity,\
     if NURBS_degree == 2:
         meshinpfile.write('** Section: Section-5  Profile: Profile-1\n')
         meshinpfile.write('*Beam Section, elset=VisualBeams, material=VisualBeams, temperature=GRADIENTS, section=RECT\n')
-        meshinpfile.write('{:8.4E}, {:8.4E}\n'.format(cellwallthickness_sparse,cellwallthickness_sparse))
+        meshinpfile.write('{:8.4E}, {:8.4E}\n'.format(cellwallthickness_dense,cellwallthickness_dense))
         meshinpfile.write('1.,0.,0.\n')
         meshinpfile.write('** Section: Section-15  Profile: Profile-1\n')
         meshinpfile.write('*Beam Section, elset=AllBeams, material=VisualBeams, temperature=GRADIENTS, section=RECT\n')
-        meshinpfile.write('{:8.4E}, {:8.4E}\n'.format(cellwallthickness_sparse,cellwallthickness_sparse))
+        meshinpfile.write('{:8.4E}, {:8.4E}\n'.format(cellwallthickness_dense,cellwallthickness_dense))
         meshinpfile.write('1.,0.,0.\n')
     
     meshinpfile.write('*End Instance\n') 

@@ -57,8 +57,8 @@ class Config:
     generation_center: Tuple[float, float] = (0, 0)
     cellsize_sparse: float = 0.02
     cellsize_dense: float = 0.01
-    cellwallthickness_sparse: float = 0.010
-    cellwallthickness_dense: float = 0.006
+    cellwallthickness_sparse: float = 0.006
+    cellwallthickness_dense: float = 0.010
 
     # clipping box
     boundaryFlag: bool = True
