@@ -24,6 +24,7 @@ Mesh generation is much faster, with identical output files for the same random 
 - The preview plot draws the Voronoi ridges as one `LineCollection` instead of one line per ridge (same image).
 
 ### Changed
+- Python 3.9 is no longer supported (it is end-of-life): RingsPy requires Python >= 3.10.
 - Template scripts of earlier versions still run unchanged and give the same files as `ringspy.generate` for the same random state (checked by `tests/test_legacy_template.py`).
 - An unsupported `inpType` is an error when the configuration is made; the template scripts first saved the cells, then failed after the whole generation.
 - New dependency on Python < 3.11: `tomli` (Python 3.11+ reads TOML with the standard library).

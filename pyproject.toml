@@ -10,7 +10,7 @@ readme = "README.md"
 license = "GPL-3.0-only"
 license-files = ["LICENSE"]
 authors = [{ name = "Hao Yin", email = "haoyin2022@u.northwestern.edu" }]
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
     "numpy",
     "scipy",
