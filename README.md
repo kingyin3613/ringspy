@@ -41,7 +41,7 @@ pytest
 
 `pytest -m "not slow"` skips the end-to-end runs of the examples and takes well under a minute.
 
-## Getting Started (Current version: v1.2.0)
+## Getting Started (Current version: v1.3.0)
 Once all required components are installed and one is ready to begin, a path forward should be established for generating the mesh. The basic steps for running/viewing a cellular mesh are listed as the following:
 
     1. Edit geometry and algorithm parameters in an input file
