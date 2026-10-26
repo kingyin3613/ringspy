@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## v1.3.0
+
+Clip the cells with any polygon, also a non-convex one such as a dog-bone tensile specimen.
 
 ### New
 - `box_shape = "polygon"` with `box_polygon = [[x, y], ...]`: clip the cells with any simple polygon, convex or not (for example a dog-bone tensile specimen: `examples/dogbone.toml`). Cell walls that leave and re-enter a non-convex polygon are cut into their parts inside it. With `merge_operation`, the short walls are merged by a polygon-aware version of the merge: closest pairs first, fused vertices not rounded to the `merge_tol` grid, and a merge is skipped when it would move a wall out of the polygon (across a notch or neck narrower than `merge_tol`) or move a corner. The bulk volume and porosity use the area of the polygon, also with `boundaryFlag = false` (the other shapes use the convex hull of the boundary points, which leaves out the box corners when `boundaryFlag` is off). `Clipping_Box` takes the vertices as `polygon=...`, `ModelInfo` as `polygon=...`; `polygon_vertices()` checks them (at least 3 vertices, non-zero area, no crossing edges). The square, triangle and hexagon boxes give the same meshes as before.
