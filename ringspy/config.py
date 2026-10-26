@@ -14,7 +14,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Tuple, Union, get_args, get_origin
 
-from .MeshGenTools import ABAQUS_TYPES, HEXAGON_SHAPES, SQUARE_SHAPES, TRIANGLE_SHAPES
+from .MeshGenTools import (ABAQUS_TYPES, HEXAGON_SHAPES, POLYGON_SHAPES, SQUARE_SHAPES, TRIANGLE_SHAPES,
+                           polygon_vertices)
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -22,7 +23,7 @@ else:
     import tomli as tomllib
 
 GROWTH_RULES = ['binary', 'binary_lloyd', 'regular_hexagonal']
-BOX_SHAPES = SQUARE_SHAPES + TRIANGLE_SHAPES + HEXAGON_SHAPES
+BOX_SHAPES = SQUARE_SHAPES + TRIANGLE_SHAPES + HEXAGON_SHAPES + POLYGON_SHAPES
 TRUE_STRINGS = ['on', 'y', 'yes', 'true']
 FALSE_STRINGS = ['off', 'n', 'no', 'false']
 
@@ -62,16 +63,18 @@ class Config:
 
     # clipping box
     boundaryFlag: bool = True
-    box_shape: str = 'square'                # square, triangle or hexagon
+    box_shape: str = 'square'                # square, triangle, hexagon or polygon
     box_center: Tuple[float, float] = (0, 0)
     box_size: float = 4.0
+    box_polygon: Optional[List[Tuple[float, float]]] = None  # vertices [[x, y], ...] of the polygon for
+                                             # box_shape 'polygon' (any simple polygon, also non-convex)
 
     # longitudinal direction
     nsegments: int = 2
     theta_min: float = 0                     # radian
     theta_max: float = 0.05                  # radian
     z_min: float = 0
-    z_max: Optional[float] = None            # default box_size
+    z_max: Optional[float] = None            # default box_size (polygon: z_min + its largest width)
     long_connector_ratio: float = 0.02
 
     # material
@@ -98,7 +101,18 @@ class Config:
             raise ValueError("radial_growth_rule must be one of {} or a .npy file name, not {!r}"
                              .format(', '.join(GROWTH_RULES), self.radial_growth_rule))
         if self.box_shape not in BOX_SHAPES:
-            raise ValueError("box_shape must be square, triangle or hexagon, not {!r}".format(self.box_shape))
+            raise ValueError("box_shape must be square, triangle, hexagon or polygon, not {!r}".format(self.box_shape))
+        if self.box_shape in POLYGON_SHAPES:
+            if self.box_polygon is None:
+                raise ValueError("box_shape 'polygon' needs box_polygon, the vertices [[x, y], ...] of the polygon")
+            try:
+                polygon_vertices(self.box_polygon)
+            except ValueError as e:
+                raise ValueError("box_polygon: {}".format(e)) from None
+            if self.precrackFlag and self.precrack_nodes is None:
+                raise ValueError("with box_shape 'polygon', give the precracks as precrack_nodes")
+        elif self.box_polygon is not None:
+            raise ValueError("box_polygon is only used with box_shape = 'polygon', not {!r}".format(self.box_shape))
         if self.inpFlag and self.inpType not in ABAQUS_TYPES:
             raise ValueError("inpType {!r} is not supported, use 'Abaqus' (or set inpFlag = false)".format(self.inpType))
         if self.seed is not None and self.seed < 0:
@@ -116,7 +130,11 @@ class Config:
         values = {name: frac*(self.r_max - self.r_min)/self.nrings  # same expression as the template scripts
                   for name, frac in fractions.items() if getattr(self, name) is None}
         if self.z_max is None:
-            values['z_max'] = self.box_size
+            if self.box_shape in POLYGON_SHAPES:
+                extent = [max(v[i] for v in self.box_polygon) - min(v[i] for v in self.box_polygon) for i in (0, 1)]
+                values['z_max'] = self.z_min + max(extent)
+            else:
+                values['z_max'] = self.box_size
         return dataclasses.replace(self, **values)
 
     def replace(self, **changes):

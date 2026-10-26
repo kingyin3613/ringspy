@@ -23,6 +23,7 @@ from . import __version__
 SQUARE_SHAPES = ['square','Square','SQUARE','rectangle','Rectangle','RECTANGLE','cube','Cube','CUBE','s']
 TRIANGLE_SHAPES = ['triangle','Triangle','TRIANGLE','triangular','Triangular','TRIANGULAR','tri','Tri','TRI','^']
 HEXAGON_SHAPES = ['hexagon','Hexagon','HEXAGON','hexagonal','Hexagonal','HEXAGONAL','hex','Hex','HEX','h']
+POLYGON_SHAPES = ['polygon','Polygon','POLYGON','poly']   # any simple polygon, given by its vertices
 ON_FLAGS = ['on','On','Y','y','Yes','yes']
 ABAQUS_TYPES = ['abaqus','Abaqus','ABQ','abq','ABAQUS','Abq']
 
@@ -231,9 +232,12 @@ def rotate_around_point_highperf(xy, radians, origin=(0, 0)):
     return qx, qy
 
 
-def Clipping_Box(box_shape,box_center,box_size,boundaryFlag):
+def Clipping_Box(box_shape,box_center,box_size,boundaryFlag,polygon=None):
     """
     clipping box for the 2D Voronoi diagram
+
+    box_shape 'polygon' clips with any simple polygon (convex or not) whose vertices
+    [[x, y], ...] are given as `polygon`; box_center and box_size are not used for it.
     """
     
     if box_shape in SQUARE_SHAPES: # sqaure box
@@ -308,6 +312,17 @@ def Clipping_Box(box_shape,box_center,box_size,boundaryFlag):
         y_min = y_0
         y_max = y_2
         
+    elif box_shape in POLYGON_SHAPES: # any simple polygon
+        if polygon is None:
+            raise ValueError("box_shape 'polygon' needs the vertices of the polygon (box_polygon)")
+        boundary_points = polygon_vertices(polygon)
+        corners = [(float(x), float(y)) for x, y in boundary_points]
+        boundaries = [('edge{:d}'.format(i), [corners[i], corners[(i+1) % len(corners)]]) for i in range(len(corners))]
+        x_min, y_min = boundary_points.min(axis=0)
+        x_max, y_max = boundary_points.max(axis=0)
+        boundarylines = patches.Polygon(boundary_points,closed=True,linewidth=2,linestyle='-' if _is_on(boundaryFlag) else '-.',
+                                        edgecolor='k',facecolor='none')
+
     else:
         raise ValueError('box_shape: {:s} is not supported for current version, please check README for more details.'.format(box_shape))
 
@@ -573,6 +588,8 @@ def _inside_clip_box(box_shape,boundaries,x_min,x_max,y_min,y_max,box_center):
     elif box_shape in HEXAGON_SHAPES:
         L = y_max - y_min
         return lambda p: check_isinside_boundHexagon2D(p,L,box_center)
+    elif box_shape in POLYGON_SHAPES:
+        return _PolygonInside([boundary[1][0] for boundary in boundaries])
     elif box_shape == 'notched_square': # notched
         x_min = boundaries[0][1][0][0]
         x_max = boundaries[1][1][0][0]
@@ -649,6 +666,327 @@ def _project_into_convex_box(points,boundaries):
     return points
 
 
+def _segments_intersect(p1,p2,q1,q2):
+    """Whether the closed line segments p1-p2 and q1-q2 have a point in common (arrays of segments
+    with shapes broadcasting together, the last axis holding x and y)"""
+    def orientation(a,b,c):
+        return np.sign(cross2D(b - a,c - a))
+    def within(a,b,c): # c on the line through a and b: is it between them?
+        return (np.minimum(a[...,0],b[...,0]) <= c[...,0]) & (c[...,0] <= np.maximum(a[...,0],b[...,0])) & \
+               (np.minimum(a[...,1],b[...,1]) <= c[...,1]) & (c[...,1] <= np.maximum(a[...,1],b[...,1]))
+    o1, o2 = orientation(p1,p2,q1), orientation(p1,p2,q2)
+    o3, o4 = orientation(q1,q2,p1), orientation(q1,q2,p2)
+    return ((o1*o2 < 0) & (o3*o4 < 0)) | \
+           ((o1 == 0) & within(p1,p2,q1)) | ((o2 == 0) & within(p1,p2,q2)) | \
+           ((o3 == 0) & within(q1,q2,p1)) | ((o4 == 0) & within(q1,q2,p2))
+
+
+def polygon_vertices(polygon):
+    """
+    Check the vertices [[x, y], ...] of a clipping polygon and return them as an (n, 2) array in
+    counter-clockwise order. The polygon must be simple: at least 3 distinct vertices, a non-zero
+    area and no crossing or touching edges. A vertex at the place of the previous one (within 1e-9 of the
+    polygon's size) is dropped, also a last vertex at the place of the first one (a closed list, or a
+    circle from np.linspace(0, 2*pi, n)).
+    """
+    p = np.asarray(polygon,dtype=float)
+    if p.ndim != 2 or p.shape[1] != 2 or not np.all(np.isfinite(p)):
+        raise ValueError('polygon vertices must be a list of [x, y] pairs of numbers, not {!r}'.format(polygon))
+    tol = 1e-9*np.ptp(p,axis=0).max() if len(p) else 0.0
+    rows = [] # the vertices kept, by their row in the list given (the last of repeated ones: its edge follows)
+    for k in range(len(p)):
+        if not rows or np.linalg.norm(p[k] - p[rows[-1]]) > tol:
+            rows.append(k)
+        else:
+            rows[-1] = k
+    if len(rows) > 1 and np.linalg.norm(p[rows[-1]] - p[rows[0]]) <= tol:
+        rows.pop()
+    p = p[rows]
+    if len(p) < 3:
+        raise ValueError('a polygon needs at least 3 distinct vertices')
+    n = len(p)
+    a, b = p, np.roll(p,-1,axis=0)
+    j = np.arange(n)
+    block = max(1,2000000//n)
+    for start in range(0,n,block): # edges i of the block against all edges j > i+1
+        i = np.arange(start,min(start+block,n))[:,np.newaxis]
+        pairs = (j > i+1) & ~((i == 0) & (j == n-1)) # adjacent edges share a vertex
+        cross = pairs & _segments_intersect(a[i],b[i],a[j],b[j])
+        if np.any(cross):
+            ii, jj = np.unravel_index(np.argmax(cross),cross.shape)
+            # edge k of the list given runs from vertex k to the next one
+            raise ValueError('the polygon is not simple: edges {} and {} cross or touch'.format(rows[start+ii],rows[jj]))
+    area = 0.5*np.sum(cross2D(p,np.roll(p,-1,axis=0)))
+    if abs(area) <= 1e-12*np.ptp(p,axis=0).max()**2:
+        raise ValueError('the polygon has no area')
+    if area < 0:
+        p = p[::-1]
+    return p
+
+
+class _PolygonInside:
+    """Inside test for a simple polygon (convex or not); points on the boundary are outside"""
+
+    def __init__(self, polygon):
+        self.polygon = np.asarray(polygon,dtype=float)
+        self.a = self.polygon
+        self.b = np.roll(self.polygon,-1,axis=0)
+        self.scale = np.ptp(self.polygon,axis=0).max()
+        self.tol = 1e-9*self.scale
+
+    def classify(self, points):
+        """(inside by the crossing number, on the boundary within tol) for an array of points"""
+        points = np.asarray(points,dtype=float).reshape(-1,2)
+        chunk = max(256,2000000//len(self.a)) # points per pass: bounded memory for polygons with many edges
+        inside = np.zeros(len(points),dtype=bool)
+        on = np.zeros(len(points),dtype=bool)
+        xa, ya = self.a[:,0][np.newaxis], self.a[:,1][np.newaxis]
+        xb, yb = self.b[:,0][np.newaxis], self.b[:,1][np.newaxis]
+        ex, ey = xb - xa, yb - ya
+        length2 = ex**2 + ey**2
+        for k in range(0,len(points),chunk):
+            x, y = points[k:k+chunk,0:1], points[k:k+chunk,1:2]
+            straddle = (ya > y) != (yb > y)
+            with np.errstate(divide='ignore',invalid='ignore'):
+                x_cross = xa + (y - ya)*ex/ey
+            inside[k:k+chunk] = np.count_nonzero(straddle & (x < x_cross),axis=1) % 2 == 1
+            u = np.clip(((x - xa)*ex + (y - ya)*ey)/length2,0,1)
+            on[k:k+chunk] = np.min((x - xa - u*ex)**2 + (y - ya - u*ey)**2,axis=1) <= self.tol**2
+        return inside, on
+
+    def many(self, points):
+        inside, on = self.classify(points)
+        return inside & ~on
+
+    def __call__(self, p):
+        return bool(self.many(np.asarray(p,dtype=float)[0:2])[0])
+
+    def distance(self, points):
+        """Distance of each point to the polygon's boundary"""
+        points = np.asarray(points,dtype=float).reshape(-1,2)
+        e = self.b - self.a
+        length2 = np.einsum('mk,mk->m',e,e)
+        distance = np.empty(len(points))
+        chunk = max(256,2000000//len(self.a))
+        for k in range(0,len(points),chunk):
+            rel = points[k:k+chunk,np.newaxis,:] - self.a[np.newaxis,:,:]
+            u = np.clip(np.einsum('nmk,mk->nm',rel,e)/length2,0,1)
+            distance[k:k+chunk] = np.linalg.norm(rel - u[:,:,np.newaxis]*e[np.newaxis,:,:],axis=2).min(axis=1)
+        return distance
+
+    def segments_within(self, p, q):
+        """Whether each segment p[k]-q[k] lies in the polygon, its boundary included (arrays (n, 2)).
+        The segments are cut where they cross the polygon's edges; each piece must be inside or on."""
+        p, q = np.asarray(p,dtype=float).reshape(-1,2), np.asarray(q,dtype=float).reshape(-1,2)
+        d = q - p
+        edges = self.b - self.a
+        denom = cross2D(d[:,np.newaxis,:],edges[np.newaxis,:,:])
+        with np.errstate(divide='ignore',invalid='ignore'):
+            t = cross2D(self.a[np.newaxis,:,:] - p[:,np.newaxis,:],edges[np.newaxis,:,:])/denom
+            u = cross2D(self.a[np.newaxis,:,:] - p[:,np.newaxis,:],d[:,np.newaxis,:])/denom
+        hit = (denom != 0) & (u >= -1e-9) & (u <= 1 + 1e-9) & (t > 1e-9) & (t < 1 - 1e-9)
+        k = int(hit.sum(axis=1).max()) if len(p) else 0
+        breaks = np.hstack((np.zeros((len(p),1)),np.sort(np.where(hit,t,1.0),axis=1)[:,:k],np.ones((len(p),1))))
+        middles = p[:,np.newaxis,:] + 0.5*(breaks[:,:-1] + breaks[:,1:])[:,:,np.newaxis]*d[:,np.newaxis,:]
+        inside, on = self.classify(middles)
+        return (inside | on).reshape(len(p),k+1).all(axis=1)
+
+    def segments_inside(self, p, q):
+        """Whether each segment p[k]-q[k] lies strictly inside the polygon between its ends: it does not touch
+        the boundary there (its ends may lie on it)"""
+        p, q = np.asarray(p,dtype=float).reshape(-1,2), np.asarray(q,dtype=float).reshape(-1,2)
+        d = q - p
+        edges = self.b - self.a
+        denom = cross2D(d[:,np.newaxis,:],edges[np.newaxis,:,:])
+        with np.errstate(divide='ignore',invalid='ignore'):
+            t = cross2D(self.a[np.newaxis,:,:] - p[:,np.newaxis,:],edges[np.newaxis,:,:])/denom
+            u = cross2D(self.a[np.newaxis,:,:] - p[:,np.newaxis,:],d[:,np.newaxis,:])/denom
+        touch = ((denom != 0) & (u >= -1e-9) & (u <= 1 + 1e-9) & (t > 1e-9) & (t < 1 - 1e-9)).any(axis=1)
+        inside, on = self.classify(0.5*(p + q))
+        return ~touch & inside & ~on
+
+
+def _polygon_crossings(p,d,tmax,starts,edges):
+    """Sorted parameters 0 < t < tmax where p + t*d crosses the edges starts + u*edges (0 <= u <= 1)"""
+    denom = cross2D(d,edges)
+    with np.errstate(divide='ignore',invalid='ignore'):
+        t = cross2D(starts - p,edges)/denom
+        u = cross2D(starts - p,d)/denom
+    hit = (np.abs(denom) > 1e-14*np.linalg.norm(d)*np.linalg.norm(edges,axis=1)) & \
+          (u >= -1e-9) & (u <= 1 + 1e-9) & (t > 0) & (t < tmax)
+    return np.sort(t[hit])
+
+
+def _clip_voronoi_polygon(vor,circles,boundaries,generation_center,inside,boundaryFlag,plot=False):
+    """
+    _clip_voronoi for box_shape 'polygon' (any simple polygon, also non-convex). Each ridge (and the
+    ray of each infinite ridge) is cut into its parts inside the polygon. A ridge can leave and enter
+    a non-convex polygon more than once, so besides ridges inside the polygon and cut ridges from an
+    inside vertex to the boundary, there can be ridges between two boundary points; they are
+    returned with the cut ridges in infinite_ridges_new (only with boundaryFlag on: without the walls
+    along the boundary they would be loose pieces). Same return values as _clip_voronoi, except that
+    walls ending at the same boundary point share it, and walls ending at a corner end at the corner.
+    """
+    generation_center = np.asarray(generation_center,dtype=float)
+    vertices = vor.vertices
+    # a vertex this close to the boundary is a boundary point: a wall from it running along an edge lies
+    # within tol of the boundary and is dropped, so the vertex must not stay an inside vertex without it
+    vertex_in, vertex_on = inside.classify(vertices)
+    vertex_on |= vertex_in & (inside.distance(vertices) <= 4*inside.tol)
+    vertex_in &= ~vertex_on
+    starts, edges = inside.a, inside.b - inside.a
+    eps = 1e-12
+
+    # finite ridges that touch or cross the boundary (vectorized); the others are inside or outside
+    ridge_vertices = [np.asarray(simplex) for simplex in vor.ridge_vertices]
+    finite = np.array([np.all(simplex >= 0) for simplex in ridge_vertices],dtype=bool)
+    pairs = np.array([simplex if f else [0, 0] for simplex, f in zip(ridge_vertices,finite)],dtype=int).reshape(-1,2)
+    near = np.zeros(len(pairs),dtype=bool)
+    chunk = max(256,2000000//len(edges)) # ridges per pass: bounded memory for polygons with many edges
+    for k in range(0,len(pairs),chunk):
+        p = vertices[pairs[k:k+chunk,0]][:,np.newaxis,:]
+        d = vertices[pairs[k:k+chunk,1]][:,np.newaxis,:] - p
+        denom = cross2D(d,edges[np.newaxis,:,:])
+        with np.errstate(divide='ignore',invalid='ignore'):
+            t = cross2D(starts[np.newaxis,:,:] - p,edges[np.newaxis,:,:])/denom
+            u = cross2D(starts[np.newaxis,:,:] - p,d)/denom
+        near[k:k+chunk] = np.any((denom != 0) & (u >= -1e-9) & (u <= 1 + 1e-9) & (t >= -1e-9) & (t <= 1 + 1e-9),axis=1)
+    near |= vertex_on[pairs[:,0]] | vertex_on[pairs[:,1]] # ends on the boundary within tol
+
+    finite_ridges = []
+    cut_vertex = [] # Voronoi vertex inside the polygon of each cut ridge
+    cut_first = [] # whether that vertex is the first one of the cut ridge
+    cut_boundary = [] # index of the boundary point of each cut ridge
+    boundary_boundary = [] # ridges between two boundary points
+    boundary_points = []
+
+    def boundary_point(x):
+        boundary_points.append(x)
+        return len(boundary_points) - 1
+
+    def at_corner(x):
+        return np.min(np.sum((inside.polygon - x)**2,axis=1)) <= inside.tol**2
+
+    def inside_parts(p,d,tmax,start,end):
+        """Parts of p + t*d (0 <= t <= tmax) inside the polygon, each as a pair of ends; an end is the
+        index of the Voronoi vertex `start`/`end` when the part ends there, else a point on the boundary"""
+        breaks = np.concatenate(([0.0],_polygon_crossings(p,d,tmax,starts,edges),[tmax]))
+        parts = []
+        for t0, t1 in zip(breaks[:-1],breaks[1:]):
+            if t1 - t0 <= eps*tmax:
+                continue
+            if inside(p + d*(0.5*(t0+t1))):
+                # the same crossing found twice: same part; but with boundaryFlag, a wall touching a corner of
+                # the polygon from inside is cut there into two parts ending at the corner (a vertex of the mesh)
+                if parts and abs(parts[-1][1] - t0) <= eps*tmax and not (_is_on(boundaryFlag) and at_corner(p + d*t0)):
+                    parts[-1][1] = t1
+                else:
+                    parts.append([t0, t1])
+        ends = []
+        for t0, t1 in parts:
+            a = start if (t0 == 0 and start is not None and vertex_in[start]) else p + d*t0
+            b = end if (t1 == tmax and end is not None and vertex_in[end]) else p + d*t1
+            ends.append((a, b))
+        return ends
+
+    def add(a,b):
+        a_vertex, b_vertex = not isinstance(a,np.ndarray), not isinstance(b,np.ndarray)
+        if a_vertex and b_vertex:
+            finite_ridges.append(np.array([a, b]))
+        elif a_vertex or b_vertex:
+            cut_vertex.append(a if a_vertex else b)
+            cut_first.append(a_vertex)
+            cut_boundary.append(boundary_point(b if a_vertex else a))
+        elif _is_on(boundaryFlag): # without the walls along the boundary it would be a loose piece
+            boundary_boundary.append([boundary_point(a), boundary_point(b)])
+
+    for k, (pointidx, simplex) in enumerate(zip(vor.ridge_points,ridge_vertices)):
+        if finite[k]:
+            if not near[k]:
+                if vertex_in[simplex[0]] and vertex_in[simplex[1]]:
+                    finite_ridges.append(simplex)
+                continue
+            p = vertices[simplex[0]]
+            for a, b in inside_parts(p,vertices[simplex[1]] - p,1.0,simplex[0],simplex[1]):
+                add(a,b)
+        else: # infinite Voronoi ridge: a ray from its finite vertex, facing outwards
+            i = simplex[simplex >= 0][0]
+            tangent = circles[pointidx[1],0:2] - circles[pointidx[0],0:2]
+            tangent = tangent/np.linalg.norm(tangent)
+            normal = np.array([-tangent[1], tangent[0]])
+            midpoint = circles[pointidx,0:2].mean(axis=0) # midpoint between site points
+            if np.dot(midpoint - generation_center, normal) < 0:
+                normal = -normal
+            p = vertices[i]
+            crossings = _polygon_crossings(p,normal,np.inf,starts,edges)
+            if len(crossings) == 0:
+                continue
+            for a, b in inside_parts(p,normal,crossings[-1] + inside.scale,i,None):
+                add(a,b) if simplex[0] >= 0 else add(b,a)
+
+    if len(finite_ridges) == 0:
+        raise ValueError('No Voronoi ridge has both ends strictly inside the clipping polygon: the polygon holds no '
+                         'complete cell wall (it is only a few cells large or one cell wide, or outside the cells); '
+                         'please check the generation and clipping box parameters.')
+    finite_ridges = np.asarray(finite_ridges,dtype=int).reshape(-1,2)
+    nfinite_ridge = finite_ridges.shape[0]
+
+    # unique vertices inside the polygon (vertices with identical coordinates are merged)
+    used_vertices = np.concatenate((finite_ridges.ravel(),np.asarray(cut_vertex,dtype=int)))
+    voronoi_vertices_in, inverse = np.unique(vertices[used_vertices],axis=0,return_inverse=True)
+    inverse = inverse.reshape(-1)
+    nvertices_in = voronoi_vertices_in.shape[0]
+    finite_ridges_new = inverse[:2*nfinite_ridge].reshape(-1,2)
+
+    # boundary points at the same place (walls meeting on the boundary at a Voronoi vertex, or cut at a
+    # corner) become one point; with boundaryFlag on, a point at a corner of the polygon is that corner
+    boundary_points = np.asarray(boundary_points,dtype=float).reshape(-1,2)
+    corners = inside.polygon if _is_on(boundaryFlag) else np.zeros((0,2))
+    candidates = np.vstack((boundary_points,corners))
+    close = cKDTree(candidates).query_pairs(r=inside.tol,output_type='ndarray')
+    group = np.arange(len(candidates))
+    if len(close):
+        from scipy.sparse import coo_matrix
+        from scipy.sparse.csgraph import connected_components
+        graph = coo_matrix((np.ones(len(close)),(close[:,0],close[:,1])),shape=(len(candidates),)*2)
+        group = connected_components(graph,directed=False)[1]
+    corner_of_group = np.full(len(candidates),-1)
+    corner_of_group[group[len(boundary_points):]] = np.arange(len(corners))
+    first = np.unique(group[:len(boundary_points)],return_index=True)[1] # first point of each group, in order
+    kept = np.sort(first[corner_of_group[group[first]] < 0])
+    ncut = len(kept)
+    new_index = np.full(len(candidates),-1)
+    new_index[group[kept]] = np.arange(ncut)
+    corner_groups = corner_of_group >= 0
+    new_index[np.nonzero(corner_groups)[0]] = ncut + corner_of_group[corner_groups]
+    point_index = new_index[group[:len(boundary_points)]] # index of each boundary point among [kept, corners]
+    boundary_points = boundary_points[kept]
+
+    cut_inside = inverse[2*nfinite_ridge:]
+    cut_point = nvertices_in + point_index[np.asarray(cut_boundary,dtype=int)]
+    cut_ridges = np.where(np.asarray(cut_first,dtype=bool)[:,np.newaxis],
+                          np.column_stack((cut_inside,cut_point)),
+                          np.column_stack((cut_point,cut_inside))).reshape(-1,2)
+    boundary_boundary = nvertices_in + point_index[np.asarray(boundary_boundary,dtype=int).reshape(-1,2)]
+    boundary_boundary = boundary_boundary[boundary_boundary[:,0] != boundary_boundary[:,1]] # both ends at one point
+    infinite_ridges_new = np.vstack((cut_ridges,boundary_boundary)).astype(int)
+
+    if _is_on(boundaryFlag):
+        boundary_points_featured = np.reshape(np.asarray([x[1][0] for x in boundaries],dtype=float),(-1,2))
+        boundary_points = np.vstack((boundary_points,boundary_points_featured))
+    else:
+        boundary_points_featured = np.zeros((0,2))
+
+    if plot:
+        _plot_segments(vertices[finite_ridges],'k',linewidth=1)
+        if len(infinite_ridges_new) > 0:
+            all_points = np.vstack((voronoi_vertices_in,boundary_points))
+            _plot_segments(all_points[infinite_ridges_new],'k',linewidth=1)
+
+    return voronoi_vertices_in,boundary_points,boundary_points_featured,ncut,\
+        finite_ridges,finite_ridges_new,infinite_ridges_new
+
+
 def _plot_segments(segments,color,linestyle='-',linewidth=None):
     """
     Draw line segments (array of shape (n,2,2)) in the current axes as one LineCollection,
@@ -683,6 +1021,8 @@ def _clip_voronoi(vor,circles,boundaries,generation_center,inside,boundaryFlag,p
     finite_ridges_new :: ridges inside the box (indices of voronoi_vertices_in)
     infinite_ridges_new :: cut ridges (indices of [voronoi_vertices_in, boundary_points])
     """
+    if isinstance(inside,_PolygonInside):
+        return _clip_voronoi_polygon(vor,circles,boundaries,generation_center,inside,boundaryFlag,plot)
     generation_center = np.asarray(generation_center)
     vertex_in = np.array([inside(vertex) for vertex in vor.vertices],dtype=bool)
 
@@ -828,9 +1168,153 @@ def _replace_merged_indices(ridge_lists,pairs,merged_indices,lo,hi):
     return replaced_lists
 
 
+def _rebuild_voronoi_merge_polygon(vor,circles,boundaries,generation_center,inside,merge_tol,boundaryFlag):
+    """
+    RebuildVoronoi_merge for box_shape 'polygon' (any simple polygon, also non-convex). As for the other
+    shapes, vertices of the clipped mesh closer than merge_tol are fused: two vertices inside the polygon at
+    their midpoint (Case 1), two neighbouring boundary points along the perimeter at their midpoint (Case 2)
+    or onto a corner, and a vertex inside onto a boundary point or a corner (Case 3); without boundaryFlag
+    only Case 1. Here the closest pairs go first, until no pair is left, and the fused vertices are not
+    rounded. A fusion is skipped when the fused vertex or one of its walls would leave the polygon (across
+    a notch, a neck or a reflex corner), so the walls stay in the polygon and the corners stay in place.
+    """
+    flag = _is_on(boundaryFlag)
+    [voronoi_vertices_in,boundary_points,boundary_points_featured,ncut,\
+     finite_ridges,finite_ridges_new,infinite_ridges_new] = \
+        _clip_voronoi_polygon(vor,circles,boundaries,generation_center,inside,boundaryFlag)
+    nin = voronoi_vertices_in.shape[0]
+    position = np.vstack((voronoi_vertices_in,boundary_points))
+    kind = np.zeros(len(position),dtype=int) # 0 inside, 1 on an edge, 2 corner (boundaryFlag on)
+    kind[nin:] = 1
+    kind[nin+ncut:] = 2
+
+    if flag:
+        chain = _boundary_ridges_along_perimeter(boundary_points,boundaries) + nin
+    else:
+        chain = np.zeros((0,2),dtype=int)
+    walls = np.vstack((finite_ridges_new,infinite_ridges_new,chain)).astype(int).tolist()
+    group = [0]*len(finite_ridges_new) + [1]*len(infinite_ridges_new) + [2]*len(chain) # finite, cut, boundary
+    alive_wall = [True]*len(walls)
+    incident = [set() for _ in range(len(position))]
+    wall_of = {} # (smaller, larger vertex) -> wall
+    for w, (a, b) in enumerate(walls):
+        key = (min(a,b),max(a,b))
+        if key in wall_of: # the same wall twice: keep one
+            group[wall_of[key]] = max(group[wall_of[key]],group[w])
+            alive_wall[w] = False
+            continue
+        wall_of[key] = w
+        incident[a].add(w)
+        incident[b].add(w)
+    alive = np.ones(len(position),dtype=bool)
+    # a lower bound of each vertex's distance to the boundary: a disk of that radius around it is in the polygon
+    clearance = np.where(kind == 0,inside.distance(position),0.0)
+
+    def neighbours(v):
+        return {walls[w][0] if walls[w][1] == v else walls[w][1] for w in incident[v]}
+
+    def plan(u,v):
+        """(kept vertex, fused vertex, position and clearance of the kept vertex) or None if u and v are not
+        fused"""
+        if kind[u] < kind[v]:
+            u, v = v, u
+        if kind[v] == 2 or (not flag and kind[u] > 0):
+            return None
+        margin = 0.0
+        if kind[v] == 1: # two points on the perimeter, neighbours along it (Case 2, or onto a corner)
+            w = wall_of.get((min(u,v),max(u,v)))
+            if w is None or group[w] != 2:
+                return None
+            target = position[u] if kind[u] == 2 else 0.5*(position[u] + position[v])
+        elif kind[u] > 0: # a vertex inside onto a boundary point or a corner (Case 3)
+            target = position[u]
+        else:
+            target = 0.5*(position[u] + position[v])
+            margin = max(clearance[u],clearance[v]) - 0.5*np.linalg.norm(position[u] - position[v])
+        others = list((neighbours(u) | neighbours(v)) - {u,v})
+        if margin > 0 and (not others or np.linalg.norm(position[others] - target,axis=1).max() < margin):
+            return u, v, target, margin # the fused vertex and its walls lie in a disk inside the polygon
+        if kind[u] == 0:
+            if not inside(target):
+                return None
+            margin = inside.distance(target)[0]
+        if others and not inside.segments_within(np.tile(target,(len(others),1)),position[others]).all():
+            return None
+        # a moved wall that is not a wall along the boundary must not touch the boundary between its ends (it
+        # would lie along an edge over other boundary vertices, or pass through a corner)
+        rest = [o for o in others if not any(group[wall_of[(min(x,o),max(x,o))]] == 2
+                                             for x in (u,v) if (min(x,o),max(x,o)) in wall_of)]
+        if rest and not inside.segments_inside(np.tile(target,(len(rest),1)),position[rest]).all():
+            return None
+        return u, v, target, margin
+
+    def fuse(u,v,target,margin):
+        position[u] = target
+        clearance[u] = margin
+        alive[v] = False
+        for w in list(incident[v]):
+            other = walls[w][0] if walls[w][1] == v else walls[w][1]
+            incident[v].discard(w)
+            del wall_of[(min(v,other),max(v,other))]
+            if other == u: # the wall between them
+                alive_wall[w] = False
+                incident[u].discard(w)
+                continue
+            existing = wall_of.get((min(u,other),max(u,other)))
+            if existing is not None: # u and v were both joined to other: one wall
+                group[existing] = max(group[existing],group[w])
+                alive_wall[w] = False
+                incident[other].discard(w)
+            else:
+                walls[w] = [u if x == v else x for x in walls[w]]
+                wall_of[(min(u,other),max(u,other))] = w
+                incident[u].add(w)
+
+    while True:
+        rows = np.nonzero(alive)[0]
+        pairs = rows[cKDTree(position[rows]).query_pairs(r=merge_tol,output_type='ndarray')].reshape(-1,2)
+        order = np.argsort(np.linalg.norm(position[pairs[:,0]] - position[pairs[:,1]],axis=1),kind='stable')
+        nfused = 0
+        for u, v in pairs[order].tolist():
+            if alive[u] and alive[v] and np.linalg.norm(position[u] - position[v]) <= merge_tol:
+                fusion = plan(u,v)
+                if fusion is not None:
+                    fuse(*fusion)
+                    nfused += 1
+        if nfused == 0:
+            break
+
+    live = [w for w in range(len(walls)) if alive_wall[w]]
+    walls = np.asarray([walls[w] for w in live],dtype=int).reshape(-1,2)
+    group = np.asarray([group[w] for w in live],dtype=int)
+    used = np.unique(walls)
+    voronoi_vertices = np.unique(position[used],axis=0)
+    index_vertices = _PointIndex(voronoi_vertices)
+    walls = index_vertices.lookup(position[walls]).reshape(-1,2)
+    finite_ridges_new = walls[group == 0]
+    if len(finite_ridges_new) == 0:
+        raise ValueError('No cell wall with both ends inside the clipping polygon is left after the merge: the '
+                         'polygon is too small or too narrow for merge_tol = {}.'.format(merge_tol))
+    boundary_ridges_new = np.vstack((walls[group == 1],walls[group == 2]))
+    voronoi_ridges = np.vstack((finite_ridges_new,boundary_ridges_new))
+    _plot_segments(voronoi_vertices[voronoi_ridges],'g',linestyle='--')
+
+    on_boundary = used[kind[used] > 0]
+    boundary_points = np.unique(position[on_boundary],axis=0)
+    nvertex = voronoi_vertices.shape[0]
+    # vertices on the polygon's perimeter (with boundaryFlag, the ends of the walls along it), the others inside
+    nboundary_pts = np.unique(walls[group == 2]).shape[0] if flag else boundary_points.shape[0]
+    nvertices_in = nvertex - nboundary_pts
+    return voronoi_vertices,finite_ridges,boundary_points,finite_ridges_new,\
+           boundary_ridges_new,nvertex,nvertices_in,finite_ridges_new.shape[0],boundary_ridges_new.shape[0],\
+           nboundary_pts,boundary_points_featured.shape[0],voronoi_ridges,voronoi_ridges.shape[0]
+
+
 def RebuildVoronoi_merge(vor,circles,boundaries,generation_center,x_min,x_max,y_min,y_max,box_center,box_shape,merge_tol,boundaryFlag):
     """Clip Voronoi mesh by the boundaries, merge short Voronoi ridges, and rebuild the new Voronoi mesh"""
     inside = _inside_clip_box(box_shape,boundaries,x_min,x_max,y_min,y_max,box_center)
+    if isinstance(inside,_PolygonInside):
+        return _rebuild_voronoi_merge_polygon(vor,circles,boundaries,generation_center,inside,merge_tol,boundaryFlag)
     [voronoi_vertices_in,boundary_points,boundary_points_featured,nboundary_pts_ini,\
      finite_ridges,finite_ridges_new,infinite_ridges_new] = \
         _clip_voronoi(vor,circles,boundaries,generation_center,inside,boundaryFlag)
@@ -2413,27 +2897,34 @@ def StlModelFile(geoName,path='meshes'):
     stlWriter.Write()
 
 
-def ModelInfo(box_shape,boundary_points,z_min,z_max,skeleton_density,MeshData):
+def ModelInfo(box_shape,boundary_points,z_min,z_max,skeleton_density,MeshData,polygon=None):
 
     """Calculate the material properties of generated geometry
 
     Arguments:
     ---------
+    polygon :: vertices of the clipping polygon (box_shape 'polygon'): the bulk volume is its area times
+        (z_max - z_min), with or without boundaryFlag; for the other shapes it is the convex hull of the
+        boundary points (without the box corners when boundaryFlag is off) times (z_max - z_min)
 
     Returns
     -------
     total mass, bulk volume, bulk density, and porosity of the model
     """
-    
+
     mass = 0
     
     for i in range(0,MeshData.shape[0]):
         mass += skeleton_density*MeshData[i,11]*MeshData[i,12]*np.linalg.norm(MeshData[i,5:8] - MeshData[i,8:11])
 
     
-    hull = ConvexHull(boundary_points)
+    if polygon is not None: # area of the clipping polygon (the convex hull is too big if it is not convex)
+        polygon = np.asarray(polygon,dtype=float)
+        area = 0.5*abs(np.sum(cross2D(polygon,np.roll(polygon,-1,axis=0))))
+    else:
+        area = ConvexHull(boundary_points).volume
     
-    volume = (z_max-z_min)*hull.volume
+    volume = (z_max-z_min)*area
 
     bulk_density = mass/volume
     
@@ -2451,7 +2942,7 @@ def LogFile(geoName,iter_max,r_min,r_max,nrings,width_heart,width_sparse,width_d
         NURBS_degree,nctrlpt_per_beam,nconnector_t_precrack,nconnector_l_precrack,\
         nParticles,nbeamElem,skeleton_density,mass,volume,density,porosity,\
         stlFlag,inpFlag,inpType,radial_growth_rule,\
-        startTime,placementTime,voronoiTime,RebuildvorTime,BeamTime,FileTime,path='meshes',seed=None):
+        startTime,placementTime,voronoiTime,RebuildvorTime,BeamTime,FileTime,path='meshes',seed=None,box_polygon=None):
 
     """Generate the log file (geoName.log file) for the generation procedure.
 
@@ -2508,6 +2999,8 @@ def LogFile(geoName,iter_max,r_min,r_max,nrings,width_heart,width_sparse,width_d
     logfile.write('box_shape:                               ' + str(box_shape) + '\n')
     logfile.write('box_center:                              ' + str(box_center) + '\n')
     logfile.write('box_size:                                ' + str(box_size) + '\n')
+    if box_polygon is not None:
+        logfile.write('box_polygon:                             ' + str([[float(x), float(y)] for x, y in box_polygon]) + '\n')
     logfile.write('precrackFlag:                            ' + _flag_text(precrackFlag) + '\n')
     if _is_on(precrackFlag):
         logfile.write('\n')

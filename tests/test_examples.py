@@ -22,7 +22,7 @@ examples = pytest.mark.parametrize("toml", EXAMPLES, ids=[p.stem for p in EXAMPL
 
 def test_examples_found():
     assert {p.stem for p in EXAMPLES} >= {"wood_cube", "wood_cube_lloyd", "honeycomb_hex", "honeycomb_tri",
-                                          "saved_sites"}
+                                          "saved_sites", "dogbone"}
 
 
 @pytest.fixture(scope="module")
@@ -79,7 +79,8 @@ def test_example_vertices_inside_box(toml, generated):
     config = result.config
     vertices = np.loadtxt(result.output_dir / (config.geoName + "-vertex.mesh"), skiprows=6, usecols=(0, 1))
     assert len(vertices) > 0
-    *_, polygon, _ = rpgen.Clipping_Box(config.box_shape, config.box_center, config.box_size, config.boundaryFlag)
+    *_, polygon, _ = rpgen.Clipping_Box(config.box_shape, config.box_center, config.box_size, config.boundaryFlag,
+                                        polygon=config.box_polygon)
     assert inside_polygon(vertices, polygon, tol=1e-6).all()
     if not config.boundaryFlag:
         return

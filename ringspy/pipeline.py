@@ -115,7 +115,8 @@ def _generate(c):
     # ==================================================================
     # Clipping box (boundaries) of the model
     x_min, x_max, y_min, y_max, boundaries, boundary_points, boundarylines = \
-        rpgen.Clipping_Box(c.box_shape, c.box_center, c.box_size, c.boundaryFlag)
+        rpgen.Clipping_Box(c.box_shape, c.box_center, c.box_size, c.boundaryFlag, polygon=c.box_polygon)
+    box_corners = boundary_points
 
     # Visualize the original 2D Voronoi diagram
     vor = Voronoi(sites[:, 0:2])
@@ -209,7 +210,8 @@ def _generate(c):
     # ==================================================================
     # Calculate model properties
     [mass, bulk_volume, bulk_density, porosity] = \
-        rpgen.ModelInfo(c.box_shape, boundary_points, c.z_min, c.z_max, c.skeleton_density, ConnMeshData)
+        rpgen.ModelInfo(c.box_shape, boundary_points, c.z_min, c.z_max, c.skeleton_density, ConnMeshData,
+                        polygon=box_corners if c.box_shape in rpgen.POLYGON_SHAPES else None)
 
     # ==================================================================
     # Bezier extraction
@@ -260,7 +262,7 @@ def _generate(c):
                   nParticles, nbeamElem, c.skeleton_density, mass, bulk_volume, bulk_density, porosity,
                   c.stlFlag, c.inpFlag, c.inpType, c.radial_growth_rule,
                   startTime, placementTime, voronoiTime, RebuildvorTime, BeamTime, FileTime,
-                  path=path, seed=c.seed)
+                  path=path, seed=c.seed, box_polygon=c.box_polygon)
 
     return Result(config=c, output_dir=output_dir, files=sorted(output_dir.iterdir()), sites=sites, radii=radii,
                   nParticles=nParticles, nbeamElem=nbeamElem, mass=mass, bulk_volume=bulk_volume,

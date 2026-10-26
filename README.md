@@ -7,7 +7,7 @@
 [![codecov](https://codecov.io/gh/kingyin3613/ringspy/branch/main/graph/badge.svg?token=4AZN3HGGET)](https://codecov.io/gh/kingyin3613/ringspy)
 [![DOI](https://joss.theoj.org/papers/10.21105/joss.04945/status.svg)](https://doi.org/10.21105/joss.04945)
 
-![RingsPy: cell seeds placed ring by ring, Voronoi tessellation, clipping to a hexagon and extrusion with a twist into a 3D cellular mesh, exported for ParaView, 3D printing and Abaqus](./contents/ringspy_hero.gif)
+![RingsPy: cell seeds placed ring by ring, Voronoi tessellation, clipping to any polygon (a dog-bone, a star, an irregular polygon, a hexagon) and extrusion with a twist into a 3D cellular mesh, exported for ParaView, 3D printing and Abaqus](./contents/ringspy_hero.gif)
 
 RingsPy is a Voronoi diagrams-based geometric generation tool that generates 3D meshes and models of prismatic cellular solids with radial growth rules.
 
@@ -54,9 +54,9 @@ Once all required components are installed and one is ready to begin, a path for
 The first step to generate a cellular geometry is selecting geometry and appropriate parameters. 
 
 ### 1.1. Geometry
-An input file in [TOML](https://toml.io) format, for example [`wood_cube.toml`](https://github.com/kingyin3613/ringspy/tree/main/examples/wood_cube.toml) in the [examples](https://github.com/kingyin3613/ringspy/tree/main/examples/) directory, holds the parameters for the generation of a cubic wood specimen. The other examples there are a wood specimen with more regular cells (`wood_cube_lloyd.toml`), honeycombs clipped by a hexagon or a triangle (`honeycomb_hex.toml`, `honeycomb_tri.toml`), and a mesh of previously saved cells (`saved_sites.toml`). Copy the one closest to the wanted geometry and edit it.
+An input file in [TOML](https://toml.io) format, for example [`wood_cube.toml`](https://github.com/kingyin3613/ringspy/tree/main/examples/wood_cube.toml) in the [examples](https://github.com/kingyin3613/ringspy/tree/main/examples/) directory, holds the parameters for the generation of a cubic wood specimen. The other examples there are a wood specimen with more regular cells (`wood_cube_lloyd.toml`), honeycombs clipped by a hexagon or a triangle (`honeycomb_hex.toml`, `honeycomb_tri.toml`), a dog-bone tensile specimen clipped by a polygon (`dogbone.toml`), and a mesh of previously saved cells (`saved_sites.toml`). Copy the one closest to the wanted geometry and edit it.
 
-*Note: The Mesh Generation Tool by now only accepts many of pre-defined boundary geometries (for v1.x, the following 3 shapes are supported: triangle, square, hexagon), importing of CAD and/or other 3D model files will be implemented in subsequent versions.*
+*Note: The Mesh Generation Tool accepts the pre-defined boundary geometries triangle, square and hexagon, and any simple polygon given by its vertices (`box_shape = "polygon"`); importing of CAD and/or other 3D model files will be implemented in subsequent versions.*
 
 *Note: for greatest compatibility create the geometry using all millimeters.*
 
@@ -89,7 +89,7 @@ cellwallthickness_dense = 0.010
 
 # Clipping box
 boundaryFlag = true
-box_shape = "square"            # square, triangle or hexagon
+box_shape = "square"            # square, triangle, hexagon or polygon (see box_polygon)
 box_center = [0, 0]             # coordinates of clipping box center
 box_size = 4.0                  # side length
 
@@ -130,8 +130,9 @@ A parameter that is left out takes its default value, which is its value in `woo
 - `generation_center` is the location of the placement region.
 - `cellsize_sparse`,`cellsize_dense`, `cellwallthickness_sparse`, and `cellwallthickness_dense` are parameters for the sparse and dense cells.
 - `boundaryFlag` flag can be turned on/off for generating neat boundaries consisting of grains.
-- `box_shape` is the shape of cutting box (for v1.x, choose one of following shapes: `triangle`, `square`, or `hexagon`).
-- `box_center`, and `box_size` are for describing the cutting box.
+- `box_shape` is the shape of cutting box: `square`, `triangle`, `hexagon`, or `polygon`.
+- `box_center`, and `box_size` are for describing the cutting box (square, triangle and hexagon).
+- `box_polygon` gives the vertices `[[x1, y1], [x2, y2], ...]` of the cutting box for `box_shape = "polygon"`: any simple polygon, convex or not (e.g. a dog-bone specimen, see [examples/dogbone.toml](./examples/dogbone.toml)), with its vertices in either direction around it. Without `z_max`, the specimen is as long as the polygon's largest width; pre-cracks need `precrack_nodes`. As for the triangle, the `.inp` file gets only the set of all nodes, no node sets for the sides of the box (those are written for `box_shape = "square"`, and for a hexagon whose `geoName` contains `hydrostatic_` or `uniaxial_`). Keep `boundaryFlag = true` for a non-convex polygon: without the walls along the boundary, a part narrower than about a cell (a sharp tip, say) can give loose pieces. With `merge_operation`, a merge that would move a wall out of the polygon (across a notch narrower than `merge_tol`, say) is skipped, and the corners never move, so polygon edges shorter than `merge_tol` stay as short walls: simplify a finely digitised outline first.
 - `nsegments` is the number of segments consisting the prismatic cells during the z- (longitudinal) extrusion, with `segment_length = (z_max - z_min) / nsegments`.
 - `theta_min` and `theta_max` determine the twisting angles (unit: radian) of the 2D mesh around the `generation_center`, during the spiral z-extrusion.
 - `z_min` and `z_max` determine the boundaries of prismatic cells in z- (longitudinal) direction.

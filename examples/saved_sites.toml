@@ -31,7 +31,7 @@ cellwallthickness_dense = 0.010
 
 # Clipping box
 boundaryFlag = true
-box_shape = "square"            # square, triangle or hexagon
+box_shape = "square"            # square, triangle, hexagon, or polygon with box_polygon (see dogbone.toml)
 box_center = [1.25, 0]          # coordinates of clipping box center
 box_size = 1.5                  # side length
 
