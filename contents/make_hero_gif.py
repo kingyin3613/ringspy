@@ -11,8 +11,9 @@ vtk, scipy and Pillow and an OpenGL context for off-screen rendering (about a mi
 the frames to <folder>/frames/ and the GIF next to this script, and checks the GIF (decoded frames, size).
 
 Story of the loop: the finished twisted log orbits while it is wiped from the .vtu colours to the .stl
-solid and the .inp mesh; cell seeds are placed ring by ring; Voronoi cell walls replace them, the camera
-zooms down to single cells and back; the hexagonal specimen is clipped; the camera tilts over it while it
+solid and the .inp mesh, where the orbit comes to rest; cell seeds are placed ring by ring; Voronoi cell
+walls replace them, the camera zooms down to single cells and back; the log is clipped with a dog-bone, a
+star and an irregular polygon, then the hexagonal specimen is clipped; the camera tilts over it while it
 is extruded layer by layer with the twist, and eases back into the orbit of the first frame.
 """
 
@@ -29,6 +30,18 @@ import numpy as np
 HERE = Path(__file__).resolve().parent
 TOML = HERE / 'hero_log.toml'
 GIF = HERE / 'ringspy_hero.gif'
+
+# Polygons the log is clipped with in turn before the hexagon of hero_log.toml (mm, pith at the origin):
+# a dog-bone tensile specimen, a star and an irregular polygon; all non-convex (box_shape = 'polygon')
+_star_angles = np.pi/2 + np.arange(10)*np.pi/5
+CLIP_POLYGONS = {
+    'dogbone': [[-5.0, -2.6], [-3.0, -2.6], [-2.0, -1.3], [2.0, -1.3], [3.0, -2.6], [5.0, -2.6],
+                [5.0, 2.6], [3.0, 2.6], [2.0, 1.3], [-2.0, 1.3], [-3.0, 2.6], [-5.0, 2.6]],
+    'star': np.column_stack((np.where(np.arange(10) % 2 == 0, 5.2, 2.3)*np.cos(_star_angles),
+                             np.where(np.arange(10) % 2 == 0, 5.2, 2.3)*np.sin(_star_angles))).round(4).tolist(),
+    'irregular': [[-4.6, -2.2], [-2.0, -4.3], [1.2, -3.4], [3.0, -4.6], [4.8, -1.6], [2.6, 0.4], [4.4, 3.0],
+                  [1.4, 4.6], [-0.8, 2.2], [-3.2, 4.2], [-4.9, 1.0]],
+}
 
 W, H = 800, 450           # GIF size (the layout below scales with W)
 K = W/800
@@ -68,6 +81,7 @@ def prepare(data, work):
                         thickness=np.array([c.cellwallthickness_sparse, c.cellwallthickness_dense]),
                         center=np.array(c.generation_center, dtype=float))
     check_latewood_walls(out / (name + '-vertex.mesh'), res.radii, c)
+    clipped_meshes(res, c, data / 'clips.npz')
     nfaces, levels = connector_volume_surface(out / (name + '_conns_vol.vtu'), data / 'conns_vol.vtp')
     nbeams, nconns = inp_lines(out / (name + '.inp'), data / 'inp_lines.vtp')
     info = dict(cells=int(res.nParticles), beam_elements=int(res.nbeamElem), porosity=float(res.porosity),
@@ -75,6 +89,30 @@ def prepare(data, work):
                 z_min=c.z_min, z_max=c.z_max, theta_max=c.theta_max)
     (data / 'info.json').write_text(json.dumps(info, indent=1))
     print('prepare done in {:.1f} s: {}'.format(time.time() - t0, info))
+
+
+def clipped_meshes(res, c, path):
+    """RingsPy's 2D mesh of the same log clipped with each of CLIP_POLYGONS and with the box of
+    hero_log.toml (the same functions as ringspy.generate: Clipping_Box and RebuildVoronoi(_merge))"""
+    import matplotlib.pyplot as plt
+    from scipy.spatial import Voronoi
+    from ringspy import MeshGenTools as rp
+    vor = Voronoi(res.sites[:, 0:2])
+    shapes = [(key, 'polygon', polygon) for key, polygon in CLIP_POLYGONS.items()] + [('box', c.box_shape, None)]
+    arrays = {}
+    for key, shape, polygon in shapes:
+        x_min, x_max, y_min, y_max, boundaries, corners, _ = \
+            rp.Clipping_Box(shape, c.box_center, c.box_size, c.boundaryFlag, polygon=polygon)
+        if c.merge_operation:
+            out = rp.RebuildVoronoi_merge(vor, res.sites, boundaries, c.generation_center, x_min, x_max, y_min, y_max,
+                                          c.box_center, shape, c.merge_tol, c.boundaryFlag)
+        else:
+            out = rp.RebuildVoronoi(vor, res.sites, boundaries, c.generation_center, x_min, x_max, y_min, y_max,
+                                    c.box_center, shape, c.boundaryFlag)
+        plt.close('all')
+        arrays['polygon_' + key], arrays['vertices_' + key], arrays['ridges_' + key] = corners, out[0], out[11]
+        print('clipped with {}: {} vertices, {} walls'.format(key, len(out[0]), len(out[11])))
+    np.savez_compressed(path, order=np.array(list(CLIP_POLYGONS) + ['box']), **arrays)
 
 
 def ring_bins(points, radii, center):
@@ -438,15 +476,21 @@ class Drawer2D:
         self.segments = segments[keep]
         mid = self.segments.mean(axis=1)
         self.mid_r = np.linalg.norm(mid - self.center, axis=1)
-        # RingsPy's rule: each vertex gets a thickness by its ring, odd bisect(radii, r) ->
-        # cellwallthickness_sparse (VertexandRidgeinfo), and a wall takes the thickness of its second
-        # vertex (ConnectorMeshFile); scipy's ridge order is kept by RingsPy for walls inside the box
-        r1 = np.linalg.norm(self.segments[:, 1] - self.center, axis=1)
-        odd = (np.searchsorted(self.radii, r1, side='right') % 2) == 1
-        self.thickness = np.where(odd, thick_sparse, thick_dense)
-        self.thick = self.thickness == max(thick_sparse, thick_dense)
+        self.thick_sparse, self.thick_dense = thick_sparse, thick_dense
+        self.thickness, self.thick = self.wall_thickness(self.segments)
         from matplotlib.path import Path as MplPath
         self.mid_inside = MplPath(self.polygon).contains_points(mid)
+
+    def wall_thickness(self, segments):
+        """RingsPy's rule: each vertex gets the thickness of its ring, bisect(radii, r) even (a ring placed
+        with cellsize_sparse) -> cellwallthickness_sparse, else cellwallthickness_dense (VertexandRidgeinfo),
+        and a wall takes the thickness of its second vertex (ConnectorMeshFile); scipy's ridge order is
+        kept by RingsPy for walls inside the box. Returns the thickness of each wall and whether it is
+        the thicker one."""
+        r1 = np.linalg.norm(segments[:, 1] - self.center, axis=1)
+        sparse = (np.searchsorted(self.radii, r1, side='right') % 2) == 0
+        thickness = np.where(sparse, self.thick_sparse, self.thick_dense)
+        return thickness, thickness == max(self.thick_sparse, self.thick_dense)
 
     def to_px(self, xy, view):
         """world (mm) -> supersampled pixels for a view (center_world, scale, center_px)"""
@@ -477,30 +521,41 @@ class Drawer2D:
         draw.ellipse((x - r, y - r, x + r, y + r), outline=GUIDE, width=SS)
 
     def walls(self, image, view, max_r=np.inf, only_inside=False, tint=1.0):
-        from PIL import ImageDraw
-        draw = ImageDraw.Draw(image)
+        """The walls of the whole log's Voronoi tessellation (with midpoint within max_r)"""
         sel = self.mid_r <= max_r
         if only_inside:
             sel &= self.mid_inside
-        p = self.to_px(self.segments[sel], view)
+        self.draw_walls(image, self.segments[sel], self.thickness[sel], self.thick[sel], view, tint)
+
+    def mesh(self, image, vertices, ridges, view, tint=1.0):
+        """The walls of a mesh made by RingsPy (vertices and ridges of RebuildVoronoi(_merge))"""
+        segments = vertices[ridges]
+        thickness, thick = self.wall_thickness(segments)
+        self.draw_walls(image, segments, thickness, thick, view, tint)
+
+    def draw_walls(self, image, segments, thickness, thick, view, tint):
+        from PIL import ImageDraw
+        draw = ImageDraw.Draw(image)
+        p = self.to_px(segments, view)
         # cull to the canvas
         lo, hi = p.min(axis=1), p.max(axis=1)
         on = (hi[:, 0] >= 0) & (lo[:, 0] <= W*SS) & (hi[:, 1] >= 0) & (lo[:, 1] <= H*SS)
         # walls thinner than a pixel are drawn 1 px wide; with tint = 1 their colour is mixed with the
         # background by the fraction of the pixel they cover, so the drawing has the true wall density
         # (as the 3D renders); with tint = 0 they are drawn in full colour, which reads better far away
-        px = self.thickness[sel]*view[1]*SS
+        px = thickness*view[1]*SS
         widths = np.maximum(np.rint(px), 1)
         cover = tint*np.minimum(px/widths, 1)[:, None] + (1 - tint)
-        colors = np.where(self.thick[sel][:, None], LATE, EARLY)
+        colors = np.where(thick[:, None], LATE, EARLY)
         fills = np.rint(np.array(BG) + cover*(colors - np.array(BG))).astype(int)
         for (a, b), w, c in zip(p[on], widths[on].astype(int), fills[on]):
             draw.line((a[0], a[1], b[0], b[1]), fill=tuple(c), width=int(w))
 
-    def outline(self, image, view, nedges):
+    def outline(self, image, view, nedges, polygon=None):
+        """The first nedges edges of the clipping polygon (default: the box of hero_log.toml)"""
         from PIL import ImageDraw
         draw = ImageDraw.Draw(image)
-        p = self.to_px(self.polygon, view)
+        p = self.to_px(self.polygon if polygon is None else polygon, view)
         for i in range(nedges):
             a, b = p[i], p[(i + 1) % len(p)]
             draw.line((a[0], a[1], b[0], b[1]), fill=LIGHT, width=2*SS)
@@ -579,16 +634,25 @@ def render_frames(data, frames_dir):
     t = time.time()
 
     # S1: the finished log orbits; wipes from the .vtu colours to the .stl solid and the .inp drawing.
-    # The caption switches when the wipe line passes the middle.
+    # The caption switches when the wipe line passes the middle. The orbit slows to a stop on the .inp
+    # drawing, which then stays still (still frames cost next to nothing in the GIF).
     views = {'vtu': r3d.solid_actor, 'stl': r3d.stl_actor, 'inp': r3d.line_actor}
     labels = {'vtu': '.vtu  for ParaView', 'stl': '.stl  for 3D printing', 'inp': '.inp  for Abaqus'}
     tagline = ['Generates 3D meshes', 'of cellular solids']
-    plan = [('vtu', 10, None), ('stl', 6, 'vtu'), ('stl', 8, None), ('inp', 6, 'stl'), ('inp', 8, None)]
+    plan = [('vtu', 10, None), ('stl', 6, 'vtu'), ('stl', 8, None), ('inp', 6, 'stl'), ('inp', 24, None)]
+    n_slow, n_still = 10, 14                    # the last 24 frames: slowing down, then still
+    speed = np.full(sum(n for _, n, _ in plan), step)
+    speed[-n_slow - n_still:-n_still] = [step*(1 - smoothstep((j + 1)/(n_slow + 1))) for j in range(n_slow)]
+    speed[-n_still:] = 0
+    azimuths = az0 + np.concatenate(([0.0], np.cumsum(speed[:-1])))
     k = 0
+    rendered = {}
     for kind, n, previous in plan:
         for i in range(n):
-            az = az0 + step*k
-            image = r3d.render(views[kind], el_hero, az, r3d.zmid)
+            az = azimuths[k]
+            key = (kind, az)
+            image = rendered[key] if key in rendered else r3d.render(views[kind], el_hero, az, r3d.zmid)
+            rendered = {key: image}
             shown = kind
             if previous:
                 old = r3d.render(views[previous], el_hero, az, r3d.zmid)
@@ -598,14 +662,13 @@ def render_frames(data, frames_dir):
             k += 1
     print('S1 done ({} frames, {:.0f} s)'.format(len(frames), time.time() - t))
 
-    # S2: the .inp drawing fades into the ring layout of the next scene while the orbit goes on
+    # S2: the still .inp drawing fades into the ring layout of the next scene
     r_log = np.linalg.norm(d2d.sites[:, :2] - d2d.center, axis=1).max()
     wide = (tuple(d2d.center), min(scale, 0.43*H/r_log), CENTER_PX)
     rings = d2d.canvas()
     for r in d2d.radii[1:]:
         d2d.guide_circle(rings, r, wide)
     for i in range(4):
-        image = r3d.render(r3d.line_actor, el_hero, az0 + step*(k + i), r3d.zmid)
         emit(blend(image, rings, (i + 1)/4), [], legend=False)
 
     # S3: RingsPy draws the ring radii first, then places the cell seeds ring by ring (real order)
@@ -661,19 +724,35 @@ def render_frames(data, frames_dir):
         image = d2d.canvas()
         d2d.walls(image, zoom_view(1 - ease_in_out_cubic((f + 1)/7), scale), tint=smoothstep((f + 1)/7))
         emit(image, close_caption, fills_canvas=True)
-    # (the walls outside the hexagon still reach the caption corner until they have faded)
-    caption = ['3  Clipped to', 'a hexagon']
-    for f in range(6):
-        image = walls_full.copy()
-        d2d.outline(image, full, f + 1)
-        emit(image, caption, fills_canvas=True)
+    # Clipping: the log is clipped with several polygons in turn, each time RingsPy's clipped mesh is shown
+    # over the dimmed log; the last one is the hexagon of hero_log.toml, whose outside then fades out.
+    # (the walls of the whole log reach the caption corner, so these frames get the caption backdrop)
+    caption = ['3  Clipped to', 'any polygon']
+    clips = np.load(data / 'clips.npz')
+    dimmed = blend(walls_full, d2d.canvas(), 0.8)
+    shown = walls_full                         # what the outline of the next polygon is traced over
+    n_trace, n_reveal, n_hold = 5, 3, 7
+    for key in clips['order']:
+        polygon = clips['polygon_' + key]
+        clipped = dimmed.copy()
+        d2d.mesh(clipped, clips['vertices_' + key], clips['ridges_' + key], full)
+        d2d.outline(clipped, full, len(polygon), polygon)
+        for f in range(n_trace):                # the previous clip fades while the new outline is traced
+            image = blend(shown, dimmed, (f + 1)/n_trace)
+            d2d.outline(image, full, int(math.ceil(len(polygon)*(f + 1)/n_trace)), polygon)
+            emit(image, caption, fills_canvas=True)
+        traced = blend(shown, dimmed, 1.0)
+        d2d.outline(traced, full, len(polygon), polygon)
+        for f in range(n_reveal):
+            emit(blend(traced, clipped, (f + 1)/n_reveal), caption, fills_canvas=True)
+        for f in range(n_hold):
+            emit(clipped, caption, fills_canvas=True)
+        shown = clipped
     inside = d2d.canvas()
-    d2d.walls(inside, full, only_inside=True)
-    d2d.outline(inside, full, 6)
-    outlined = walls_full.copy()
-    d2d.outline(outlined, full, 6)
+    d2d.mesh(inside, clips['vertices_box'], clips['ridges_box'], full)
+    d2d.outline(inside, full, len(clips['polygon_box']), clips['polygon_box'])
     for f in range(4):
-        emit(blend(outlined, inside, (f + 1)/4), caption, fills_canvas=f < 3)
+        emit(blend(shown, inside, (f + 1)/4), caption, fills_canvas=f < 3)
     slab = r3d.render(r3d.layer_actor(r3d.levels[0]), 90.0, -90.0, 0.0)
     for f in range(4):
         emit(blend(inside, slab, (f + 1)/4), caption)
