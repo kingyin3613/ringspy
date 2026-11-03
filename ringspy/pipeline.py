@@ -81,28 +81,7 @@ def _generate(c):
 
     # ==================================================================
     # Place cells with a specific radial growth pattern
-    if c.radial_growth_rule == 'binary':
-        # binary radial growth pattern (e.g. wood microstructure with earlywood-latewood alternations)
-        sites, radii = rpgen.CellPlacement_Binary(c.generation_center, c.r_max, c.r_min, c.nrings, c.width_heart,
-                                                  c.width_sparse, c.width_dense, c.cellsize_sparse, c.cellsize_dense,
-                                                  c.iter_max, c.print_interval, rng=rng)
-    elif c.radial_growth_rule == 'binary_lloyd':
-        # binary with Lloyd's algorithm (more regular cell shapes)
-        sites, radii = rpgen.CellPlacement_Binary_Lloyd(geoName, path, c.generation_center, c.r_max, c.r_min,
-                                                        c.nrings, c.width_heart, c.width_sparse, c.width_dense,
-                                                        c.cellsize_sparse, c.cellsize_dense, c.iter_max,
-                                                        c.print_interval, rng=rng)
-    elif c.radial_growth_rule == 'regular_hexagonal':
-        # hexagonal honeycomb-like geometry
-        sites, radii = rpgen.CellPlacement_Honeycomb(c.generation_center, c.r_max, c.r_min, c.nrings,
-                                                     c.box_center, c.box_size, c.width_heart,
-                                                     c.width_sparse, c.width_dense,
-                                                     c.cellsize_sparse, c.cellsize_dense,
-                                                     c.cellwallthickness_sparse, c.cellwallthickness_dense,
-                                                     c.iter_max, c.print_interval, rng=rng)
-    else:
-        # load saved cell sites and radii data
-        sites, radii = rpgen.ReadSavedSites(Path(c.sites_dir or '.'), c.radial_growth_rule)
+    sites, radii = place_cells(c, rng)
 
     placementTime = time.time()
     nParticles = len(sites)
@@ -267,6 +246,35 @@ def _generate(c):
     return Result(config=c, output_dir=output_dir, files=sorted(output_dir.iterdir()), sites=sites, radii=radii,
                   nParticles=nParticles, nbeamElem=nbeamElem, mass=mass, bulk_volume=bulk_volume,
                   bulk_density=bulk_density, porosity=porosity)
+
+
+def place_cells(c, rng=None):
+    """The cell sites (one row (x, y, cell size) per cell) and growth ring radii of a resolved Config:
+    placed with its radial growth rule, or loaded from its *_sites.npy file"""
+    geoName, path = c.geoName, c.path
+    if c.radial_growth_rule == 'binary':
+        # binary radial growth pattern (e.g. wood microstructure with earlywood-latewood alternations)
+        sites, radii = rpgen.CellPlacement_Binary(c.generation_center, c.r_max, c.r_min, c.nrings, c.width_heart,
+                                                  c.width_sparse, c.width_dense, c.cellsize_sparse, c.cellsize_dense,
+                                                  c.iter_max, c.print_interval, rng=rng)
+    elif c.radial_growth_rule == 'binary_lloyd':
+        # binary with Lloyd's algorithm (more regular cell shapes)
+        sites, radii = rpgen.CellPlacement_Binary_Lloyd(geoName, path, c.generation_center, c.r_max, c.r_min,
+                                                        c.nrings, c.width_heart, c.width_sparse, c.width_dense,
+                                                        c.cellsize_sparse, c.cellsize_dense, c.iter_max,
+                                                        c.print_interval, rng=rng)
+    elif c.radial_growth_rule == 'regular_hexagonal':
+        # hexagonal honeycomb-like geometry
+        sites, radii = rpgen.CellPlacement_Honeycomb(c.generation_center, c.r_max, c.r_min, c.nrings,
+                                                     c.box_center, c.box_size, c.width_heart,
+                                                     c.width_sparse, c.width_dense,
+                                                     c.cellsize_sparse, c.cellsize_dense,
+                                                     c.cellwallthickness_sparse, c.cellwallthickness_dense,
+                                                     c.iter_max, c.print_interval, rng=rng)
+    else:
+        # load saved cell sites and radii data
+        sites, radii = rpgen.ReadSavedSites(Path(c.sites_dir or '.'), c.radial_growth_rule)
+    return sites, radii
 
 
 def default_precrack_nodes(c, x_min):

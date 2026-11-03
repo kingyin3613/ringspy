@@ -1636,11 +1636,15 @@ def RidgeMidQuarterPts(voronoi_vertices,nvertex,nvertices_in,voronoi_ridges,\
 
 def VertexandRidgeinfo(all_pts_2D,all_ridges,npt_per_layer,npt_per_layer_normal,\
                        npt_per_layer_vtk,nridge,geoName,radii,generation_center,\
-                       cellwallthickness_sparse,cellwallthickness_dense,path='meshes'):
+                       cellwallthickness_sparse,cellwallthickness_dense,path='meshes',ridge_widths=None):
     
     """Generate the vertex and ridge info 
        Vertex info includes: coordinates, ridge indices, indices of another vertex for each ridge, ridge lengths, ridge angles, ridge width
-       Ridge info includes: 2 vertex indices, 2 mid point indices, 2 quarter point indices """
+       Ridge info includes: 2 vertex indices, 2 mid point indices, 2 quarter point indices
+
+       ridge_widths :: wall thickness of each ridge (array of nridge values), e.g. measured in a 3D image.
+       Default: the thickness of the growth ring (sparse/dense) the vertex lies in, the same for all
+       wings of a vertex."""
 
     
     # Calculate lengths of all Voronoi ridges
@@ -1655,12 +1659,17 @@ def VertexandRidgeinfo(all_pts_2D,all_ridges,npt_per_layer,npt_per_layer_normal,
     # thicknesses of all Voronoi vertices (here identical thickness for all wings belonging to the same vertex is assumed)
     vertex_cellwallthickness_2D = np.zeros(npt_per_layer)
     
-    vertex_distance2logcenter = np.linalg.norm(all_pts_2D - generation_center, axis=1) # calc distance between vertex and logcenter
-    for i in range(0,npt_per_layer):
-        if (bisect.bisect(radii,vertex_distance2logcenter[i]) % 2) == 0: # bisect = ring index + 1: even, sparse rings
-            vertex_cellwallthickness_2D[i] = cellwallthickness_sparse
-        else: # if even, dense cells
-            vertex_cellwallthickness_2D[i] = cellwallthickness_dense
+    if ridge_widths is None:
+        vertex_distance2logcenter = np.linalg.norm(all_pts_2D - generation_center, axis=1) # calc distance between vertex and logcenter
+        for i in range(0,npt_per_layer):
+            if (bisect.bisect(radii,vertex_distance2logcenter[i]) % 2) == 0: # bisect = ring index + 1: even, sparse rings
+                vertex_cellwallthickness_2D[i] = cellwallthickness_sparse
+            else: # if even, dense cells
+                vertex_cellwallthickness_2D[i] = cellwallthickness_dense
+    else:
+        ridge_widths = np.asarray(ridge_widths,dtype=float).reshape(-1)
+        if len(ridge_widths) != nridge:
+            raise ValueError('ridge_widths must have one value per ridge ({:d}), not {:d}'.format(nridge,len(ridge_widths)))
 #==================================================================================================
      
     # Find the wings (Voronoi ridges) of all vertices: the entries of all_ridges equal to
@@ -1682,7 +1691,10 @@ def VertexandRidgeinfo(all_pts_2D,all_ridges,npt_per_layer,npt_per_layer_normal,
     ridge_inices = wing_ridge
     another_vertex_inices = all_ridges[wing_ridge,1-wing_position]
     ridge_lengths = all_ridge_lengths[wing_ridge]/2
-    ridge_widths = vertex_cellwallthickness_2D[wing_vertex]
+    if ridge_widths is None:
+        ridge_widths = vertex_cellwallthickness_2D[wing_vertex]
+    else:
+        ridge_widths = ridge_widths[wing_ridge] # Case 2: the thickness of each wall (ridge)
     ridge_angles = all_ridge_angles[wing_ridge]+math.pi*(-direction.clip(max=0))
     ridge_directions = direction
     
@@ -1717,21 +1729,18 @@ Number of ridges\n'+ str(nridge) +
     return all_vertices_2D, max_wings, flattened_all_vertices_2D, all_ridges
 
 
-def GenerateBeamElement(NURBS_degree,nsegments,theta_min,theta_max,\
-                        z_min,z_max,long_connector_ratio,npt_per_layer,voronoi_vertices,\
-                        nvertex,voronoi_ridges,nridge,generation_center,all_vertices_2D,max_wings,\
-                        flattened_all_vertices_2D,all_ridges):
-    
+def LayerHeights(NURBS_degree,nsegments,theta_min,theta_max,z_min,z_max,long_connector_ratio):
+    """
+    Twist angle and height of every layer of control points of the extrusion: nctrlpt_per_beam
+    (= 2*NURBS_degree + 1) layers per segment, the layers at the segment interfaces repeated
+    and separated by the length of the longitudinal connectors.
 
-    nctrlpt_per_elem = NURBS_degree + 1
+    Returns theta, z_coord (arrays of nlayers values), nlayers and segment_length.
+    """
     nctrlpt_per_beam = 2*NURBS_degree + 1
-    
     nlayers = nctrlpt_per_beam*nsegments
     segment_length = (z_max - z_min) / nsegments
-    
-    nconnector_t_per_beam = int((nctrlpt_per_beam-1)/NURBS_degree+1)
-    nconnector_t_per_grain = int(nconnector_t_per_beam*nsegments)
-    
+
     theta = np.linspace(theta_min,theta_max,nlayers-(nsegments-1))
     z_coord = np.linspace(z_min,z_max,nlayers-(nsegments-1))
     connector_l_length = segment_length*long_connector_ratio
@@ -1744,9 +1753,35 @@ def GenerateBeamElement(NURBS_degree,nsegments,theta_min,theta_max,\
     for i in range(nlayers-(nsegments-1)-(nctrlpt_per_beam-1),1,-(nctrlpt_per_beam-1)):
         z_coord = np.insert(z_coord,i,z_coord[i-1])
         z_coord[i:] += connector_l_length
+    return theta,z_coord,nlayers,segment_length
+
+
+def GenerateBeamElement(NURBS_degree,nsegments,theta_min,theta_max,\
+                        z_min,z_max,long_connector_ratio,npt_per_layer,voronoi_vertices,\
+                        nvertex,voronoi_ridges,nridge,generation_center,all_vertices_2D,max_wings,\
+                        flattened_all_vertices_2D,all_ridges,layer_vertices=None):
+    """
+    Extrude the 2D mesh into the beams (grains) and connectors of the 3D lattice.
+
+    layer_vertices :: in-plane coordinates of the vertices in every layer of control points,
+        array of shape (nlayers, npt_per_layer, 2) with nlayers = (2*NURBS_degree+1)*nsegments (see
+        LayerHeights), e.g. the cell corners followed through a 3D image. Default: the 2D mesh rotated
+        around generation_center by the twist angles from theta_min to theta_max.
+    """
+
+    nctrlpt_per_elem = NURBS_degree + 1
+    nctrlpt_per_beam = 2*NURBS_degree + 1
+    
+    nconnector_t_per_beam = int((nctrlpt_per_beam-1)/NURBS_degree+1)
+    nconnector_t_per_grain = int(nconnector_t_per_beam*nsegments)
+
+    theta,z_coord,nlayers,segment_length = LayerHeights(NURBS_degree,nsegments,theta_min,theta_max,z_min,z_max,long_connector_ratio)
     
     # Data for IGA use
-    vertices_new = _rotate_layers(voronoi_vertices[np.arange(npt_per_layer)],theta[0:nlayers],z_coord[0:nlayers],generation_center)
+    if layer_vertices is None:
+        vertices_new = _rotate_layers(voronoi_vertices[np.arange(npt_per_layer)],theta[0:nlayers],z_coord[0:nlayers],generation_center)
+    else:
+        vertices_new = _layer_points_3D(layer_vertices,z_coord[0:nlayers],npt_per_layer)
     
     # Vertex Data for IGA
     IGAvertices = np.reshape(vertices_new,(-1,3))
@@ -1821,7 +1856,19 @@ def ConnectorMeshFile(geoName,IGAvertices,connector_t_bot_connectivity,\
                       connector_t_reg_connectivity,connector_t_top_connectivity,\
                       connector_l_connectivity,all_vertices_2D,\
                       max_wings,flattened_all_vertices_2D,nsegments,segment_length,\
-                      nctrlpt_per_beam,theta,nridge,connector_l_vertex_dict,path='meshes'):
+                      nctrlpt_per_beam,theta,nridge,connector_l_vertex_dict,path='meshes',\
+                      layer_vertices=None,connector_t_widths=None):
+    """
+    Write the connector data file geoName-mesh.txt and return the connector data (one row per
+    connector: nodes, center, the vectors from the center to the nodes, width and height).
+
+    layer_vertices :: the in-plane vertex coordinates of every layer (as for GenerateBeamElement):
+        the directions and lengths of the longitudinal connectors are then those of the cell walls
+        in their layer, instead of the 2D mesh rotated by theta.
+    connector_t_widths :: width (cell wall thickness) of every transverse connector, in the order
+        of the bot, reg and top connectivity arrays, e.g. measured layer by layer in a 3D image.
+        Default: the width of the ridge in the 2D mesh, the same in every layer.
+    """
 ######### txt File stores the connector data for Abaqus analyses ##############
     nelem_connector_t_bot = connector_t_bot_connectivity.shape[0]
     nelem_connector_t_reg = connector_t_reg_connectivity.shape[0]
@@ -1843,8 +1890,19 @@ def ConnectorMeshFile(geoName,IGAvertices,connector_t_bot_connectivity,\
     conn_l_lengths = np.tile(conn_l_lengths,nlayers_conn_l)
     conn_l_angles = np.tile(conn_l_angles,nlayers_conn_l)
     
-    for i in range(0,nlayers_conn_l):
-        conn_l_angles[i*2*nridge:(i+1)*2*nridge] = conn_l_angles[i*2*nridge:(i+1)*2*nridge] - theta[(i+1)*nctrlpt_per_beam]
+    if layer_vertices is None:
+        for i in range(0,nlayers_conn_l):
+            conn_l_angles[i*2*nridge:(i+1)*2*nridge] = conn_l_angles[i*2*nridge:(i+1)*2*nridge] - theta[(i+1)*nctrlpt_per_beam]
+    else: # directions and half lengths of the wings in the layer of each longitudinal connector
+        layer_vertices = np.asarray(layer_vertices,dtype=float)
+        nwings_per_vertex = all_vertices_2D[:,2].astype(int)
+        wing_vertex = np.repeat(np.arange(len(nwings_per_vertex)),nwings_per_vertex)
+        wing_other = flattened_all_vertices_2D[1,:].astype(int)
+        for i in range(0,nlayers_conn_l):
+            points = layer_vertices[min((i+1)*nctrlpt_per_beam,len(layer_vertices)-1)]
+            wing = points[wing_other] - points[wing_vertex]
+            conn_l_angles[i*2*nridge:(i+1)*2*nridge] = np.arctan2(wing[:,1],wing[:,0])
+            conn_l_lengths[i*2*nridge:(i+1)*2*nridge] = np.linalg.norm(wing,axis=1)/2
         
     rot = np.array([[np.cos(conn_l_angles), -np.sin(conn_l_angles)], [np.sin(conn_l_angles), np.cos(conn_l_angles)]]).T
     rot = np.hstack((rot[:,0,:],np.zeros(len(conn_l_angles))[:, np.newaxis])) # convert to 3D rotation matrix, assumes rotation remains still in-plane
@@ -1871,8 +1929,14 @@ def ConnectorMeshFile(geoName,IGAvertices,connector_t_bot_connectivity,\
     Meshdata[:,12:15] = Meshdata[:,6:9] - Meshdata[:,3:6]
 
     # Add z-variation/random field for cellwall thicknesses/connector widths
-    Meshdata[0:nridge,15] = all_vertices_2D[connector_t_bot_connectivity[0:nridge,1]-1,3+max_wings*3] # assign widths to all bot transverse connectors
-    Meshdata[:nelem_total-nelem_connector_l,15] = np.tile(Meshdata[0:nridge,15],3*nsegments) # use the same widths for reg and top transverse connectors
+    if connector_t_widths is None:
+        Meshdata[0:nridge,15] = all_vertices_2D[connector_t_bot_connectivity[0:nridge,1]-1,3+max_wings*3] # assign widths to all bot transverse connectors
+        Meshdata[:nelem_total-nelem_connector_l,15] = np.tile(Meshdata[0:nridge,15],3*nsegments) # use the same widths for reg and top transverse connectors
+    else: # widths given for every transverse connector (e.g. the wall thickness measured in every layer)
+        connector_t_widths = np.asarray(connector_t_widths,dtype=float).reshape(-1)
+        if len(connector_t_widths) != nelem_total-nelem_connector_l:
+            raise ValueError('connector_t_widths must have one value per transverse connector ({:d}), not {:d}'.format(nelem_total-nelem_connector_l,len(connector_t_widths)))
+        Meshdata[:nelem_total-nelem_connector_l,15] = connector_t_widths
     
     conn_l_widths = Meshdata[conn_l_ridge_index,15]
     Meshdata[nelem_total-nelem_connector_l:nelem_total,15] = conn_l_widths
@@ -1960,6 +2024,43 @@ def _rotate_layers(points,theta,z,origin):
     return layers
 
 
+def _layer_points_3D(layer_points,z,npoints):
+    """
+    3D coordinates (shape (nlayers, npoints, 3)) of given in-plane coordinates of the points of
+    every layer (shape (nlayers, npoints, 2)) at the heights z: the counterpart of _rotate_layers
+    for layers that are not a rotated copy of the 2D mesh.
+    """
+    layer_points = np.asarray(layer_points,dtype=float)
+    nlayers = len(z)
+    if layer_points.shape != (nlayers,npoints,2):
+        raise ValueError('layer coordinates must have the shape (nlayers, npoints, 2) = {}, not {}'.format((nlayers,npoints,2),layer_points.shape))
+    layers = np.empty((nlayers,npoints,3))
+    layers[:,:,0:2] = layer_points
+    layers[:,:,2] = np.asarray(z,dtype=float)[:,np.newaxis]
+    return layers
+
+
+def LayerPoints(layer_vertices,all_ridges,npt_per_layer_vtk):
+    """
+    In-plane coordinates of all points of every layer (vertices, ridge mid and quarter points;
+    shape (nlayers, npt_per_layer_vtk, 2)) from the vertex coordinates of every layer (shape
+    (nlayers, npt_per_layer, 2)), with the mid and quarter points placed on the ridges as
+    RidgeMidQuarterPts places them in the 2D mesh.
+    """
+    layer_vertices = np.asarray(layer_vertices,dtype=float)
+    all_ridges = np.asarray(all_ridges)
+    nlayers, npt_per_layer = layer_vertices.shape[0:2]
+    points = np.zeros((nlayers,npt_per_layer_vtk,2))
+    points[:,0:npt_per_layer] = layer_vertices
+    p1 = layer_vertices[:,all_ridges[:,0]]
+    p2 = layer_vertices[:,all_ridges[:,1]]
+    points[:,all_ridges[:,2]] = (p1 + p2)/2
+    points[:,all_ridges[:,3]] = (p1 + p2)/2
+    points[:,all_ridges[:,4]] = 3./4*p1 + 1./4*p2
+    points[:,all_ridges[:,5]] = 1./4*p1 + 3./4*p2
+    return points
+
+
 def _format_rows(array,row_format,join=True,chunk_rows=20000):
     """
     Text of a 1D or 2D array, one row_format line per row: the same as
@@ -2035,12 +2136,19 @@ def VisualizationFiles(geoName,NURBS_degree,nlayers,npt_per_layer_vtk,all_pts_2D
                        voronoi_ridges,generation_center,all_ridges,nvertex,\
                        nconnector_t,nconnector_l,nctrlpt_per_beam,ConnMeshData,\
                        conn_l_tangents,all_vertices_2D,max_wings,\
-                       flattened_all_vertices_2D,path='meshes',vtk_format='ascii'):
+                       flattened_all_vertices_2D,path='meshes',vtk_format='ascii',\
+                       layer_points=None,connector_t_tangents=None):
     """
     Write the Paraview files geoName_vertices.vtu, geoName_beams.vtu, geoName_conns.vtu
     and geoName_conns_vol.vtu. vtk_format = 'ascii' (default) writes text files,
     'binary' writes the data arrays as raw binary appended data (faster to write and
     read, about 3 times smaller).
+
+    layer_points :: in-plane coordinates of all points (vertices, ridge mid and quarter points)
+        of every layer, shape (nlayers, npt_per_layer_vtk, 2), see LayerPoints. Default: the
+        2D mesh rotated by theta.
+    connector_t_tangents :: unit tangents (along the grains) of the transverse connectors, shape
+        (nconnector_t, 3) in the order of ConnMeshData. Default: (0, 0, 1).
     """
     if vtk_format not in ['ascii','binary']:
         raise ValueError("vtk_format must be 'ascii' or 'binary', not {!r}".format(vtk_format))
@@ -2051,7 +2159,10 @@ def VisualizationFiles(geoName,NURBS_degree,nlayers,npt_per_layer_vtk,all_pts_2D
     nconnector_t_per_beam = int((nctrlpt_per_beam-1)/NURBS_degree+1)
     
     # Vertex Data for VTK use
-    vertices_new = _rotate_layers(all_pts_2D[np.arange(npt_per_layer_vtk)],theta[0:nlayers],z_coord[0:nlayers],generation_center)
+    if layer_points is None:
+        vertices_new = _rotate_layers(all_pts_2D[np.arange(npt_per_layer_vtk)],theta[0:nlayers],z_coord[0:nlayers],generation_center)
+    else:
+        vertices_new = _layer_points_3D(layer_points,z_coord[0:nlayers],npt_per_layer_vtk)
     VTKvertices = np.reshape(vertices_new,(-1,3))
     
     # Connectivity for VTK use
@@ -2109,9 +2220,17 @@ def VisualizationFiles(geoName,NURBS_degree,nlayers,npt_per_layer_vtk,all_pts_2D
     Quad_length2 = np.linalg.norm(Quad_normal2, axis=1)
     Quad_width = np.copy(ConnMeshData[:,11])
     Quad_height = np.copy(ConnMeshData[:,12])
-    Quad_normal = Quad_normal1/Quad_length1[:, np.newaxis]
+    degenerate = Quad_length1 == 0 # a connector whose nodes coincide: no direction, zero volume
+    Quad_normal = Quad_normal1/np.where(degenerate,1.0,Quad_length1)[:, np.newaxis]
+    Quad_normal[degenerate] = [1.0,0.0,0.0]
     Quad_tangent = np.zeros((nquad_conn_total,3))
-    Quad_tangent[0:nconnector_t] = np.tile(np.array([0.0,0.0,1.0]),(nconnector_t,1)) # assume a tangent of (0,0,1) for all conn_t
+    if connector_t_tangents is None:
+        Quad_tangent[0:nconnector_t] = np.tile(np.array([0.0,0.0,1.0]),(nconnector_t,1)) # assume a tangent of (0,0,1) for all conn_t
+    else: # tangents of inclined grains (e.g. followed through a 3D image)
+        connector_t_tangents = np.asarray(connector_t_tangents,dtype=float)
+        if connector_t_tangents.shape != (nconnector_t,3):
+            raise ValueError('connector_t_tangents must have the shape (nconnector_t, 3) = {}, not {}'.format((nconnector_t,3),connector_t_tangents.shape))
+        Quad_tangent[0:nconnector_t] = connector_t_tangents/np.linalg.norm(connector_t_tangents,axis=1)[:,np.newaxis]
 
     Quad_tangent[nconnector_t:nquad_conn] = conn_l_tangents
     Quad_bitangent = np.cross(Quad_normal,Quad_tangent)
@@ -2361,6 +2480,8 @@ def AbaqusFile(geoName,NURBS_degree,npatch,IGAvertices,beam_connectivity,\
     meshinpfile.write(_format_rows(np.column_stack((np.arange(1,numnode+1),IGAvertices[:,0:3])),'%d, %#.9e, %#.9e,  %#.9e\n'))
     def write_elements(ids,connectivity):
         """Write one line per element: id, node1, node2, ..."""
+        if len(ids) == 0: # e.g. no longitudinal connectors with nsegments = 1
+            return
         connectivity = np.reshape(connectivity,(len(ids),-1))
         meshinpfile.write(_format_rows(np.column_stack((ids,connectivity)).astype(int),'%d'+', %d'*connectivity.shape[1]+'\n'))
     # beam element connectivity 

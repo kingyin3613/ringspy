@@ -15,3 +15,6 @@ venv/
 .coverage
 coverage.xml
 .tox/
+
+# synthetic scans of the reconstruction example
+examples/reconstruction/*.npy

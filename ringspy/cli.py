@@ -24,10 +24,34 @@ def main(argv=None):
     run.add_argument('--path', help='output folder, overrides the one in the file')
     run.add_argument('--geoName', '--geo-name', dest='geoName', help='geometry name, overrides the one in the file')
 
+    rec = commands.add_parser('reconstruct', help='reconstruct the lattice of a specimen from a 3D image (e.g. a CT '
+                              'scan), with the parameters of a TOML file',
+                              description='Reconstruct the lattice (grains along the cell corners, connectors across '
+                              'the cell walls) of a cellular specimen from a 3D image, with the parameters of a TOML '
+                              'file. The files go to <path>/<geoName>/ (relative to the current folder).')
+    rec.add_argument('config', help='TOML file, e.g. examples/reconstruction/wood_ct.toml')
+    rec.add_argument('--volume', help='3D image file (.npy, .npz or .tif), overrides the one in the TOML file')
+    rec.add_argument('--path', help='output folder, overrides the one in the file')
+    rec.add_argument('--geoName', '--geo-name', dest='geoName', help='geometry name, overrides the one in the file')
+
     args = parser.parse_args(argv)
 
     import matplotlib
     matplotlib.use('Agg')  # only files are written, no windows
+
+    if args.command == 'reconstruct':
+        from .config import ReconstructionConfig
+        from .reconstruction import reconstruct
+        try:
+            config = ReconstructionConfig.from_toml(args.config)
+            changes = {k: getattr(args, k) for k in ['volume', 'path', 'geoName'] if getattr(args, k) is not None}
+            config = config.replace(**changes)
+        except (OSError, ValueError, TypeError) as e:
+            parser.exit(2, 'ringspy: error: {}\n'.format(e))
+        result = reconstruct(config)
+        print('Mesh files written to {}'.format(result.output_dir))
+        return 0
+
     from .config import Config
     from .pipeline import generate
 

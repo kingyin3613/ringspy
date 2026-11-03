@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "ringspy"
 dynamic = ["version"]
-description = "A geometric generation tool for prismatic cellular solids"
+description = "A geometric generation tool for prismatic cellular solids, and lattice reconstruction from 3D images"
 readme = "README.md"
 license = "GPL-3.0-only"
 license-files = ["LICENSE"]
@@ -35,8 +35,9 @@ ringspy = "ringspy.cli:main"
 [project.optional-dependencies]
 vtk = ["vtk"]                       # STL export (stlFlag = true)
 hex = ["hexalattice>=1.2.1"]        # radial_growth_rule = 'regular_hexagonal'
-all = ["vtk", "hexalattice>=1.2.1"]
-test = ["pytest>=7", "pytest-cov", "vtk", "hexalattice>=1.2.1"]
+image = ["tifffile"]                # ringspy reconstruct: 3D images as .tif stacks
+all = ["vtk", "hexalattice>=1.2.1", "tifffile"]
+test = ["pytest>=7", "pytest-cov", "vtk", "hexalattice>=1.2.1", "tifffile"]
 
 [project.urls]
 Homepage = "https://github.com/kingyin3613/ringspy"

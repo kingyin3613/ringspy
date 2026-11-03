@@ -1,5 +1,22 @@
 # Changelog
 
+## v1.4.0
+
+Reconstruction of the lattice from a 3D image: `ringspy reconstruct` builds the grains and connectors of a specimen from a CT scan (or any stack of cross-sections) of its cells, following the fibers where they lean, wobble and twist.
+
+### New
+- `ringspy reconstruct wood_ct.toml` and `ringspy.reconstruct(config)`: from a 3D image (a `.npy`/`.npz` array or a `.tif` stack; boolean, or grayscale thresholded with Otsu's method), the cells of a reference cross-section are found (the junctions of 3 or more cells are the cell corners, the boundaries between two cells the cell walls, located to sub-pixel precision where the wall midlines meet), the cells are labelled consistently through all cross-sections, and every cell corner is followed to the height of every layer of control points: first along the fiber direction field of the volume (structure tensor), then placed at the junction of the same cells in that cross-section. Corners whose junction is gone (a cell ended, a wall collapsed) move with their neighbours. The grains (quadratic NURBS beams) pass through the followed positions, the transverse connectors get the wall thickness measured in their own layer, and the usual files are written (`.mesh`, `-mesh.txt`, `IGA.txt`, `.vtu`, `.stl`, `.inp`, report log), plus `geoName-grains.npz` with the followed corners of every layer and a preview figure of the reference cross-section and of the grain paths. The report log gives the mean grain angle, azimuth and dispersion of the fibers, how the corners were placed, and the porosity of the image next to that of the lattice.
+- `ringspy.ReconstructionConfig`: the parameters of a reconstruction (`volume`, `voxel_size`, `longitudinal_axis` (auto-detected by default), `solid`, `threshold`, `smooth_sigma`, `crop`, `origin`, `min_cell_area`, `min_wall_area`, `reference_slice`, `tracking`, `link_stride`, `direction_scale`, `max_jump`, `merge_operation`, `merge_tol`, `boundaryFlag`, `wall_thickness`, `nsegments`, `long_connector_ratio`, `skeleton_density`, `stlFlag`, `inpFlag`, `inpType`, `vtk_format`, `save_tracks`), checked like `Config`; the values derived from the image are written to the report log.
+- `ringspy.voxelize(config, voxel_size, tilt=..., twist=..., wobble_amplitude=..., noise=..., blur=...)`: a synthetic 3D image of a RingsPy geometry whose fibers lean, twist and wobble, boolean or CT-like grayscale, with the true cell positions at any height (`SyntheticVolume.sites_at`, `vertices_at`) to check a reconstruction against. The tests reconstruct such volumes: the corners found by their cells lie within a voxel of the truth.
+- Example `examples/reconstruction/wood_ct.toml` + `wood_ct.py` (makes a synthetic scan of a wood cube, then reconstructs it).
+- `MeshGenTools`: `GenerateBeamElement`, `ConnectorMeshFile` and `VisualizationFiles` take the in-plane vertex coordinates of every layer (`layer_vertices`, `layer_points`), per-connector widths (`connector_t_widths`) and connector tangents; `VertexandRidgeinfo` takes per-ridge wall thicknesses (`ridge_widths`); `LayerHeights` and `LayerPoints` give the layer heights and the points of a layer. Without these arguments the functions give the same files as before.
+- `ringspy.pipeline.place_cells(config, rng)`: the cell placement of `generate()` on its own.
+- Optional dependency `image = ["tifffile"]` (`pip install "ringspy[image]"`) to read `.tif` stacks.
+
+### Changed
+- `VisualizationFiles` no longer divides by zero for a connector whose nodes coincide (its cross-section gets no direction and zero volume instead of NaN coordinates).
+
+
 ## v1.3.0
 
 Clip the cells with any polygon, also a non-convex one such as a dog-bone tensile specimen.
