@@ -21,6 +21,7 @@ import numpy as np
 from scipy.spatial import Voronoi, voronoi_plot_2d
 
 from . import MeshGenTools as rpgen
+from . import lattice as rplat
 from .config import Config
 
 NURBS_DEGREE = 2
@@ -102,30 +103,7 @@ def _generate(c):
 
     # ==================================================================
     # Place cells with a specific radial growth pattern
-    if c.radial_growth_rule == 'binary':
-        # binary radial growth pattern (e.g. wood microstructure with earlywood-latewood alternations)
-        sites, radii = rpgen.CellPlacement_Binary(c.generation_center, c.r_max, c.r_min, c.nrings, c.width_heart,
-                                                  c.width_sparse, c.width_dense, c.cellsize_sparse, c.cellsize_dense,
-                                                  c.iter_max, c.print_interval, rng=rng,
-                                                  transition=c.transition, transition_width=c.transition_width)
-    elif c.radial_growth_rule == 'binary_lloyd':
-        # binary with Lloyd's algorithm (more regular cell shapes)
-        sites, radii = rpgen.CellPlacement_Binary_Lloyd(geoName, path, c.generation_center, c.r_max, c.r_min,
-                                                        c.nrings, c.width_heart, c.width_sparse, c.width_dense,
-                                                        c.cellsize_sparse, c.cellsize_dense, c.iter_max,
-                                                        c.print_interval, rng=rng,
-                                                        transition=c.transition, transition_width=c.transition_width)
-    elif c.radial_growth_rule == 'regular_hexagonal':
-        # hexagonal honeycomb-like geometry
-        sites, radii = rpgen.CellPlacement_Honeycomb(c.generation_center, c.r_max, c.r_min, c.nrings,
-                                                     c.box_center, c.box_size, c.width_heart,
-                                                     c.width_sparse, c.width_dense,
-                                                     c.cellsize_sparse, c.cellsize_dense,
-                                                     c.cellwallthickness_sparse, c.cellwallthickness_dense,
-                                                     c.iter_max, c.print_interval, rng=rng)
-    else:
-        # load saved cell sites and radii data
-        sites, radii = rpgen.ReadSavedSites(Path(c.sites_dir or '.'), c.radial_growth_rule)
+    sites, radii = place_cells(c, rng)
 
     placementTime = time.time()
     nParticles = len(sites)
@@ -196,6 +174,14 @@ def _generate(c):
     # is labelled by its second vertex, whose thickness it takes, and a connector by its wall (ConnectorMeshFile)
     vertex_band = rpgen.RingBands(all_pts_2D[0:npt_per_layer], radii, c.generation_center)
     ridge_band = vertex_band[np.asarray(all_ridges)[0:nridge, 1]]
+
+    if c.fiber_length is not None:
+        # fibers of various lengths: every grain its own sequence of fibers (lattice module)
+        return _generate_fibers(c, rng, output_dir, fig, sites, radii, nParticles, x_min, x_max, y_min, y_max,
+                                boundary_points, box_corners, boundaries, all_pts_2D, all_ridges, npt_per_layer,
+                                npt_per_layer_normal, npt_per_layer_vtk, nvertex, nvertices_in, nboundary_pts_featured,
+                                nridge, all_vertices_2D, max_wings, flattened_all_vertices_2D, vertex_band, ridge_band,
+                                [startTime, placementTime, voronoiTime, RebuildvorTime])
 
     # ==================================================================
     # Extrude in the parallel-to-grain (longitudinal) direction
@@ -363,6 +349,140 @@ def graph_arrays(result):
             'mass': np.float64(result.mass), 'bulk_volume': np.float64(result.bulk_volume),
             'bulk_density': np.float64(result.bulk_density), 'porosity': np.float64(result.porosity),
             'config': np.array(json.dumps(result.config.to_dict()))}
+
+
+def _generate_fibers(c, rng, output_dir, fig, sites, radii, nParticles, x_min, x_max, y_min, y_max, boundary_points,
+                     box_corners, boundaries, all_pts_2D, all_ridges, npt_per_layer, npt_per_layer_normal,
+                     npt_per_layer_vtk, nvertex, nvertices_in, nboundary_pts_featured, nridge, all_vertices_2D,
+                     max_wings, flattened_all_vertices_2D, vertex_band, ridge_band, times):
+    """The rest of _generate for fiber_length: the cells end at random heights, tapering to their ends, and
+    the 2D mesh is extruded into fibers of various lengths (one fiber end on a grain per end of its cells)"""
+    startTime, placementTime, voronoiTime, RebuildvorTime = times
+    geoName, path = c.geoName, c.path
+    nelem = 2*c.nsegments
+    nhalf = 2*nelem + 1
+    h = (c.z_max - c.z_min)/nelem
+    segment_length = 2*h
+    theta_half = np.linspace(c.theta_min, c.theta_max, nhalf)
+    z_half = np.linspace(c.z_min, c.z_max, nhalf)
+    kind = np.zeros(nvertex, dtype=int)
+    kind[nvertices_in:] = 1
+    kind[nvertex - nboundary_pts_featured:] = 2
+    # the cells meeting at each vertex, the heights at which the cells end, the fiber ends of the grains
+    vertex_cells = rplat.cells_of_vertices(all_pts_2D[:nvertex], all_ridges, sites, boundaries)
+    cells = sorted(set().union(*vertex_cells))
+    cell_ends = rplat.cell_end_heights(cells, c.z_min, c.z_max, c.fiber_length, c.fiber_length_cov, rng=rng)
+    fiber_ends = rplat.grain_ends_from_cells(vertex_cells, cell_ends, c.z_min, h, nelem)
+    # the vertices on every half-layer: twisted, and drawn in toward the cells tapering to their ends
+    vertex_layers = rpgen._rotate_layers(all_pts_2D[:nvertex], theta_half, z_half, c.generation_center)[:, :, 0:2]
+    vertex_layers = rplat.taper_vertices(vertex_layers, z_half, vertex_cells, cell_ends, c.taper_length, c.taper_ratio,
+                                         kind=kind, boundaries=boundaries)
+    layer_points = rpgen.LayerPoints(vertex_layers, all_ridges, npt_per_layer_vtk)
+    lat = rplat.build_lattice(all_ridges, nvertex, nridge, all_vertices_2D, max_wings, flattened_all_vertices_2D,
+                              layer_points, c.z_min, c.z_max, nelem, c.long_connector_ratio, fiber_ends)
+    nbeamElem = lat.nbeamElem
+    BeamTime = time.time()
+    print('{:d} beam elements of {:d} fibers generated in {:.3f} seconds'.format(nbeamElem, lat.npatch, BeamTime - RebuildvorTime))
+
+    if c.precrackFlag:
+        precrack_nodes = np.array(c.precrack_nodes if c.precrack_nodes is not None
+                                  else default_precrack_nodes(c, x_min))
+        [precrack_elem, nconnector_t_precrack, nconnector_l_precrack] = \
+            rpgen.insert_precracks(all_pts_2D, all_ridges, nridge, npt_per_layer, npt_per_layer_normal,
+                                   npt_per_layer_vtk, nhalf, precrack_nodes, c.precrack_widths,
+                                   float(np.max(c.cellsize_sparse)))
+    else:
+        precrack_elem, nconnector_t_precrack, nconnector_l_precrack = [], 0, 0
+
+    rplat.write_connector_file(geoName, lat, path=path)
+    [mass, bulk_volume, bulk_density, porosity] = \
+        rpgen.ModelInfo(c.box_shape, boundary_points, c.z_min, c.z_max, c.skeleton_density, lat.Meshdata,
+                        polygon=box_corners if c.box_shape in rpgen.POLYGON_SHAPES else None)
+    rplat.write_iga_file(geoName, lat, path=path)
+    wing_ridge = flattened_all_vertices_2D[0, :].astype(int)
+    rplat.write_vtu_files(geoName, lat, layer_points, all_ridges, nvertex, path=path, vertex_band=vertex_band,
+                          ridge_band=ridge_band)
+    fig.savefig(Path(output_dir, geoName + '.png'))
+    if c.stlFlag:
+        rpgen.StlModelFile(geoName, path=path)
+    if c.inpFlag:
+        rpgen.AbaqusFile(geoName, NURBS_DEGREE, lat.npatch, lat.nodes, lat.beam_connectivity,
+                         lat.connector_t_bot, lat.connector_t_reg, lat.connector_t_top, lat.connector_l, nbeamElem,
+                         lat.nconnector_t, lat.nconnector_l, nconnector_t_precrack, nconnector_l_precrack,
+                         segment_length, c.long_connector_ratio, x_max, x_min, y_max, y_min, lat.nodes[:, 2],
+                         c.box_shape, c.box_size, float(np.mean(c.cellwallthickness_sparse)),
+                         float(np.mean(c.cellwallthickness_dense)), c.merge_operation, c.merge_tol, c.precrackFlag,
+                         precrack_elem, path=path, connector_t_ridge=lat.connector_t_ridge,
+                         element_bands=rplat.element_bands(lat, vertex_band, ridge_band, wing_ridge))
+
+    # the 2D cell mesh with its ring labels, and as a graph
+    vertices = np.array(all_pts_2D[0:npt_per_layer], dtype=float)
+    ridges = np.array(all_ridges, dtype=int)[0:nridge, 0:2]
+    vertex_ring, vertex_dense = rpgen.RingLabels(vertex_band)
+    ridge_ring, ridge_dense = rpgen.RingLabels(ridge_band)
+    vertex_boundary = rpgen.OnBoundary(vertices, box_corners)
+    result = Result(config=c, output_dir=output_dir, files=[], sites=sites, radii=radii,
+                    nParticles=nParticles, nbeamElem=nbeamElem, mass=mass, bulk_volume=bulk_volume,
+                    bulk_density=bulk_density, porosity=porosity, vertices=vertices, ridges=ridges,
+                    vertex_ring=vertex_ring, vertex_dense=vertex_dense, vertex_boundary=vertex_boundary,
+                    vertex_thickness=np.array(all_vertices_2D[:, 3 + 3*max_wings], dtype=float),
+                    ridge_ring=ridge_ring, ridge_dense=ridge_dense,
+                    ridge_boundary=vertex_boundary[ridges[:, 0]] & vertex_boundary[ridges[:, 1]])
+    if c.graphFlag:
+        result.graph = graph_arrays(result)
+        rpgen.GraphFile(geoName, result.graph, path=path)
+    FileTime = time.time()
+    print('Files generated in {:.3f} seconds'.format(FileTime - BeamTime))
+
+    fibers = {'fiber_length': c.fiber_length, 'fiber_length_cov': c.fiber_length_cov,
+              'taper_length': c.taper_length, 'taper_ratio': c.taper_ratio, 'nelem': nelem,
+              'ncells': len(cells), 'ncell_ends': int(sum(len(v) for v in cell_ends.values()))}
+    fibers.update(rplat.fiber_statistics(fiber_ends, nelem, h))
+    rpgen.LogFile(geoName, c.iter_max, c.r_min, c.r_max, c.nrings, c.width_heart, c.width_sparse, c.width_dense,
+                  c.generation_center, c.box_shape, c.box_center, c.box_size, x_min, x_max, y_min, y_max,
+                  c.cellsize_sparse, c.cellsize_dense, c.cellwallthickness_sparse, c.cellwallthickness_dense,
+                  c.merge_operation, c.merge_tol, c.precrackFlag, c.precrack_widths, c.boundaryFlag,
+                  segment_length, c.theta_min, c.theta_max, c.z_min, c.z_max, c.long_connector_ratio,
+                  NURBS_DEGREE, 2*NURBS_DEGREE + 1, nconnector_t_precrack, nconnector_l_precrack,
+                  nParticles, nbeamElem, c.skeleton_density, mass, bulk_volume, bulk_density, porosity,
+                  c.stlFlag, c.inpFlag, c.inpType, c.radial_growth_rule,
+                  startTime, placementTime, voronoiTime, RebuildvorTime, BeamTime, FileTime,
+                  path=path, seed=c.seed, box_polygon=c.box_polygon,
+                  transition=c.transition, transition_width=c.transition_width, radii=radii, graphFlag=c.graphFlag,
+                  fibers=fibers)
+    result.files = sorted(output_dir.iterdir())
+    return result
+
+
+def place_cells(c, rng=None):
+    """The cell sites (one row (x, y, cell size) per cell) and growth ring radii of a resolved Config:
+    placed with its radial growth rule, or loaded from its *_sites.npy file"""
+    geoName, path = c.geoName, c.path
+    if c.radial_growth_rule == 'binary':
+        # binary radial growth pattern (e.g. wood microstructure with earlywood-latewood alternations)
+        sites, radii = rpgen.CellPlacement_Binary(c.generation_center, c.r_max, c.r_min, c.nrings, c.width_heart,
+                                                  c.width_sparse, c.width_dense, c.cellsize_sparse, c.cellsize_dense,
+                                                  c.iter_max, c.print_interval, rng=rng,
+                                                  transition=c.transition, transition_width=c.transition_width)
+    elif c.radial_growth_rule == 'binary_lloyd':
+        # binary with Lloyd's algorithm (more regular cell shapes)
+        sites, radii = rpgen.CellPlacement_Binary_Lloyd(geoName, path, c.generation_center, c.r_max, c.r_min,
+                                                        c.nrings, c.width_heart, c.width_sparse, c.width_dense,
+                                                        c.cellsize_sparse, c.cellsize_dense, c.iter_max,
+                                                        c.print_interval, rng=rng,
+                                                        transition=c.transition, transition_width=c.transition_width)
+    elif c.radial_growth_rule == 'regular_hexagonal':
+        # hexagonal honeycomb-like geometry
+        sites, radii = rpgen.CellPlacement_Honeycomb(c.generation_center, c.r_max, c.r_min, c.nrings,
+                                                     c.box_center, c.box_size, c.width_heart,
+                                                     c.width_sparse, c.width_dense,
+                                                     c.cellsize_sparse, c.cellsize_dense,
+                                                     c.cellwallthickness_sparse, c.cellwallthickness_dense,
+                                                     c.iter_max, c.print_interval, rng=rng)
+    else:
+        # load saved cell sites and radii data
+        sites, radii = rpgen.ReadSavedSites(Path(c.sites_dir or '.'), c.radial_growth_rule)
+    return sites, radii
 
 
 def default_precrack_nodes(c, x_min):

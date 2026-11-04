@@ -1,0 +1,63 @@
+# RingsPy example: cubic wood specimen whose grains are made of fibers of various lengths
+#
+#   ringspy run wood_cube_fibers.toml
+#
+# As wood_cube.toml, but with fiber_length: instead of cutting every grain into the same nsegments
+# segments (longitudinal connectors on common planes, like knife cuts), every grain is its own sequence
+# of fibers of random length, ending at different heights. The fiber ends lie on a grid of 2*nsegments
+# beam elements, so choose nsegments such that the element length is a fraction of fiber_length.
+# Lengths in mm. Any parameter left out takes its default value: the value in wood_cube.toml.
+
+geoName = "wood_cube_fibers"
+path = "meshes"                 # output folder: the files go to meshes/wood_cube_fibers/
+
+# Cell placement
+radial_growth_rule = "binary"
+iter_max = 500
+seed = 2023                     # random seed of the cells and of the fiber ends
+
+# Radial cell growth
+r_min = 0
+r_max = 4
+nrings = 4
+width_heart = 0.3
+width_sparse = 0.7
+width_dense = 0.3
+generation_center = [0, 0]
+
+cellsize_sparse = 0.02
+cellsize_dense = 0.01
+cellwallthickness_sparse = 0.006
+cellwallthickness_dense = 0.010
+
+# Clipping box
+boundaryFlag = true
+box_shape = "square"
+box_center = [0, 0]
+box_size = 4.0
+
+# Longitudinal direction
+nsegments = 8                   # the grains are made of 2*nsegments beam elements (here 16, of 0.25 mm)
+theta_min = 0                   # unit: radian
+theta_max = 0.05                # unit: radian
+z_min = 0
+z_max = 4.0
+long_connector_ratio = 0.02     # longitudinal joint length = ratio * segment_length (segment_length = 2 elements)
+fiber_length = 2.0              # mean cell length; the cells end at different heights, the grains at their corners with them
+fiber_length_cov = 0.3          # coefficient of variation of the cell lengths (lognormal distribution)
+taper_length = 0.3              # the cells taper to their ends over this length (left out: 0.15*fiber_length)
+taper_ratio = 0.15              # size of the cross-section of a cell at its end, relative to its size (1: blunt ends)
+
+# Material
+skeleton_density = 1.5e-9       # unit: tonne/mm3
+
+# Mesh operations
+merge_operation = true
+merge_tol = 0.01
+precrackFlag = false
+precrack_widths = 0.1
+
+# Output files
+stlFlag = true
+inpFlag = true
+inpType = "Abaqus"

@@ -10,7 +10,7 @@ import dataclasses
 import difflib
 import os
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional, Tuple, Union, get_args, get_origin
 
@@ -80,6 +80,12 @@ class Config:
     z_min: float = 0
     z_max: Optional[float] = None            # default box_size (polygon: z_min + its largest width)
     long_connector_ratio: float = 0.02
+    fiber_length: Optional[float] = None     # mean length (mm) of the fibers of a grain, which then end at different
+                                             # heights (longitudinal connectors not on common planes);
+                                             # None: all grains cut into the same nsegments segments
+    fiber_length_cov: float = 0.3            # coefficient of variation of the fiber lengths (lognormal)
+    taper_length: Optional[float] = None     # length (mm) over which a cell tapers to its end; None: 0.15*fiber_length
+    taper_ratio: float = 0.15                # size of the cross-section of a cell at its end, relative (1: no taper)
 
     # material
     skeleton_density: float = 1.5e-9         # tonne/mm3
@@ -141,6 +147,14 @@ class Config:
             raise ValueError("transition must be one of {}, not {!r}".format(', '.join(TRANSITIONS), self.transition))
         if not 0 < self.transition_width <= 1:
             raise ValueError("transition_width must be between 0 (excluded) and 1, not {!r}".format(self.transition_width))
+        if self.fiber_length is not None and self.fiber_length <= 0:
+            raise ValueError("fiber_length must be positive (or left out)")
+        if self.fiber_length_cov < 0:
+            raise ValueError("fiber_length_cov must not be negative")
+        if self.taper_length is not None and self.taper_length <= 0:
+            raise ValueError("taper_length must be positive (or left out)")
+        if not 0 <= self.taper_ratio <= 1:
+            raise ValueError("taper_ratio must be between 0 and 1")
 
     def resolved(self):
         """Copy with the parameters left at None (ring widths, z_max) replaced by their default values"""
@@ -153,6 +167,8 @@ class Config:
                 values['z_max'] = self.z_min + max(extent)
             else:
                 values['z_max'] = self.box_size
+        if self.taper_length is None and self.fiber_length is not None:
+            values['taper_length'] = 0.15*self.fiber_length
         return dataclasses.replace(self, **values)
 
     def replace(self, **changes):
@@ -194,9 +210,9 @@ def load_config(file):
     return Config.from_toml(file)
 
 
-def _check_names(params):
-    """Raise a ValueError for a parameter name that Config does not have, suggesting the closest name"""
-    names = [f.name for f in dataclasses.fields(Config)]
+def _check_names(params, cls=None):
+    """Raise a ValueError for a parameter name that Config (or cls) does not have, suggesting the closest name"""
+    names = [f.name for f in dataclasses.fields(Config if cls is None else cls)]
     for key in params:
         if key not in names:
             close = difflib.get_close_matches(key, names, n=1)
@@ -275,3 +291,165 @@ def to_bool(name, value):
         if value.strip().lower() in FALSE_STRINGS:
             return False
     raise ValueError("{} must be true/false (or 'on'/'off'), not {!r}".format(name, value))
+
+
+# =============================================================================
+# Reconstruction from a 3D image
+# =============================================================================
+
+TRACKING_MODES = ['labels', 'direction', 'straight']
+FIBER_END_MODES = ['image', 'random', 'none']
+SOLID_PHASES = ['bright', 'dark']
+VTK_FORMATS = ['ascii', 'binary']
+REFERENCE_SLICES = ['middle', 'bottom', 'top']
+LONGITUDINAL_AXES = ['auto', '0', '1', '2', 'x', 'y', 'z']
+
+
+@dataclass
+class ReconstructionConfig:
+    """Input parameters of a lattice reconstruction from a 3D image (ringspy.reconstruct).
+
+    The image is a 3D array of voxels (a .npy/.npz file, or a .tif stack), either boolean (True in the
+    cell walls) or grayscale (thresholded into walls and lumens). Lengths are in mm. Parameters left at
+    None are derived from the image (their values are written to the report log).
+    """
+
+    geoName: str = 'wood_ct'
+    path: str = 'meshes'                     # output folder, the files go to path/geoName/
+
+    # the 3D image
+    volume: Optional[str] = None             # .npy/.npz/.tif file of the 3D image (relative to the TOML file's
+                                             # folder); or pass the array to reconstruct()
+    voxel_size: List[float] = field(default_factory=lambda: [0.001, 0.001, 0.001])  # voxel edges (mm) along the
+                                             # array axes; one number for cubic voxels
+    longitudinal_axis: str = 'auto'          # array axis along the fibers: auto, 0, 1, 2 (or x, y, z)
+    solid: str = 'bright'                    # phase of the cell walls: bright (as in X-ray CT) or dark
+    threshold: Optional[float] = None        # gray value separating walls and lumens (None: Otsu's threshold;
+                                             # not used for a boolean image)
+    smooth_sigma: float = 0.0                # Gaussian smoothing (voxels) before thresholding
+    crop: Optional[List[int]] = None         # [x0, x1, y0, y1, z0, z1]: voxel index ranges kept, x and y across
+                                             # the fibers, z along them (after longitudinal_axis is applied)
+    origin: Tuple[float, float, float] = (0.0, 0.0, 0.0)  # coordinates of the corner of the first kept voxel
+    min_cell_area: Optional[float] = None    # lumens smaller than this (mm2) count as wall (None: 9 voxels)
+    min_wall_area: Optional[float] = None    # wall specks smaller than this (mm2) count as lumen (None: 9 voxels)
+
+    # the network of cell corners and walls, and how the corners are followed along the fibers
+    reference_slice: str = 'middle'          # cross-section giving the 2D mesh: middle, bottom, top, a slice
+                                             # index, or a height in mm (with a decimal point)
+    tracking: str = 'labels'                 # labels (follow the cells), direction (fiber direction field
+                                             # only) or straight (plain extrusion of the reference slice)
+    link_stride: int = 1                     # label every n-th cross-section when following the cells
+    direction_scale: Optional[float] = None  # averaging scale (mm) of the fiber direction field (None: 2 cell diameters)
+    max_jump: Optional[float] = None         # largest move (mm) of a corner between two layers (None: 1.5 cell diameters)
+    merge_operation: bool = True             # merge cell walls shorter than merge_tol
+    merge_tol: Optional[float] = None        # None: 1.5 voxels
+    boundaryFlag: bool = True                # walls along the sides of the cross-section
+    wall_thickness: Optional[float] = None   # None: measured in the image, wall by wall and layer by layer
+
+    # longitudinal direction
+    nsegments: int = 2                       # the grains are made of 2*nsegments beam elements
+    long_connector_ratio: float = 0.02
+    fiber_ends: str = 'image'                # where the fibers of the grains end: image (where the cells end in the
+                                             # image), random (fiber_length), or none (all grains cut into nsegments)
+    fiber_length: Optional[float] = None     # mean fiber length (mm) for fiber_ends = random
+    fiber_length_cov: float = 0.3            # coefficient of variation of the random fiber lengths
+    taper_length: Optional[float] = None     # fiber_ends = random: length (mm) over which a cell tapers to its end
+                                             # (None: 0.15*fiber_length); the image gives the taper for fiber_ends = image
+    taper_ratio: float = 0.15                # size of the cross-section of a cell at its end, relative (1: no taper)
+    seed: Optional[int] = None               # seed of the random fiber ends
+
+    # material
+    skeleton_density: float = 1.5e-9         # tonne/mm3
+
+    # output files
+    stlFlag: bool = True
+    inpFlag: bool = True
+    inpType: str = 'Abaqus'
+    vtk_format: str = 'ascii'                # ascii or binary .vtu files
+    save_tracks: bool = True                 # also save geoName-grains.npz: the followed cell corners of every layer
+
+    def __post_init__(self):
+        if _is_number(self.voxel_size):
+            self.voxel_size = [self.voxel_size]*3
+        if isinstance(self.longitudinal_axis, int) and not isinstance(self.longitudinal_axis, bool):
+            self.longitudinal_axis = str(self.longitudinal_axis)
+        if _is_number(self.reference_slice):
+            self.reference_slice = repr(self.reference_slice)
+        for f in dataclasses.fields(self):
+            setattr(self, f.name, _check(f.name, getattr(self, f.name), f.type))
+        if len(self.voxel_size) != 3 or min(self.voxel_size) <= 0:
+            raise ValueError("voxel_size must be a positive number or a list of 3 positive numbers, not {!r}"
+                             .format(self.voxel_size))
+        if self.longitudinal_axis.strip().lower() not in LONGITUDINAL_AXES:
+            raise ValueError("longitudinal_axis must be 'auto', 0, 1, 2 or x, y, z, not {!r}".format(self.longitudinal_axis))
+        if self.solid not in SOLID_PHASES:
+            raise ValueError("solid must be 'bright' or 'dark', not {!r}".format(self.solid))
+        if self.tracking not in TRACKING_MODES:
+            raise ValueError("tracking must be one of {}, not {!r}".format(', '.join(TRACKING_MODES), self.tracking))
+        if self.fiber_ends not in FIBER_END_MODES:
+            raise ValueError("fiber_ends must be one of {}, not {!r}".format(', '.join(FIBER_END_MODES), self.fiber_ends))
+        if self.fiber_ends == 'random' and self.fiber_length is None:
+            raise ValueError("fiber_ends = 'random' needs fiber_length, the mean fiber length")
+        if self.fiber_length_cov < 0:
+            raise ValueError("fiber_length_cov must not be negative")
+        if self.taper_length is not None and self.taper_length <= 0:
+            raise ValueError("taper_length must be positive (or left out)")
+        if not 0 <= self.taper_ratio <= 1:
+            raise ValueError("taper_ratio must be between 0 and 1")
+        if self.seed is not None and self.seed < 0:
+            raise ValueError("seed must be a non-negative integer or None")
+        if self.vtk_format not in VTK_FORMATS:
+            raise ValueError("vtk_format must be 'ascii' or 'binary', not {!r}".format(self.vtk_format))
+        text = self.reference_slice.strip().lower()
+        if text not in REFERENCE_SLICES:
+            try:
+                float(text)
+            except ValueError:
+                raise ValueError("reference_slice must be middle, bottom, top, a slice index or a height (mm), not {!r}"
+                                 .format(self.reference_slice)) from None
+        if self.crop is not None and len(self.crop) != 6:
+            raise ValueError("crop must be [x0, x1, y0, y1, z0, z1] (6 voxel indices), not {!r}".format(self.crop))
+        if self.inpFlag and self.inpType not in ABAQUS_TYPES:
+            raise ValueError("inpType {!r} is not supported, use 'Abaqus' (or set inpFlag = false)".format(self.inpType))
+        for name in ['nsegments', 'link_stride']:
+            if getattr(self, name) < 1:
+                raise ValueError("{} must be at least 1".format(name))
+        if self.smooth_sigma < 0:
+            raise ValueError("smooth_sigma must not be negative")
+        for name in ['min_cell_area', 'min_wall_area', 'direction_scale', 'max_jump', 'merge_tol', 'wall_thickness']:
+            value = getattr(self, name)
+            if value is not None and value <= 0:
+                raise ValueError("{} must be positive (or left out)".format(name))
+
+    def replace(self, **changes):
+        """Copy with some parameters changed, e.g. ``config.replace(nsegments=4, stlFlag=False)``"""
+        _check_names(changes, type(self))
+        return dataclasses.replace(self, **changes)
+
+    def to_dict(self):
+        """Parameters as a dict (tuples become lists, as in TOML)"""
+        return {k: _plain(v) for k, v in dataclasses.asdict(self).items()}
+
+    @classmethod
+    def from_dict(cls, params):
+        """ReconstructionConfig from a dict, with a helpful error for unknown names"""
+        _check_names(params, cls)
+        return cls(**params)
+
+    @classmethod
+    def from_toml(cls, file):
+        """ReconstructionConfig from a TOML file; a relative `volume` file is relative to the file's folder"""
+        file = Path(file)
+        with open(file, 'rb') as f:
+            params = tomllib.load(f)
+        for key, value in params.items():
+            if isinstance(value, dict):
+                raise ValueError("{}: [{}] tables are not supported, write the parameters at the top level"
+                                 .format(file, key))
+        volume = params.get('volume')
+        if isinstance(volume, str) and not Path(volume).is_absolute():
+            params['volume'] = str(file.parent / volume)
+        try:
+            return cls.from_dict(params)
+        except (TypeError, ValueError) as e:
+            raise ValueError("{}: {}".format(file, e)) from None

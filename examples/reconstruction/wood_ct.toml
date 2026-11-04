@@ -1,0 +1,56 @@
+# RingsPy example: reconstruct the lattice of a wood cube from a 3D image of its cells
+#
+#   python wood_ct.py          (makes the synthetic scan wood_ct.npy first, then runs the line below)
+#   ringspy reconstruct wood_ct.toml
+#
+# The image is a 3D array of voxels: a .npy/.npz file, or a .tif stack of cross-sections. It is either
+# boolean (true in the cell walls) or grayscale, thresholded into cell walls and lumens.
+# Lengths in mm. A parameter left out takes its default value; a parameter set to nothing here
+# (commented out) is derived from the image and written to the report log.
+
+geoName = "wood_ct"
+path = "meshes"                 # output folder: the files go to meshes/wood_ct/
+
+# The 3D image
+volume = "wood_ct.npy"          # relative to this file
+voxel_size = 0.002              # voxel edge (mm); or [vx, vy, vz] along the array axes
+longitudinal_axis = "auto"      # array axis along the fibers: auto, 0, 1, 2 (or x, y, z)
+solid = "bright"                # phase of the cell walls: bright (X-ray CT) or dark
+# threshold = 128               # gray value separating walls and lumens (left out: Otsu's threshold)
+smooth_sigma = 1.0              # Gaussian smoothing (voxels) before thresholding, against noise
+# crop = [0, 300, 0, 300, 0, 300] # voxel index ranges kept [x0, x1, y0, y1, z0, z1]
+origin = [0.0, 0.0, 0.0]        # coordinates of the corner of the first voxel
+# min_cell_area = 4e-5          # lumens smaller than this (mm2) count as wall (left out: 9 voxels)
+# min_wall_area = 4e-5          # wall specks smaller than this (mm2) count as lumen (left out: 9 voxels)
+
+# Cell corners and walls, and how the corners are followed along the fibers
+reference_slice = "middle"      # cross-section giving the 2D mesh: middle, bottom, top, a slice index or a height (mm)
+tracking = "labels"             # labels (follow the cells), direction (fiber direction field only) or straight
+link_stride = 1                 # label every n-th cross-section when following the cells (speed)
+# direction_scale = 0.08        # averaging scale (mm) of the fiber direction field (left out: 2 cell diameters)
+# max_jump = 0.05               # largest move (mm) of a corner between two layers (left out: 1.5 cell diameters)
+merge_operation = true          # merge cell walls shorter than merge_tol
+# merge_tol = 0.004             # (left out: 1.5 voxels)
+boundaryFlag = true             # walls along the sides of the cross-section
+# wall_thickness = 0.008        # (left out: measured in the image, wall by wall and layer by layer)
+
+# Longitudinal direction
+nsegments = 4                   # the grains are made of 2*nsegments beam elements; more elements follow curved fibers more closely
+long_connector_ratio = 0.02     # longitudinal joint length = ratio * segment_length (segment_length = 2 elements)
+fiber_ends = "image"            # where the fibers of the grains end: image (where the cells end in the image),
+                                # random (fibers of random length, see fiber_length), or none (all grains cut into nsegments)
+# fiber_length = 1.5            # mean fiber length (mm) for fiber_ends = "random"
+# fiber_length_cov = 0.3        # coefficient of variation of the random fiber lengths
+# taper_length = 0.2            # the random cells taper to their ends over this length (left out: 0.15*fiber_length)
+# taper_ratio = 0.15            # size of the cross-section of a cell at its end, relative (1: blunt ends)
+# seed = 2023                   # seed of the random fiber ends
+
+# Material
+skeleton_density = 1.5e-9       # unit: tonne/mm3
+
+# Output files
+stlFlag = true                  # 3D model (needs vtk: pip install "ringspy[vtk]")
+inpFlag = true                  # input file for simulations
+inpType = "Abaqus"
+vtk_format = "ascii"            # ascii or binary .vtu files (binary: smaller, faster)
+save_tracks = true              # also save wood_ct-grains.npz: the followed cell corners of every layer

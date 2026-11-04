@@ -230,3 +230,12 @@ def test_wall_thickness_follows_the_parameter_names():
     dense_rings = (ring % 2 == 0)
     assert np.mean(np.isclose(width[sparse_rings], 0.004)) > 0.8
     assert np.mean(np.isclose(width[dense_rings], 0.009)) > 0.8
+
+
+def test_single_segment_writes_inp():
+    # nsegments = 1 has no longitudinal connectors: the Abaqus file used to fail on the empty element set
+    config = ringspy.load_config(HONEYCOMB_HEX).replace(nsegments=1, stlFlag=False, inpFlag=True, geoName="one_segment")
+    result = ringspy.generate(config)
+    inp = Path(result.output_dir, "one_segment.inp").read_text()
+    assert "*Element, type=T3D2,elset=AllLongConns" in inp
+    assert result.nbeamElem > 0
