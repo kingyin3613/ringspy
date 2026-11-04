@@ -7,7 +7,6 @@ email: haoyin2022@u.northwestern.edu
 """
 
 import math
-import bisect
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
@@ -26,6 +25,7 @@ HEXAGON_SHAPES = ['hexagon','Hexagon','HEXAGON','hexagonal','Hexagonal','HEXAGON
 POLYGON_SHAPES = ['polygon','Polygon','POLYGON','poly']   # any simple polygon, given by its vertices
 ON_FLAGS = ['on','On','Y','y','Yes','yes']
 ABAQUS_TYPES = ['abaqus','Abaqus','ABQ','abq','ABAQUS','Abq']
+TRANSITIONS = ['abrupt','linear','sigmoid']   # change of cell size and wall thickness from a sparse ring to the dense ring
 
 
 def _is_on(flag):
@@ -381,13 +381,116 @@ def find_centroid(vertices,omega):
     return np.array([[centroid_x, centroid_y]])
 
 
+def RingBands(points,radii,generation_center):
+    """
+    Band of the growth rings in which each 2D point lies, from its distance to the generation
+    center: 0 for the heart, 2k-1 for the sparse part and 2k for the dense part of growth
+    ring k (k = 1 ... nrings), and 2*nrings+1 beyond the outermost ring radius.
+    RingLabels() turns the bands into growth ring numbers and sparse/dense flags.
+    """
+    distance = np.linalg.norm(np.asarray(points,dtype=float) - generation_center, axis=-1)
+    return np.searchsorted(radii,distance,side='right') - 1 # the same as bisect.bisect(radii,distance) - 1
+
+
+def RingLabels(band):
+    """
+    Growth ring number and dense flag of ring bands (see RingBands): the ring is 0 for the
+    heart, 1 ... nrings, and nrings+1 beyond the outermost ring; dense is True in the heart
+    and in the dense (latewood) part of every ring, False in the sparse (earlywood) part.
+    """
+    band = np.asarray(band)
+    return (band + 1)//2, band % 2 == 0
+
+
+def _ring_values(radii,value_sparse,value_dense):
+    """
+    Value of a ring property (cell size, wall thickness) in every band of the growth rings
+    (see RingBands), including the band beyond the outermost ring (the sparse value, as it
+    always was). value_sparse and value_dense are numbers, or lists with one value per
+    growth ring; the heart takes the dense value of the first ring.
+    """
+    nbands = len(radii) - 1 # the heart and two per growth ring
+    nrings = max(nbands//2,1)
+    def per_ring(value,name):
+        value = np.asarray(value,dtype=float)
+        if value.ndim == 0:
+            return np.full(nrings,float(value))
+        if value.shape != (nrings,):
+            raise ValueError('{} must be a number or a list with one value per growth ring ({:d} values), not {!r}'
+                             .format(name,nrings,value.tolist()))
+        return value
+    sparse = per_ring(value_sparse,'the sparse value')
+    dense = per_ring(value_dense,'the dense value')
+    ring, is_dense = RingLabels(np.arange(nbands + 1))
+    iring = np.clip(ring - 1,0,nrings - 1) # the heart takes the values of the first ring, the outside those of the last
+    return np.where(is_dense,dense[iring],sparse[iring])
+
+
+class _RingProfile:
+    """A ring property as a function of the distance to the generation center, see RingProfile()"""
+    def __init__(self,radii,value_sparse,value_dense,transition,transition_width):
+        if transition not in TRANSITIONS:
+            raise ValueError("transition must be one of {}, not {!r}".format(', '.join(TRANSITIONS),transition))
+        if not 0 < transition_width <= 1:
+            raise ValueError("transition_width must be between 0 (excluded) and 1, not {!r}".format(transition_width))
+        self.radii = np.asarray(radii,dtype=float)
+        self.values = _ring_values(self.radii,value_sparse,value_dense) # one per band, see RingBands
+        self.transition = transition
+        self.transition_width = transition_width
+        self.nbands = len(self.radii) - 1
+
+    def __call__(self,r,band=None):
+        """Value at the distances r (a number or an array) to the generation center; band: the band of
+        the rings that r lies in, found from r when not given"""
+        r = np.asarray(r,dtype=float)
+        if band is None:
+            band = np.searchsorted(self.radii,r,side='right') - 1
+        band, r = np.broadcast_arrays(np.clip(np.asarray(band),0,self.nbands),r)
+        value = self.values[band]
+        if self.transition == 'abrupt':
+            return value
+        # the outer fraction transition_width of a sparse band changes to the value of the dense band after it
+        sparse = (band % 2 == 1) & (band < self.nbands)
+        b = np.where(sparse,band,0)
+        r_in, r_out = self.radii[b], self.radii[b+1]
+        start = r_out - self.transition_width*(r_out - r_in)
+        span = r_out - start
+        t = np.clip(np.where(span > 0,(r - start)/np.where(span > 0,span,1.0),1.0),0.0,1.0)
+        if self.transition == 'sigmoid':
+            t = t*t*(3 - 2*t) # smoothstep: an S-shaped curve, flat at both ends
+        return np.where(sparse,self.values[b] + (self.values[b+1] - self.values[b])*t,value)
+
+
+def RingProfile(radii,value_sparse,value_dense,transition='abrupt',transition_width=1.0):
+    """
+    A ring property (the cell size, or the cell wall thickness) as a function of the distance
+    r to the generation center: profile(r) gives its value at r (a number or an array), and
+    profile(r, band) the value of a given band of the rings at r. profile.values holds the
+    value of every band (see RingBands).
+
+    transition 'abrupt': the sparse value in the sparse part of every growth ring, the dense
+    value in its dense part and in the heart, with a jump at the boundaries (the behaviour of
+    RingsPy <= 1.3). 'linear' and 'sigmoid': in the outer fraction transition_width of the
+    sparse part of a ring, the value changes from the sparse value to the dense value of the
+    dense part that follows, along a straight line or an S-shaped (smoothstep) curve, so that
+    the sparse and dense parts of a ring join without a jump (like the gradual
+    earlywood-latewood transition of spruce or fir); the dense parts are unchanged, and the
+    jump at the ring boundary (dense to the next sparse part) stays.
+    value_sparse and value_dense are numbers, or lists with one value per growth ring.
+    """
+    return _RingProfile(radii,value_sparse,value_dense,transition,transition_width)
+
+
 def CellPlacement_Binary(generation_center,r_max,r_min,nrings,width_heart,
                          width_sparse,width_dense,cellsize_sparse,cellsize_dense,\
-                         iter_max,print_interval,rng=None):
+                         iter_max,print_interval,rng=None,transition='abrupt',transition_width=1.0):
     """
     packing cells by randomly placing new cells in the generation rings
 
     rng :: None (global np.random state), an int seed, or a np.random.Generator
+    cellsize_sparse, cellsize_dense :: numbers, or lists with one value per growth ring
+    transition, transition_width :: change of the cell size from the sparse to the dense
+        part of a ring, see RingProfile()
     """
     rng = _rng(rng)
 
@@ -396,11 +499,15 @@ def CellPlacement_Binary(generation_center,r_max,r_min,nrings,width_heart,
     noise = rng.normal(1,0.25,len(width))
     width = np.multiply(width,noise)
     radii = np.concatenate(([0],np.cumsum(width)))
+
+    # cell size at any distance from the generation center, and in every ring
+    cellsize = RingProfile(radii,cellsize_sparse,cellsize_dense,transition,transition_width)
+    band_cellsize = [float(w) for w in cellsize.values]
     
     # Place circular cells in each ring (can be parallelized in the future)
     # circles: list = list()
     circles = []
-    grid = _CircleGrid(max(cellsize_dense,cellsize_sparse)) # placed circles, for fast overlap checks
+    grid = _CircleGrid(max(band_cellsize)) # placed circles, for fast overlap checks
     for ibin in range(0,nrings*2+1):
         iter = 0 
         while iter < iter_max:
@@ -410,10 +517,10 @@ def CellPlacement_Binary(generation_center,r_max,r_min,nrings,width_heart,
             x = r*math.cos(t) + generation_center[0]
             y = r*math.sin(t) + generation_center[1]
     
-            if (ibin % 2) == 0: # if even, dense cells
-                w = cellsize_dense
+            if transition == 'abrupt': # even bands: dense cells, odd bands: sparse cells
+                w = band_cellsize[ibin]
             else:
-                w = cellsize_sparse
+                w = float(cellsize(r,ibin))
     
             circC = [x, y, w]
             
@@ -444,11 +551,15 @@ def CellPlacement_Binary(generation_center,r_max,r_min,nrings,width_heart,
 def CellPlacement_Binary_Lloyd(geoName,path,generation_center,r_max,r_min,\
                                nrings,width_heart,width_sparse,width_dense,\
                                cellsize_sparse,cellsize_dense,iter_max,\
-                               print_interval,omega=1.0,rng=None):
+                               print_interval,omega=1.0,rng=None,transition='abrupt',transition_width=1.0):
     """
     packing cells by firstly placing new cells and then performing Lloyd's relaxation in the generation rings
 
     rng :: None (global np.random state), an int seed, or a np.random.Generator
+    cellsize_sparse, cellsize_dense :: numbers, or lists with one value per growth ring
+    transition, transition_width :: change of the cell size from the sparse to the dense
+        part of a ring, see RingProfile(). With a gradual transition, the sub-rings of cells
+        in the sparse part of a ring get closer, and hold more cells, towards the dense part.
     """
     rng = _rng(rng)
     # generate radii for rings
@@ -456,6 +567,11 @@ def CellPlacement_Binary_Lloyd(geoName,path,generation_center,r_max,r_min,\
     noise = rng.normal(1,0.25,len(radii))
     radii = np.multiply(radii,noise)
     radii = np.concatenate(([0],np.cumsum(radii)))
+
+    # cell size at any distance from the generation center, and in every ring
+    cellsize_profile = RingProfile(radii,cellsize_sparse,cellsize_dense,transition,transition_width)
+    band_cellsize = [float(w) for w in cellsize_profile.values]
+    cellsize_dense = band_cellsize[0] # the heart
 
     # generate perimeter points for heart region
     PerimeterPoints = []
@@ -490,12 +606,11 @@ def CellPlacement_Binary_Lloyd(geoName,path,generation_center,r_max,r_min,\
         OuterPerimeterPoints = []
         OuterPerimeter_radii = radii[i+1]
         
-        if (i % 2) == 0: # if even, dense cells
-            cellsize = cellsize_dense
-        else:
-            cellsize = cellsize_sparse
+        cellsize = band_cellsize[i] # even bands: dense cells, odd bands: sparse cells
+        gradual = transition != 'abrupt' and (i % 2) == 1 # the cell size changes within a sparse band
 
-        OuterPerimeter_npoint = int(np.ceil(2*np.pi*OuterPerimeter_radii/(2*cellsize)))
+        # cells on the outer perimeter of the band: with a gradual transition, the (dense) cell size there
+        OuterPerimeter_npoint = int(np.ceil(2*np.pi*OuterPerimeter_radii/(2*float(cellsize_profile(OuterPerimeter_radii,i)))))
         
         t = np.linspace(0, 2*np.pi, OuterPerimeter_npoint, endpoint=False)
         x = OuterPerimeter_radii * np.cos(t)
@@ -505,10 +620,20 @@ def CellPlacement_Binary_Lloyd(geoName,path,generation_center,r_max,r_min,\
         OuterPerimeterPointsSites = np.concatenate(OuterPerimeterPoints, axis=0)
         
         # generate internal points
-        nsubrings = int(0.5*np.ceil((radii[i+1]-radii[i])/cellsize))
-        subradii = np.linspace(radii[i], radii[i+1], nsubrings, endpoint=False)
+        if not gradual:
+            nsubrings = int(0.5*np.ceil((radii[i+1]-radii[i])/cellsize))
+            subradii = np.linspace(radii[i], radii[i+1], nsubrings, endpoint=False)
+        else:
+            # sub-rings about two local cell sizes apart: the same spacing as above in the number of cells
+            # u(r) = integral of dr/cellsize(r) across the band, inverted on a fine grid of radii
+            rr = np.linspace(radii[i], radii[i+1], 1001)
+            inv = 1/cellsize_profile(rr,i)
+            u = np.concatenate(([0.0], np.cumsum(np.diff(rr)*(inv[1:] + inv[:-1])/2)))
+            nsubrings = int(0.5*np.ceil(u[-1]))
+            subradii = np.interp(np.arange(nsubrings)*u[-1]/max(nsubrings,1), u, rr)
+        subcellsize = cellsize_profile(subradii,i) # cell size of each sub-ring
         
-        subnpoints =np.ceil(2*np.pi*subradii/(2*cellsize)).astype(int)
+        subnpoints =np.ceil(2*np.pi*subradii/(2*subcellsize)).astype(int)
         
         circles = [np.zeros((0,2))] # no sub-rings (nsubrings = 0) if the ring is narrower than one cell
         
@@ -520,7 +645,7 @@ def CellPlacement_Binary_Lloyd(geoName,path,generation_center,r_max,r_min,\
             
         inside_cells = np.concatenate(circles, axis=0)
         
-        noise = (rng.random((len(inside_cells),2)) - [0.5,0.5])*cellsize
+        noise = (rng.random((len(inside_cells),2)) - [0.5,0.5])*np.repeat(subcellsize,subnpoints)[:,np.newaxis]
         inside_cells = inside_cells + 0.25*noise
 
         sites = np.vstack((OuterPerimeterPointsSites,inside_cells))
@@ -557,7 +682,7 @@ def CellPlacement_Honeycomb(generation_center,r_max,r_min,nrings,box_center,box_
     radii = np.concatenate(([0],np.cumsum(width)))
     
     cellangle = 0.0
-    cellsize = (cellsize_sparse+cellsize_dense)/2
+    cellsize = (float(np.mean(cellsize_sparse))+float(np.mean(cellsize_dense)))/2 # also for lists of one value per ring
     nx = int(2*r_max/cellsize)
     ny = int(2*r_max/cellsize)
     # The hexagonal lattice sites are generated via hexalattice: https://pypi.org/project/hexalattice/
@@ -1636,11 +1761,16 @@ def RidgeMidQuarterPts(voronoi_vertices,nvertex,nvertices_in,voronoi_ridges,\
 
 def VertexandRidgeinfo(all_pts_2D,all_ridges,npt_per_layer,npt_per_layer_normal,\
                        npt_per_layer_vtk,nridge,geoName,radii,generation_center,\
-                       cellwallthickness_sparse,cellwallthickness_dense,path='meshes'):
+                       cellwallthickness_sparse,cellwallthickness_dense,path='meshes',\
+                       transition='abrupt',transition_width=1.0):
     
     """Generate the vertex and ridge info 
        Vertex info includes: coordinates, ridge indices, indices of another vertex for each ridge, ridge lengths, ridge angles, ridge width
-       Ridge info includes: 2 vertex indices, 2 mid point indices, 2 quarter point indices """
+       Ridge info includes: 2 vertex indices, 2 mid point indices, 2 quarter point indices
+
+       cellwallthickness_sparse, cellwallthickness_dense :: numbers, or lists with one value per growth ring
+       transition, transition_width :: change of the thickness from the sparse to the dense part of a
+           ring, see RingProfile(); 'abrupt' is the step change of RingsPy <= 1.3 """
 
     
     # Calculate lengths of all Voronoi ridges
@@ -1650,18 +1780,12 @@ def VertexandRidgeinfo(all_pts_2D,all_ridges,npt_per_layer,npt_per_layer_normal,
     # Calculate angles of all Voronoi ridges (angles measured counter-clock wise, x-axis --> (1,0), y-axis --> (0,1))
     all_ridge_angles = np.arctan2(vector[:,1],vector[:,0]) # np.arctan2(y, x) * 180 / np.pi = the angle
 
-#======== This part can be expanded to allow the smooth transition of cell wall thickness =========
-    # Case 1: Abrupt transition of cell wall thickness between dense/sparse cells
-    # thicknesses of all Voronoi vertices (here identical thickness for all wings belonging to the same vertex is assumed)
-    vertex_cellwallthickness_2D = np.zeros(npt_per_layer)
-    
+    # thicknesses of all Voronoi vertices (here identical thickness for all wings belonging to the same vertex is assumed):
+    # the wall thickness of the growth rings at the distance of the vertex to the generation center, with a step
+    # change between the sparse and dense rings (transition 'abrupt') or a gradual one (see RingProfile)
+    thickness = RingProfile(radii,cellwallthickness_sparse,cellwallthickness_dense,transition,transition_width)
     vertex_distance2logcenter = np.linalg.norm(all_pts_2D - generation_center, axis=1) # calc distance between vertex and logcenter
-    for i in range(0,npt_per_layer):
-        if (bisect.bisect(radii,vertex_distance2logcenter[i]) % 2) == 0: # bisect = ring index + 1: even, sparse rings
-            vertex_cellwallthickness_2D[i] = cellwallthickness_sparse
-        else: # if even, dense cells
-            vertex_cellwallthickness_2D[i] = cellwallthickness_dense
-#==================================================================================================
+    vertex_cellwallthickness_2D = np.array(thickness(vertex_distance2logcenter[0:npt_per_layer]),dtype=float)
      
     # Find the wings (Voronoi ridges) of all vertices: the entries of all_ridges equal to
     # each vertex index, in row-major order (as np.where(all_ridges == i) gives them)
@@ -1985,11 +2109,52 @@ def _savetxt(fname,X,fmt='%.18e',delimiter=' ',header='',comments='# '):
         txtfile.writelines(_format_rows(X,delimiter.join([fmt]*X.shape[1]) + '\n',join=False))
 
 
+def _data_arrays(data):
+    """Point or cell data of a .vtu file as a list of (name, values, vtk type, text format, binary dtype):
+    data is None, one (name, values) pair, or a list of pairs; integer arrays are written as Int32,
+    the others as Float32"""
+    if data is None:
+        return []
+    if isinstance(data,tuple) and len(data) == 2 and isinstance(data[0],str):
+        data = [data]
+    arrays = []
+    for name, values in data:
+        values = np.asarray(values)
+        if np.issubdtype(values.dtype,np.integer) or values.dtype == bool:
+            arrays.append((name,values,'Int32','%d\n','<i4'))
+        else:
+            arrays.append((name,values,'Float32','%11.8e\n','<f4'))
+    return arrays
+
+
+def OnBoundary(points,polygon,tol=None):
+    """
+    Whether each 2D point lies on the perimeter of a polygon (its vertices in order around
+    it), within the distance tol (default: 1e-6 of the polygon's largest extent).
+    """
+    points = np.asarray(points,dtype=float).reshape(-1,2)
+    polygon = np.asarray(polygon,dtype=float).reshape(-1,2)
+    if tol is None:
+        tol = 1e-6*max(np.ptp(polygon,axis=0).max(),1e-300)
+    on = np.zeros(len(points),dtype=bool)
+    for a, b in zip(polygon,np.roll(polygon,-1,axis=0)):
+        ab = b - a
+        length2 = ab @ ab
+        t = np.clip((points - a) @ ab/length2,0,1) if length2 > 0 else np.zeros(len(points))
+        on |= np.linalg.norm(points - a - t[:,np.newaxis]*ab,axis=1) <= tol
+    return on
+
+
+def GraphFile(geoName,graph,path='meshes'):
+    """Write geoName-graph.npz: the arrays of the 2D cell mesh as a graph (see ringspy.graph_arrays)"""
+    np.savez(Path(path, geoName, geoName + '-graph.npz'),**graph)
+
+
 def _write_vtu_appended(filename,points,cells,types,point_data=None,cell_data=None):
     """
     Write an unstructured grid (.vtu) file with all data arrays stored as raw binary
     appended data. cells is a list of connectivity arrays (one row per cell),
-    point_data and cell_data are (name, values) pairs or None.
+    point_data and cell_data are (name, values) pairs, lists of them, or None.
     """
     connectivity = np.concatenate([np.reshape(c,-1) for c in cells])
     offsets = np.cumsum(np.concatenate([np.full(len(c),np.shape(c)[1]) for c in cells]))
@@ -2007,10 +2172,11 @@ def _write_vtu_appended(filename,points,cells,types,point_data=None,cell_data=No
            '<UnstructuredGrid>\n',
            '<Piece NumberOfPoints="{:d}" NumberOfCells="{:d}">\n'.format(len(points),len(types))]
     for tag, data in [('PointData',point_data),('CellData',cell_data)]:
-        if data is not None:
-            name, values = data
-            xml.append('<{} Scalars="{}">\n'.format(tag,name))
-            xml.append('<DataArray type="Float32" Name="{}" format="appended" offset="{:d}"/>\n'.format(name,appended(np.asarray(values,dtype='<f4'))))
+        arrays = _data_arrays(data)
+        if arrays:
+            xml.append('<{} Scalars="{}">\n'.format(tag,arrays[0][0]))
+            for name, values, vtk_type, _, dtype in arrays:
+                xml.append('<DataArray type="{}" Name="{}" format="appended" offset="{:d}"/>\n'.format(vtk_type,name,appended(values.astype(dtype))))
             xml.append('</{}>\n'.format(tag))
     xml.append('<Points>\n')
     xml.append('<DataArray type="Float64" NumberOfComponents="3" format="appended" offset="{:d}"/>\n'.format(appended(np.asarray(points,dtype='<f8'))))
@@ -2035,15 +2201,31 @@ def VisualizationFiles(geoName,NURBS_degree,nlayers,npt_per_layer_vtk,all_pts_2D
                        voronoi_ridges,generation_center,all_ridges,nvertex,\
                        nconnector_t,nconnector_l,nctrlpt_per_beam,ConnMeshData,\
                        conn_l_tangents,all_vertices_2D,max_wings,\
-                       flattened_all_vertices_2D,path='meshes',vtk_format='ascii'):
+                       flattened_all_vertices_2D,path='meshes',vtk_format='ascii',\
+                       vertex_band=None,ridge_band=None):
     """
     Write the Paraview files geoName_vertices.vtu, geoName_beams.vtu, geoName_conns.vtu
     and geoName_conns_vol.vtu. vtk_format = 'ascii' (default) writes text files,
     'binary' writes the data arrays as raw binary appended data (faster to write and
     read, about 3 times smaller).
+
+    vertex_band, ridge_band :: ring bands (see RingBands) of the vertices (grains) and of
+    the ridges (cell walls). When given, every cell of the files gets the cell data
+    'Ring' (growth ring: 0 the heart, 1 ... nrings) and 'Dense' (1 in the heart and the
+    dense rings, 0 in the sparse rings): beams and the wing quads of a vertex take the
+    ring of the vertex; transverse and longitudinal connectors take the ring of the ridge
+    whose thickness (Connector_width) they have, the transverse connector its own ridge
+    and the longitudinal connector the ridge of its wing (as in ConnectorMeshFile); the mid
+    and quarter points of _vertices.vtu take the ring of their ridge.
     """
     if vtk_format not in ['ascii','binary']:
         raise ValueError("vtk_format must be 'ascii' or 'binary', not {!r}".format(vtk_format))
+    labels = vertex_band is not None and ridge_band is not None
+    if labels:
+        vertex_band = np.asarray(vertex_band).reshape(-1)
+        ridge_band = np.asarray(ridge_band).reshape(-1)
+        if len(vertex_band) != nvertex or len(ridge_band) != nridge:
+            raise ValueError('vertex_band must have one value per vertex ({:d}) and ridge_band one per ridge ({:d})'.format(nvertex,nridge))
     
     # Calculate model parameters
     ngrain = nvertex
@@ -2166,14 +2348,32 @@ def VisualizationFiles(geoName,NURBS_degree,nlayers,npt_per_layer_vtk,all_pts_2D
     VTKcell_types_conns_vol = np.concatenate((12*np.ones(nconnector_t),12*np.ones(nconnector_l),12*np.ones(nconnector_t),12*np.ones(nconnector_l))).astype(int)
     Quad_width_vtk = np.tile(Quad_width,(2))
 
+    # Growth ring and sparse/dense labels of the cells of each file, in the order of the cells above
+    def ring_data(band):
+        ring, dense = RingLabels(band)
+        return [('Ring',ring.astype(np.int32)),('Dense',dense.astype(np.int32))]
+    if labels:
+        point_band = np.empty(npt_per_layer_vtk,dtype=int) # vertices, then the mid and quarter points of the ridges
+        point_band[0:nvertex] = vertex_band
+        point_band[all_ridges[0:nridge,2:6]] = ridge_band[:,np.newaxis]
+        quad_band = vertex_band[all_ridges[0:nridge,0:2].T.reshape(-1)] # wing quads: [segment and interval, wing, ridge]
+        wing_ridge = np.asarray(flattened_all_vertices_2D[0,:],dtype=int) # ridge of each wing, wings sorted by vertex
+        conns_band = np.concatenate((np.tile(ridge_band,nsegments*nconnector_t_per_beam),ridge_band[np.tile(wing_ridge,nsegments-1)]))
+        ring_data_vertices = ring_data(np.tile(point_band,nlayers))
+        ring_data_beams = ring_data(np.concatenate((np.tile(vertex_band[0:ngrain],nsegments*ninterval_per_beam_vtk),
+                                                    np.tile(quad_band,nsegments*ninterval_per_beam_vtk))))
+        ring_data_conns = ring_data(np.tile(conns_band,2))
+    else:
+        ring_data_vertices = ring_data_beams = ring_data_conns = []
+
     files = [ # file name, point arrays, connectivity arrays (one row per cell), cell types, point data, cell data
         ('_vertices',[VTKvertices],[vertex_connectivity_vtk.reshape(-1,1)],VTKcell_types_vertices,
-         ('IGAcollocation_flag',collocation_flag_vtk),None),
-        ('_beams',[VTKvertices],[beam_connectivity_vtk,quad_connectivity],VTKcell_types_beams,None,None),
+         [('IGAcollocation_flag',collocation_flag_vtk)],ring_data_vertices),
+        ('_beams',[VTKvertices],[beam_connectivity_vtk,quad_connectivity],VTKcell_types_beams,[],ring_data_beams),
         ('_conns',[VTKvertices,quad_conn_vertices],[connector_t_connectivity_vtk,connector_l_connectivity_vtk,quad_conn_connectivity],
-         VTKcell_types_conns,None,('Connector_width',Quad_width_vtk)),
+         VTKcell_types_conns,[],[('Connector_width',Quad_width_vtk)] + ring_data_conns),
         ('_conns_vol',[VTKvertices,quad_conn_vertices,hex_conn_vertices],[hex_conn_connectivity],
-         VTKcell_types_conns_vol,None,('Connector_width',Quad_width_vtk)),
+         VTKcell_types_conns_vol,[],[('Connector_width',Quad_width_vtk)] + ring_data_conns),
         ]
 
     if vtk_format == 'binary':
@@ -2205,12 +2405,13 @@ def VisualizationFiles(geoName,NURBS_degree,nlayers,npt_per_layer_vtk,all_pts_2D
             # </Points>
 
             # <PointData>
-            if point_data is not None:
-                name, values = point_data
-                write('<PointData Tensors="" Vevtors="" Scalars="'+name+'">\n')
-                write('<DataArray type="Float32" Name="'+name+'" format="ascii">\n')
-                write(_format_rows(values,'%11.8e\n'))
-                write('</DataArray>\n')
+            arrays = _data_arrays(point_data)
+            if arrays:
+                write('<PointData Tensors="" Vevtors="" Scalars="'+arrays[0][0]+'">\n')
+                for name, values, vtk_type, row_format, _ in arrays:
+                    write('<DataArray type="'+vtk_type+'" Name="'+name+'" format="ascii">\n')
+                    write(_format_rows(values,row_format))
+                    write('</DataArray>\n')
                 write('</PointData>\n')
             # </PointData>
 
@@ -2243,12 +2444,13 @@ def VisualizationFiles(geoName,NURBS_degree,nlayers,npt_per_layer_vtk,all_pts_2D
             # </Cells>
 
             # <CellData>
-            if cell_data is not None:
-                name, values = cell_data
-                write('<CellData Tensors="" '+('Vevtors' if suffix == '_conns' else 'Vectors')+'="" Scalars="'+name+'">\n')
-                write('<DataArray type="Float32" Name="'+name+'" format="ascii">\n')
-                write(_format_rows(values,'%11.8e\n'))
-                write('</DataArray>\n')
+            arrays = _data_arrays(cell_data)
+            if arrays:
+                write('<CellData Tensors="" '+('Vevtors' if suffix == '_conns' else 'Vectors')+'="" Scalars="'+arrays[0][0]+'">\n')
+                for name, values, vtk_type, row_format, _ in arrays:
+                    write('<DataArray type="'+vtk_type+'" Name="'+name+'" format="ascii">\n')
+                    write(_format_rows(values,row_format))
+                    write('</DataArray>\n')
                 write('</CellData>\n')
             # </CellData>
 
@@ -2298,9 +2500,19 @@ def AbaqusFile(geoName,NURBS_degree,npatch,IGAvertices,beam_connectivity,\
                x_max,x_min,y_max,y_min,z_coord,box_shape,box_size,\
                cellwallthickness_sparse,cellwallthickness_dense,\
                merge_operation,merge_tol,\
-               precrackFlag='off',precrack_elem=None,path='meshes'):
+               precrackFlag='off',precrack_elem=None,path='meshes',vertex_band=None,ridge_band=None,wing_ridge=None):
     
-    """Write the Abaqus input file (geoName.inp) with beam (B32) and connector (T3D2) elements"""
+    """Write the Abaqus input file (geoName.inp) with beam (B32) and connector (T3D2) elements
+
+    vertex_band, ridge_band :: ring bands (see RingBands) of the vertices (grains) and ridges (cell
+    walls), wing_ridge :: the ridge of each wing of the vertices (flattened_all_vertices_2D[0,:] of
+    VertexandRidgeinfo). When all three are given, the instance gets the element sets Ring<k>Beams,
+    Ring<k>TConns and Ring<k>LConns of the beams, transverse and longitudinal connectors of every
+    growth ring k (0: the heart), and SparseBeams/SparseTConns/SparseLConns and
+    DenseBeams/DenseTConns/DenseLConns of the sparse and dense rings, to give every ring its own
+    section and material. A beam takes the ring of its vertex, a connector the ring of the ridge
+    whose thickness it has (the transverse connector its own ridge, the longitudinal connector the
+    ridge of its wing, as in ConnectorMeshFile)."""
     if precrack_elem is None:
         precrack_elem = []
     height_connector_t = segment_length/4 # height of bot/top transverse connectors [mm]
@@ -2418,6 +2630,40 @@ def AbaqusFile(geoName,NURBS_degree,npatch,IGAvertices,beam_connectivity,\
     meshinpfile.write('*ELEMENT, TYPE=T3D2, ELSET=VisualLongConns\n')
     write_elements(np.arange(count,count+nelem_connector_l),connector_l_connectivity[:,0:nelnode_connector])
     count += nelem_connector_l
+
+    # Element sets of the growth rings: the beams, transverse and longitudinal connectors of every ring
+    if vertex_band is not None and ridge_band is not None and wing_ridge is not None:
+        vertex_band = np.asarray(vertex_band).reshape(-1)
+        ridge_band = np.asarray(ridge_band).reshape(-1)
+        wing_ridge = np.asarray(wing_ridge,dtype=int).reshape(-1)
+        ngrain = len(vertex_band)
+        nridge = len(ridge_band)
+        if nelem % npatch or npatch % ngrain or nelem_connector_t_bot % nridge or nelem_connector_l % max(len(wing_ridge),1):
+            raise ValueError('vertex_band, ridge_band and wing_ridge do not match the numbers of beams and connectors')
+        # band of every element, in the order of the element ids above
+        beam_band = vertex_band[(np.arange(nelem)//(nelem//npatch)) % ngrain] # beams of a patch in a row, patches by segment then grain
+        tconn_band = np.concatenate([ridge_band[np.arange(connectivity.shape[0]) % nridge] for connectivity in
+                                     [connector_t_bot_connectivity,connector_t_reg_connectivity,connector_t_top_connectivity]])
+        lconn_band = ridge_band[np.tile(wing_ridge,nelem_connector_l//max(len(wing_ridge),1))] # one per wing and layer
+        ids = {'Beams': np.arange(1,nelem+1),
+               'TConns': np.arange(nelem+1,nelem+1+len(tconn_band)),
+               'LConns': np.arange(nelem+1+len(tconn_band),nelem+1+len(tconn_band)+len(lconn_band))}
+        bands = {'Beams': beam_band, 'TConns': tconn_band, 'LConns': lconn_band}
+        def write_elset(name,members):
+            if len(members) == 0: # Abaqus does not accept empty sets
+                return
+            meshinpfile.write('*Elset, elset={:s}\n'.format(name))
+            meshinpfile.write(_format_rows(members[:len(members)//16*16].reshape(-1,16),', '.join(['%d']*16)+'\n'))
+            if len(members) % 16:
+                meshinpfile.write(', '.join(map(str,members[len(members)//16*16:].tolist()))+'\n')
+        meshinpfile.write('** Element sets of the growth rings (Ring0: the heart) and of the sparse/dense rings\n')
+        all_rings = np.unique(np.concatenate([RingLabels(band)[0] for band in bands.values()]))
+        for k in all_rings.tolist():
+            for kind in ['Beams','TConns','LConns']:
+                write_elset('Ring{:d}{:s}'.format(k,kind),ids[kind][RingLabels(bands[kind])[0] == k])
+        for label, dense in [('Sparse',False),('Dense',True)]:
+            for kind in ['Beams','TConns','LConns']:
+                write_elset(label+kind,ids[kind][RingLabels(bands[kind])[1] == dense])
             
     area_connector_t = height_connector_t*cellwallthickness_dense # sectional area of transverse connectors [mm^2]
     meshinpfile.write('** Section: Section-1\n')
@@ -2942,7 +3188,8 @@ def LogFile(geoName,iter_max,r_min,r_max,nrings,width_heart,width_sparse,width_d
         NURBS_degree,nctrlpt_per_beam,nconnector_t_precrack,nconnector_l_precrack,\
         nParticles,nbeamElem,skeleton_density,mass,volume,density,porosity,\
         stlFlag,inpFlag,inpType,radial_growth_rule,\
-        startTime,placementTime,voronoiTime,RebuildvorTime,BeamTime,FileTime,path='meshes',seed=None,box_polygon=None):
+        startTime,placementTime,voronoiTime,RebuildvorTime,BeamTime,FileTime,path='meshes',seed=None,box_polygon=None,\
+        transition=None,transition_width=None,radii=None,graphFlag=False):
 
     """Generate the log file (geoName.log file) for the generation procedure.
 
@@ -2951,6 +3198,9 @@ def LogFile(geoName,iter_max,r_min,r_max,nrings,width_heart,width_sparse,width_d
     geoName :: string, geometry name.
     -
     seed :: int seed of the cell placement, or None for the global NumPy random state.
+    transition, transition_width :: written when given (see RingProfile).
+    radii :: the radii of the growth rings, written when given.
+    graphFlag :: whether the graph file (geoName-graph.npz) was written.
 
     Returns
     -------
@@ -2990,6 +3240,12 @@ def LogFile(geoName,iter_max,r_min,r_max,nrings,width_heart,width_sparse,width_d
     logfile.write('cellsize_dense:                          ' + str(cellsize_dense) + '\n')
     logfile.write('cellwallthickness_sparse:                ' + str(cellwallthickness_sparse) + '\n')
     logfile.write('cellwallthickness_dense:                 ' + str(cellwallthickness_dense) + '\n')
+    if transition is not None:
+        logfile.write('transition:                              ' + str(transition) + '\n')
+    if transition_width is not None:
+        logfile.write('transition_width:                        ' + str(transition_width) + '\n')
+    if radii is not None:
+        logfile.write('ring radii:                              ' + str([float(r) for r in radii]) + '\n')
 
     if _is_on(merge_operation): 
         logfile.write('merge_tol:                               ' + str(merge_tol) + '\n')
@@ -3062,6 +3318,9 @@ def LogFile(geoName,iter_max,r_min,r_max,nrings,width_heart,width_sparse,width_d
         if inpType in ABAQUS_TYPES:
             logfile.write('Abaqus Input File:                       ' + prefix \
             + '.inp\n') 
+    if _is_on(graphFlag):
+        logfile.write('Graph File:                              ' + prefix \
+            + '-graph.npz\n')
     logfile.write('Log File:                                ' + prefix \
         + '-report.log\n')
     logfile.close()

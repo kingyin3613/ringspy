@@ -1,0 +1,52 @@
+# RingsPy example: softwood with a gradual earlywood-latewood transition and rings that differ
+#
+#   ringspy run wood_gradual.toml
+#
+# Lengths in mm. Parameters left out take their default values (those of wood_cube.toml).
+
+geoName = "wood_gradual"
+path = "meshes"
+seed = 2025
+
+# Cell placement and growth rings
+radial_growth_rule = "binary"
+iter_max = 500
+r_min = 0
+r_max = 4
+nrings = 4
+generation_center = [0, 0]
+
+# One value per growth ring (innermost first), or a single number for all rings as in wood_cube.toml
+cellsize_sparse = [0.024, 0.020, 0.022, 0.018]
+cellsize_dense = [0.012, 0.010, 0.010, 0.009]
+cellwallthickness_sparse = [0.005, 0.006, 0.006, 0.007]
+cellwallthickness_dense = [0.009, 0.010, 0.011, 0.012]
+
+# Within each ring, the cell size and wall thickness change gradually from the sparse (earlywood)
+# values to the dense (latewood) values over the outer 60% of the sparse part ("abrupt": a step)
+transition = "sigmoid"          # abrupt, linear or sigmoid
+transition_width = 0.6          # fraction of the sparse part of a ring over which they change
+
+# Clipping box
+boundaryFlag = true
+box_shape = "square"
+box_center = [0, 0]
+box_size = 4.0
+
+# Longitudinal direction
+nsegments = 2
+theta_min = 0
+theta_max = 0.05
+z_min = 0
+z_max = 4.0
+
+merge_operation = true
+merge_tol = 0.01
+
+# Output files: the ParaView files carry the ring of every cell (color by "Ring" or "Dense"), the Abaqus
+# file has element sets per ring (Ring1Beams, Ring1TConns, ...), and the graph file holds the cell mesh
+# as a graph for machine learning
+stlFlag = false
+inpFlag = true
+inpType = "Abaqus"
+graphFlag = true                # also save wood_gradual-graph.npz (nodes: cell vertices, edges: cell walls)

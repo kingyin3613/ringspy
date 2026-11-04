@@ -49,12 +49,13 @@ Once all required components are installed and one is ready to begin, a path for
     3. Visualize 2D view using Matplotlib or 3D model in `ParaView`
     4. (Optional) Export 3D STL model for 3D editing and/or printing
     5. (Optional) Export input file for numerical simulations with software `Abaqus`
+    6. (Optional) Generate many meshes at once with `ringspy batch`, and export the cell mesh as a graph for machine learning
 
 ### 1. Geometry and Parameters
 The first step to generate a cellular geometry is selecting geometry and appropriate parameters. 
 
 ### 1.1. Geometry
-An input file in [TOML](https://toml.io) format, for example [`wood_cube.toml`](https://github.com/kingyin3613/ringspy/tree/main/examples/wood_cube.toml) in the [examples](https://github.com/kingyin3613/ringspy/tree/main/examples/) directory, holds the parameters for the generation of a cubic wood specimen. The other examples there are a wood specimen with more regular cells (`wood_cube_lloyd.toml`), honeycombs clipped by a hexagon or a triangle (`honeycomb_hex.toml`, `honeycomb_tri.toml`), a dog-bone tensile specimen clipped by a polygon (`dogbone.toml`), and a mesh of previously saved cells (`saved_sites.toml`). Copy the one closest to the wanted geometry and edit it.
+An input file in [TOML](https://toml.io) format, for example [`wood_cube.toml`](https://github.com/kingyin3613/ringspy/tree/main/examples/wood_cube.toml) in the [examples](https://github.com/kingyin3613/ringspy/tree/main/examples/) directory, holds the parameters for the generation of a cubic wood specimen. The other examples there are a wood specimen with more regular cells (`wood_cube_lloyd.toml`), a softwood with a gradual earlywood-latewood transition and rings that differ (`wood_gradual.toml`), honeycombs clipped by a hexagon or a triangle (`honeycomb_hex.toml`, `honeycomb_tri.toml`), a dog-bone tensile specimen clipped by a polygon (`dogbone.toml`), and a mesh of previously saved cells (`saved_sites.toml`). Copy the one closest to the wanted geometry and edit it.
 
 *Note: The Mesh Generation Tool accepts the pre-defined boundary geometries triangle, square and hexagon, and any simple polygon given by its vertices (`box_shape = "polygon"`); importing of CAD and/or other 3D model files will be implemented in subsequent versions.*
 
@@ -82,10 +83,12 @@ width_sparse = 0.7              # ring width of rings with sparse cells (left ou
 width_dense = 0.3               # ring width of rings with dense cells (left out: 0.3*(r_max-r_min)/nrings)
 generation_center = [0, 0]      # coordinates of generation domain center
 
-cellsize_sparse = 0.02
+cellsize_sparse = 0.02          # a number, or one value per ring: [0.024, 0.020, 0.022, 0.018]
 cellsize_dense = 0.01
 cellwallthickness_sparse = 0.006
 cellwallthickness_dense = 0.010
+transition = "abrupt"           # abrupt, linear or sigmoid: change from sparse to dense within a ring
+transition_width = 1.0          # fraction of the sparse part of a ring over which it changes (linear, sigmoid)
 
 # Clipping box
 boundaryFlag = true
@@ -116,6 +119,7 @@ stlFlag = true                  # 3D model (needs vtk: pip install "ringspy[vtk]
 inpFlag = true                  # input file for simulations
 inpType = "Abaqus"
 save_sites = false              # also save wood_cube_sites.npy and wood_cube_radii.npy, to reuse the cells later
+graphFlag = false               # also save wood_cube-graph.npz, the cell mesh as a graph (PyTorch Geometric layout)
 ```
 
 A parameter that is left out takes its default value, which is its value in `wood_cube.toml`; a misspelled parameter name is an error. Flags take `true`/`false` (the `'on'`/`'off'` strings of earlier versions also work).
@@ -128,7 +132,8 @@ A parameter that is left out takes its default value, which is its value in `woo
 - `r_min` and `r_max` are the upper and lower bounds of radii of toroidal cell placement regions (generation rings), `nrings` is the total number of rings.
 - `width_heart`, `width_sparse`, and `width_dense`, are ring widths for innermost ring, rings with sparse cells, and rings with dense cells, respectively, which all together determine the morphology of the cellular structure.
 - `generation_center` is the location of the placement region.
-- `cellsize_sparse`,`cellsize_dense`, `cellwallthickness_sparse`, and `cellwallthickness_dense` are parameters for the sparse and dense cells.
+- `cellsize_sparse`,`cellsize_dense`, `cellwallthickness_sparse`, and `cellwallthickness_dense` are parameters for the sparse and dense cells (the earlywood and latewood of a growth ring; the innermost ring, the heart, has dense cells). Each is a single number for all rings, or a list with one value per ring, innermost first (e.g. `cellwallthickness_dense = [0.009, 0.010, 0.011, 0.012]` with `nrings = 4`), so that every ring can differ; the heart takes the dense values of the first ring.
+- `transition` is how the cell size and the wall thickness change from the sparse part of a ring to its dense part: `"abrupt"` (the default: a step at the boundary, as in all earlier versions), `"linear"` or `"sigmoid"` (an S-shaped curve). With the last two, the values change from the sparse to the dense values over the outer fraction `transition_width` of the sparse part (between 0 and 1, default 1: the whole sparse part), so that the two parts of a ring join without a jump, like the gradual earlywood-latewood transition of spruce or fir; the dense part, and the step at the ring boundary back to the next sparse part, are unchanged. The cells of the `binary` and `binary_lloyd` rules follow the profile when they are placed, and the wall thickness follows it at every vertex. See [examples/wood_gradual.toml](./examples/wood_gradual.toml).
 - `boundaryFlag` flag can be turned on/off for generating neat boundaries consisting of grains.
 - `box_shape` is the shape of cutting box: `square`, `triangle`, `hexagon`, or `polygon`.
 - `box_center`, and `box_size` are for describing the cutting box (square, triangle and hexagon).
@@ -143,6 +148,7 @@ A parameter that is left out takes its default value, which is its value in `woo
 - `stlFlag` flag can be turned on/off for generating 3D STL files.
 - `inpFlag` flag can be turned on/off for generating input files for numerical simulations.
 - `inpType` indicates the software(s) that the mesh generation should generate input files for.
+- `graphFlag` flag can be turned on/off for saving the 2D cell mesh as a graph (`geoName-graph.npz`, see section 5.2).
 
 ![growth_rule_binary](<./contents/growth_rule_binary.png>)
 ### 2.1. Run Mesh Generation
@@ -168,6 +174,8 @@ config = ringspy.Config(geoName="small_cube", r_max=2, box_size=1.0, seed=1)  # 
 result = ringspy.generate(config)
 print(result.output_dir, result.nParticles, result.porosity)
 ```
+The `Result` also holds the clipped 2D cell mesh with its growth ring labels: `result.vertices` and `result.ridges` (the cell vertices, one beam each, and the cell walls as pairs of vertex indices), `result.vertex_ring`, `result.vertex_dense`, `result.vertex_boundary` and `result.vertex_thickness` (the growth ring of every vertex, 0 for the heart; whether it is in a dense part; whether it lies on the clipping boundary; its wall thickness), and `result.ridge_ring`, `result.ridge_dense`, `result.ridge_boundary` for the walls. Many meshes at once: section 5.1.
+
 Each example also has a short Python script next to it, e.g. `python wood_cube.py`.
 
 *Note: template scripts of earlier versions (e.g. `tests/test_wood_cube.py` of v1.1), which call the `MeshGenTools` functions one by one, still work. Their placement functions take an optional `rng` argument (a seed or a `numpy.random.Generator`) to make the cell placement repeatable.*
@@ -203,6 +211,10 @@ The following files should be generated in the `.\meshes\geoName` directory with
     - Binary STL file of initial cellular solid configuration: `wood_cube.stl`
 - (Optional) Abaqus input files
     - INP file of simulation input of initial cellular solid configuration in `Abaqus`: `wood_cube.inp`
+- (Optional) Graph file
+    - The 2D cell mesh as a graph, in the layout of PyTorch Geometric: `wood_cube-graph.npz` (`graphFlag = true`, see section 5.2)
+
+The growth ring of every cell is written to the files: the `.vtu` files carry the cell data `Ring` (0 for the heart, then 1, 2, ...) and `Dense` (1 in the heart and in the dense part of a ring, 0 in the sparse part), the `.inp` file has an element set per ring (section 4.3), and the report log lists the radii of the rings. A beam and the wing quads around it take the ring of their vertex; a cell wall (and its transverse connectors) takes the ring of the vertex whose thickness it has, its second vertex; a longitudinal connector takes the ring of the wall of its wing, whose width it has. So the ring labels of the connectors always go with their `Connector_width`.
 
 
 ![Model2DPreview](<./contents/Model2DPreview.png>)
@@ -221,6 +233,7 @@ A scientific visualization application `ParaView` can directly visualize the gen
         - Press Apply (left side, center)
     6. Turn on color plotting
         - Left click `_conns.vtu`, then select coloring (mid/lower left) > Connector_width
+        - Or color by `Ring` (the growth ring of every beam and connector) or `Dense` (dense/sparse rings)
     7. Scale and position the image as desired
     8. Turn back on Ray Tracing
     9. Adjust Ray Tracing lighting and settings as desired
@@ -273,6 +286,47 @@ All steps for the model setup can be accomplished through manually coding the Ab
 *Note: if FEM parts will be added to the model, this RingsPy generated part must come first alphabetically. Also recommended not to include numbers in the name.*
 
 ![ModelNumericalSimulation](<./contents/ModelNumericalSimulation.png>)
+
+### 4.3 One Material per Growth Ring
+The `.inp` file defines, inside the instance, an element set for the beams, the transverse connectors and the longitudinal connectors of every growth ring: `Ring0Beams`, `Ring0TConns`, `Ring0LConns` for the heart, `Ring1Beams`, `Ring1TConns`, `Ring1LConns` for the first ring, and so on (only non-empty sets are written; `Ring5...` with `nrings = 4` holds the few elements beyond the outermost ring radius). `SparseBeams`, `SparseTConns`, `SparseLConns` and `DenseBeams`, `DenseTConns`, `DenseLConns` collect the elements of all sparse (earlywood) and all dense (latewood, and the heart) rings. In Abaqus CAE they appear as sets of the imported part, so a section with its own material can be assigned to every ring. To do the same in the input file, replace the `*Beam Section` of `AllBeams` and the `*Solid Section` lines of `AllBotConns`, `AllRegConns`, `AllTopConns` and `AllLongConns` by one section per ring set (an element must belong to one section only), for instance:
+```
+*Solid Section, elset=Ring1TConns, material=Earlywood
+ 2.5000E-03
+*Solid Section, elset=Ring2TConns, material=Latewood
+ 2.5000E-03
+```
+The transverse connectors of a ring set have the wall thickness of that ring (the `width` column of `geoName-mesh.txt`), the longitudinal connectors the thickness of the wall of their wing.
+
+### 5. (Optional) Batch Generation and Graph Export
+Both are made for parameter studies and for building data sets, e.g. to train a graph neural network surrogate of the lattice model.
+
+### 5.1 Many Meshes at Once
+`ringspy batch` generates one mesh per combination of the swept parameter values and per random seed, and writes one table of their descriptors:
+```bash
+ringspy batch wood_cube.toml --seeds 0-9 --set cellsize_sparse=0.02,0.03 --set stlFlag=false --jobs 4
+```
+`--seeds` takes integers and ranges (`0-9` is 0 to 9), `--set NAME=V1,V2,...` the values of a parameter to sweep (TOML syntax: lists in brackets, e.g. `--set "cellwallthickness_dense=[0.01,0.01],[0.01,0.02]"`; a single value just changes the parameter in all runs), `--jobs` the number of runs in parallel, and `--path`/`--geoName` override the file. Run i is named `<geoName>_<i>` (`wood_cube_000`, `wood_cube_001`, ...) and gets the usual folder of files, with the first swept parameter varying slowest and the seeds fastest. The table `<path>/<geoName>-batch.csv` has one row per run with its seed, the swept parameters, and `nParticles`, `nvertex`, `nridge`, `nbeamElem`, `mass`, `bulk_volume`, `bulk_density` and `porosity`, plus the error message of a run that failed (the other runs are still generated; the command then exits with status 1). From Python:
+```python
+results = ringspy.batch("wood_cube.toml", seeds=range(10), sweep={"cellsize_sparse": [0.02, 0.03]},
+                        jobs=4, stlFlag=False)        # a list of Results, None for a failed run
+```
+
+### 5.2 The Cell Mesh as a Graph
+With `graphFlag = true` (or `--set graphFlag=true` in a batch), `geoName-graph.npz` holds the clipped 2D cell mesh as a graph in the layout of a [PyTorch Geometric](https://pytorch-geometric.readthedocs.io) `Data` object: the nodes are the cell vertices (the beams of the 3D model) and the edges the cell walls (the transverse connectors), each in both directions.
+- `pos` (nvertex, 2): the vertex coordinates
+- `x` (nvertex, 6): node features, named in `node_features`: growth ring, dense (1/0), boundary (1 on the clipping boundary), wall thickness at the vertex, degree (number of walls), distance to the generation center
+- `edge_index` (2, 2*nridge) and `edge_attr` (2*nridge, 6): the edges and their features, named in `edge_features`: length, angle of the wall (radians, counter-clockwise from the x axis, from the first node of the edge to the second), thickness, growth ring, dense, boundary (1 for walls along the clipping boundary)
+- `sites`, `radii`, `generation_center`: the cells and growth rings the mesh was made from; `nParticles`, `nbeamElem`, `mass`, `bulk_volume`, `bulk_density`, `porosity`: the model properties; `config`: all parameters of the run as a JSON string
+```python
+import numpy as np, torch
+from torch_geometric.data import Data
+
+g = np.load("meshes/wood_cube/wood_cube-graph.npz")
+data = Data(x=torch.from_numpy(g["x"]).float(), edge_index=torch.from_numpy(g["edge_index"]),
+            edge_attr=torch.from_numpy(g["edge_attr"]).float(), pos=torch.from_numpy(g["pos"]).float(),
+            y=torch.tensor([float(g["porosity"])]))
+```
+The same arrays are returned by `ringspy.graph_arrays(result)` for any `Result`, and held in `result.graph` when the flag is on.
 
 ## Contributing
 [![DOI](https://joss.theoj.org/papers/10.21105/joss.04945/status.svg)](https://doi.org/10.21105/joss.04945)
