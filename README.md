@@ -41,7 +41,7 @@ pytest
 
 `pytest -m "not slow"` skips the end-to-end runs of the examples and takes well under a minute.
 
-## Getting Started (Current version: v1.4.0)
+## Getting Started (Current version: v2.1.0)
 Once all required components are installed and one is ready to begin, a path forward should be established for generating the mesh. The basic steps for running/viewing a cellular mesh are listed as the following:
 
     1. Edit geometry and algorithm parameters in an input file
@@ -49,14 +49,15 @@ Once all required components are installed and one is ready to begin, a path for
     3. Visualize 2D view using Matplotlib or 3D model in `ParaView`
     4. (Optional) Export 3D STL model for 3D editing and/or printing
     5. (Optional) Export input file for numerical simulations with software `Abaqus`
+    6. (Optional) Generate many meshes at once with `ringspy batch`, and export the cell mesh as a graph for machine learning
 
-Since v1.4.0, the same lattice can also be reconstructed from a 3D image of a real specimen (e.g. a CT scan of a wood cube at the scale of its cells) with `ringspy reconstruct`, see section 5.
+Since v2.1.0, the same lattice can also be reconstructed from a 3D image of a real specimen (e.g. a CT scan of a wood cube at the scale of its cells) with `ringspy reconstruct`, see section 6.
 
 ### 1. Geometry and Parameters
 The first step to generate a cellular geometry is selecting geometry and appropriate parameters. 
 
 ### 1.1. Geometry
-An input file in [TOML](https://toml.io) format, for example [`wood_cube.toml`](https://github.com/kingyin3613/ringspy/tree/main/examples/wood_cube.toml) in the [examples](https://github.com/kingyin3613/ringspy/tree/main/examples/) directory, holds the parameters for the generation of a cubic wood specimen. The other examples there are a wood specimen with more regular cells (`wood_cube_lloyd.toml`), honeycombs clipped by a hexagon or a triangle (`honeycomb_hex.toml`, `honeycomb_tri.toml`), a dog-bone tensile specimen clipped by a polygon (`dogbone.toml`), and a mesh of previously saved cells (`saved_sites.toml`). Copy the one closest to the wanted geometry and edit it.
+An input file in [TOML](https://toml.io) format, for example [`wood_cube.toml`](https://github.com/kingyin3613/ringspy/tree/main/examples/wood_cube.toml) in the [examples](https://github.com/kingyin3613/ringspy/tree/main/examples/) directory, holds the parameters for the generation of a cubic wood specimen. The other examples there are a wood specimen with more regular cells (`wood_cube_lloyd.toml`), a softwood with a gradual earlywood-latewood transition and rings that differ (`wood_gradual.toml`), honeycombs clipped by a hexagon or a triangle (`honeycomb_hex.toml`, `honeycomb_tri.toml`), a dog-bone tensile specimen clipped by a polygon (`dogbone.toml`), and a mesh of previously saved cells (`saved_sites.toml`). Copy the one closest to the wanted geometry and edit it.
 
 *Note: The Mesh Generation Tool accepts the pre-defined boundary geometries triangle, square and hexagon, and any simple polygon given by its vertices (`box_shape = "polygon"`); importing of CAD and/or other 3D model files will be implemented in subsequent versions.*
 
@@ -84,10 +85,12 @@ width_sparse = 0.7              # ring width of rings with sparse cells (left ou
 width_dense = 0.3               # ring width of rings with dense cells (left out: 0.3*(r_max-r_min)/nrings)
 generation_center = [0, 0]      # coordinates of generation domain center
 
-cellsize_sparse = 0.02
+cellsize_sparse = 0.02          # a number, or one value per ring: [0.024, 0.020, 0.022, 0.018]
 cellsize_dense = 0.01
 cellwallthickness_sparse = 0.006
 cellwallthickness_dense = 0.010
+transition = "abrupt"           # abrupt, linear or sigmoid: change from sparse to dense within a ring
+transition_width = 1.0          # fraction of the sparse part of a ring over which it changes (linear, sigmoid)
 
 # Clipping box
 boundaryFlag = true
@@ -118,6 +121,7 @@ stlFlag = true                  # 3D model (needs vtk: pip install "ringspy[vtk]
 inpFlag = true                  # input file for simulations
 inpType = "Abaqus"
 save_sites = false              # also save wood_cube_sites.npy and wood_cube_radii.npy, to reuse the cells later
+graphFlag = false               # also save wood_cube-graph.npz, the cell mesh as a graph (PyTorch Geometric layout)
 ```
 
 A parameter that is left out takes its default value, which is its value in `wood_cube.toml`; a misspelled parameter name is an error. Flags take `true`/`false` (the `'on'`/`'off'` strings of earlier versions also work).
@@ -130,7 +134,8 @@ A parameter that is left out takes its default value, which is its value in `woo
 - `r_min` and `r_max` are the upper and lower bounds of radii of toroidal cell placement regions (generation rings), `nrings` is the total number of rings.
 - `width_heart`, `width_sparse`, and `width_dense`, are ring widths for innermost ring, rings with sparse cells, and rings with dense cells, respectively, which all together determine the morphology of the cellular structure.
 - `generation_center` is the location of the placement region.
-- `cellsize_sparse`,`cellsize_dense`, `cellwallthickness_sparse`, and `cellwallthickness_dense` are parameters for the sparse and dense cells.
+- `cellsize_sparse`,`cellsize_dense`, `cellwallthickness_sparse`, and `cellwallthickness_dense` are parameters for the sparse and dense cells (the earlywood and latewood of a growth ring; the innermost ring, the heart, has dense cells). Each is a single number for all rings, or a list with one value per ring, innermost first (e.g. `cellwallthickness_dense = [0.009, 0.010, 0.011, 0.012]` with `nrings = 4`), so that every ring can differ; the heart takes the dense values of the first ring.
+- `transition` is how the cell size and the wall thickness change from the sparse part of a ring to its dense part: `"abrupt"` (the default: a step at the boundary, as in all earlier versions), `"linear"` or `"sigmoid"` (an S-shaped curve). With the last two, the values change from the sparse to the dense values over the outer fraction `transition_width` of the sparse part (between 0 and 1, default 1: the whole sparse part), so that the two parts of a ring join without a jump, like the gradual earlywood-latewood transition of spruce or fir; the dense part, and the step at the ring boundary back to the next sparse part, are unchanged. The cells of the `binary` and `binary_lloyd` rules follow the profile when they are placed, and the wall thickness follows it at every vertex. See [examples/wood_gradual.toml](./examples/wood_gradual.toml).
 - `boundaryFlag` flag can be turned on/off for generating neat boundaries consisting of grains.
 - `box_shape` is the shape of cutting box: `square`, `triangle`, `hexagon`, or `polygon`.
 - `box_center`, and `box_size` are for describing the cutting box (square, triangle and hexagon).
@@ -139,7 +144,7 @@ A parameter that is left out takes its default value, which is its value in `woo
 - `theta_min` and `theta_max` determine the twisting angles (unit: radian) of the 2D mesh around the `generation_center`, during the spiral z-extrusion.
 - `z_min` and `z_max` determine the boundaries of prismatic cells in z- (longitudinal) direction.
 - `long_connector_ratio` is the length of longitudinal joints, with `longitudinal joint length = ratio * segment_length`.
-- `fiber_length` and `fiber_length_cov` (new in v1.4.0) make the cells end inside the specimen and the grains sequences of fibers of various lengths: without `fiber_length`, every grain is cut into the same `nsegments` segments and all longitudinal joints lie on common planes, like knife cuts through the specimen. With it, every cell is a sequence of cells whose lengths follow a lognormal distribution of mean `fiber_length` (mm) and coefficient of variation `fiber_length_cov` (default 0.3), the first crossing the bottom face at a random point of its length; where a cell ends, the grains at its corners get a fiber end (a longitudinal joint per wing), so the fibers of the grains start and end at different heights (see [examples/wood_cube_fibers.toml](./examples/wood_cube_fibers.toml)). The fiber ends lie on a grid of `2*nsegments` beam elements along the specimen (each segment of the regular extrusion is 2 elements): choose `nsegments` so that an element is a fraction of `fiber_length`. On every grid line, every cell wall gets a transverse connector between the nodes of its two grains, two of half height where a fiber of either grain ends there, as at the segment interfaces of the regular extrusion. The fibers then have various numbers of elements: in `geoNameIGA.txt`, the header gives the largest numbers of control points and elements of a patch, and each patch's knot vector (of `n + 5` knots for `n` elements, `2n + 1` control points) its own; the report log has a `FIBERS` section with the numbers of cell ends and fibers and their lengths. The same `seed` gives the same cells and fibers.
+- `fiber_length` and `fiber_length_cov` (new in v2.1.0) make the cells end inside the specimen and the grains sequences of fibers of various lengths: without `fiber_length`, every grain is cut into the same `nsegments` segments and all longitudinal joints lie on common planes, like knife cuts through the specimen. With it, every cell is a sequence of cells whose lengths follow a lognormal distribution of mean `fiber_length` (mm) and coefficient of variation `fiber_length_cov` (default 0.3), the first crossing the bottom face at a random point of its length; where a cell ends, the grains at its corners get a fiber end (a longitudinal joint per wing), so the fibers of the grains start and end at different heights (see [examples/wood_cube_fibers.toml](./examples/wood_cube_fibers.toml)). The fiber ends lie on a grid of `2*nsegments` beam elements along the specimen (each segment of the regular extrusion is 2 elements): choose `nsegments` so that an element is a fraction of `fiber_length`. On every grid line, every cell wall gets a transverse connector between the nodes of its two grains, two of half height where a fiber of either grain ends there, as at the segment interfaces of the regular extrusion. The fibers then have various numbers of elements: in `geoNameIGA.txt`, the header gives the largest numbers of control points and elements of a patch, and each patch's knot vector (of `n + 5` knots for `n` elements, `2n + 1` control points) its own; the report log has a `FIBERS` section with the numbers of cell ends and fibers and their lengths. The same `seed` gives the same cells and fibers.
 - `taper_length` and `taper_ratio` taper the cells to their ends: within `taper_length` (mm, default `0.15*fiber_length`) of an end, the corners of the cell draw in toward its center with a cosine profile, so that its cross-section shrinks to `taper_ratio` times its size (default 0.15; 1 means blunt ends) and the neighbouring cells fill the space, and the cell beginning above the end widens the same way. The walls (transverse connectors) of a tapering cell get shorter accordingly; corners on the sides of the clipping box stay on their sides.
 - `skeleton_density` is the density of the skeleton (substance) material, e.g. density of wood cell walls in the wood microstructure. 
 - `merge_operation` flag can be turned on/off for the merging operation, when flag is on, cell ridges that are shorter than the threshold `merge_tol` in the 2D mesh will be deleted, and their vertices will be merged respectively, the mesh will be reconstructed. This is designed for eliminating small cell ridges/walls which fall out of the resolution range of the 3D printing and for avoiding having elements with too small stable time increments in numerical simulations. 
@@ -147,6 +152,7 @@ A parameter that is left out takes its default value, which is its value in `woo
 - `stlFlag` flag can be turned on/off for generating 3D STL files.
 - `inpFlag` flag can be turned on/off for generating input files for numerical simulations.
 - `inpType` indicates the software(s) that the mesh generation should generate input files for.
+- `graphFlag` flag can be turned on/off for saving the 2D cell mesh as a graph (`geoName-graph.npz`, see section 5.2).
 
 ![growth_rule_binary](<./contents/growth_rule_binary.png>)
 ### 2.1. Run Mesh Generation
@@ -172,6 +178,8 @@ config = ringspy.Config(geoName="small_cube", r_max=2, box_size=1.0, seed=1)  # 
 result = ringspy.generate(config)
 print(result.output_dir, result.nParticles, result.porosity)
 ```
+The `Result` also holds the clipped 2D cell mesh with its growth ring labels: `result.vertices` and `result.ridges` (the cell vertices, one beam each, and the cell walls as pairs of vertex indices), `result.vertex_ring`, `result.vertex_dense`, `result.vertex_boundary` and `result.vertex_thickness` (the growth ring of every vertex, 0 for the heart; whether it is in a dense part; whether it lies on the clipping boundary; its wall thickness), and `result.ridge_ring`, `result.ridge_dense`, `result.ridge_boundary` for the walls. Many meshes at once: section 5.1.
+
 Each example also has a short Python script next to it, e.g. `python wood_cube.py`.
 
 *Note: template scripts of earlier versions (e.g. `tests/test_wood_cube.py` of v1.1), which call the `MeshGenTools` functions one by one, still work. Their placement functions take an optional `rng` argument (a seed or a `numpy.random.Generator`) to make the cell placement repeatable.*
@@ -207,6 +215,10 @@ The following files should be generated in the `.\meshes\geoName` directory with
     - Binary STL file of initial cellular solid configuration: `wood_cube.stl`
 - (Optional) Abaqus input files
     - INP file of simulation input of initial cellular solid configuration in `Abaqus`: `wood_cube.inp`
+- (Optional) Graph file
+    - The 2D cell mesh as a graph, in the layout of PyTorch Geometric: `wood_cube-graph.npz` (`graphFlag = true`, see section 5.2)
+
+The growth ring of every cell is written to the files: the `.vtu` files carry the cell data `Ring` (0 for the heart, then 1, 2, ...) and `Dense` (1 in the heart and in the dense part of a ring, 0 in the sparse part), the `.inp` file has an element set per ring (section 4.3), and the report log lists the radii of the rings. A beam and the wing quads around it take the ring of their vertex; a cell wall (and its transverse connectors) takes the ring of the vertex whose thickness it has, its second vertex; a longitudinal connector takes the ring of the wall of its wing, whose width it has. So the ring labels of the connectors always go with their `Connector_width`.
 
 
 ![Model2DPreview](<./contents/Model2DPreview.png>)
@@ -225,6 +237,7 @@ A scientific visualization application `ParaView` can directly visualize the gen
         - Press Apply (left side, center)
     6. Turn on color plotting
         - Left click `_conns.vtu`, then select coloring (mid/lower left) > Connector_width
+        - Or color by `Ring` (the growth ring of every beam and connector) or `Dense` (dense/sparse rings)
     7. Scale and position the image as desired
     8. Turn back on Ray Tracing
     9. Adjust Ray Tracing lighting and settings as desired
@@ -278,16 +291,57 @@ All steps for the model setup can be accomplished through manually coding the Ab
 
 ![ModelNumericalSimulation](<./contents/ModelNumericalSimulation.png>)
 
-## 5. Reconstruction from a 3D Image (new in v1.4.0)
+### 4.3 One Material per Growth Ring
+The `.inp` file defines, inside the instance, an element set for the beams, the transverse connectors and the longitudinal connectors of every growth ring: `Ring0Beams`, `Ring0TConns`, `Ring0LConns` for the heart, `Ring1Beams`, `Ring1TConns`, `Ring1LConns` for the first ring, and so on (only non-empty sets are written; `Ring5...` with `nrings = 4` holds the few elements beyond the outermost ring radius). `SparseBeams`, `SparseTConns`, `SparseLConns` and `DenseBeams`, `DenseTConns`, `DenseLConns` collect the elements of all sparse (earlywood) and all dense (latewood, and the heart) rings. In Abaqus CAE they appear as sets of the imported part, so a section with its own material can be assigned to every ring. To do the same in the input file, replace the `*Beam Section` of `AllBeams` and the `*Solid Section` lines of `AllBotConns`, `AllRegConns`, `AllTopConns` and `AllLongConns` by one section per ring set (an element must belong to one section only), for instance:
+```
+*Solid Section, elset=Ring1TConns, material=Earlywood
+ 2.5000E-03
+*Solid Section, elset=Ring2TConns, material=Latewood
+ 2.5000E-03
+```
+The transverse connectors of a ring set have the wall thickness of that ring (the `width` column of `geoName-mesh.txt`), the longitudinal connectors the thickness of the wall of their wing.
+
+### 5. (Optional) Batch Generation and Graph Export
+Both are made for parameter studies and for building data sets, e.g. to train a graph neural network surrogate of the lattice model.
+
+### 5.1 Many Meshes at Once
+`ringspy batch` generates one mesh per combination of the swept parameter values and per random seed, and writes one table of their descriptors:
+```bash
+ringspy batch wood_cube.toml --seeds 0-9 --set cellsize_sparse=0.02,0.03 --set stlFlag=false --jobs 4
+```
+`--seeds` takes integers and ranges (`0-9` is 0 to 9), `--set NAME=V1,V2,...` the values of a parameter to sweep (TOML syntax: lists in brackets, e.g. `--set "cellwallthickness_dense=[0.01,0.01],[0.01,0.02]"`; a single value just changes the parameter in all runs), `--jobs` the number of runs in parallel, and `--path`/`--geoName` override the file. Run i is named `<geoName>_<i>` (`wood_cube_000`, `wood_cube_001`, ...) and gets the usual folder of files, with the first swept parameter varying slowest and the seeds fastest. The table `<path>/<geoName>-batch.csv` has one row per run with its seed, the swept parameters, and `nParticles`, `nvertex`, `nridge`, `nbeamElem`, `mass`, `bulk_volume`, `bulk_density` and `porosity`, plus the error message of a run that failed (the other runs are still generated; the command then exits with status 1). From Python:
+```python
+results = ringspy.batch("wood_cube.toml", seeds=range(10), sweep={"cellsize_sparse": [0.02, 0.03]},
+                        jobs=4, stlFlag=False)        # a list of Results, None for a failed run
+```
+
+### 5.2 The Cell Mesh as a Graph
+With `graphFlag = true` (or `--set graphFlag=true` in a batch), `geoName-graph.npz` holds the clipped 2D cell mesh as a graph in the layout of a [PyTorch Geometric](https://pytorch-geometric.readthedocs.io) `Data` object: the nodes are the cell vertices (the beams of the 3D model) and the edges the cell walls (the transverse connectors), each in both directions.
+- `pos` (nvertex, 2): the vertex coordinates
+- `x` (nvertex, 6): node features, named in `node_features`: growth ring, dense (1/0), boundary (1 on the clipping boundary), wall thickness at the vertex, degree (number of walls), distance to the generation center
+- `edge_index` (2, 2*nridge) and `edge_attr` (2*nridge, 6): the edges and their features, named in `edge_features`: length, angle of the wall (radians, counter-clockwise from the x axis, from the first node of the edge to the second), thickness, growth ring, dense, boundary (1 for walls along the clipping boundary)
+- `sites`, `radii`, `generation_center`: the cells and growth rings the mesh was made from; `nParticles`, `nbeamElem`, `mass`, `bulk_volume`, `bulk_density`, `porosity`: the model properties; `config`: all parameters of the run as a JSON string
+```python
+import numpy as np, torch
+from torch_geometric.data import Data
+
+g = np.load("meshes/wood_cube/wood_cube-graph.npz")
+data = Data(x=torch.from_numpy(g["x"]).float(), edge_index=torch.from_numpy(g["edge_index"]),
+            edge_attr=torch.from_numpy(g["edge_attr"]).float(), pos=torch.from_numpy(g["pos"]).float(),
+            y=torch.tensor([float(g["porosity"])]))
+```
+The same arrays are returned by `ringspy.graph_arrays(result)` for any `Result`, and held in `result.graph` when the flag is on.
+
+### 6. Reconstruction from a 3D Image (new in v2.1.0)
 
 `ringspy reconstruct` builds the same lattice as the mesh generation (grains along the cell corners, transverse connectors across the cell walls, longitudinal connectors between the segments) from a 3D image of a real specimen at the scale of its cells, e.g. a micro-CT scan of a wood cube or a stack of cross-sectional images, instead of from a radial growth rule. The fibers of the specimen are expected to grow roughly in one direction, but they need not be straight, parallel, or aligned with the image axes: every cell corner is followed through the volume, so the grains lean, bend and twist as the fibers do, and every connector gets the wall thickness measured in its own layer.
 
 ![wood_ct_preview: the reference cross-section of a synthetic scan with the cell corners and walls found in it, and the top view of the grains followed through the volume](./contents/wood_ct_preview.png)
 
-### 5.1. Input
+### 6.1. Input
 The image is a 3D array of voxels: a `.npy` or `.npz` file, a `.tif` stack (install `pip install "ringspy[image]"`), or, from Python, a `numpy` array. It is either boolean (`true` in the cell walls) or grayscale; a grayscale image is smoothed (`smooth_sigma`, in voxels) and thresholded (`threshold`; left out: [Otsu's threshold](https://en.wikipedia.org/wiki/Otsu%27s_method)), and `solid` says whether the cell walls are the bright phase (as in X-ray CT, where the walls attenuate more than the empty lumens) or the dark one. The array axis along the fibers is `longitudinal_axis`; left at `"auto"`, it is the axis along which the image changes least. The two other axes become x and y of the lattice, in their order in the array, and `voxel_size` (mm; one number, or one per array axis), `origin` and an optional `crop` (voxel index ranges `[x0, x1, y0, y1, z0, z1]`) place the specimen. The walls should be at least 2 to 3 voxels thick and the cells about 10 voxels or more across; the cells should be separated by the threshold (a wall with a hole merges two cells in that cross-section).
 
-### 5.2. How It Works
+### 6.2. How It Works
 1. The image is thresholded into cell walls and lumens. The lumens of every cross-section are labelled, and the labels are linked from slice to slice by overlap, starting from the reference cross-section (`reference_slice`) up and down, so that every cell keeps one label through the volume. The linking looks back a few slices, so a slice in which two cells touch through a hole in their wall, or a speck splits a cell, does not lose the labels. Lumens smaller than `min_cell_area` and wall specks smaller than `min_wall_area` are treated as noise.
 2. In the reference cross-section, every pixel is given the label of the nearest lumen (the Voronoi-like partition of the cross-section into cells). The points of the pixel grid where 3 or more labels meet are the cell corners, each identified by the set of cells meeting there, and the boundaries between two labels are the cell walls, each as thick as twice the distance from its midline to the lumens. The sides of the cross-section count as cells too, so a wall running into a side ends at a boundary point and the corners of the image are the corners of the box, exactly as the clipping box of the mesh generation with `boundaryFlag = true`. The corners are then located to sub-pixel precision where the straight lines fitted to the midlines of their walls meet. `merge_operation` merges walls shorter than `merge_tol` (left out: 1.5 voxels), as for the generated meshes.
 3. The fiber direction field of the volume is computed from its [structure tensor](https://en.wikipedia.org/wiki/Structure_tensor) (on a coarse grid, averaged over `direction_scale`, left out: two cell diameters): at every point the direction along which the image changes least, i.e. the direction of the tube-like cells. Its mean direction gives the grain angle (to the longitudinal axis), its azimuth and the dispersion of the fibers around it, all written to the report log.
@@ -295,18 +349,18 @@ The image is a 3D array of voxels: a `.npy` or `.npz` file, a `.tif` stack (inst
 5. The fibers of the grains end where the cells of the image end (`fiber_ends = "image"`, the default): a cell whose lumen closes between two cross-sections ends there, and the grains at its corners get a fiber end (a longitudinal joint per wing) on the nearest line of the grid of `2*nsegments` beam elements, so the joints lie at different heights on different grains, as the cells do, and not on common planes. The tapering of a cell toward its end is in the followed positions of its corners, which draw in as the lumen narrows; once the lumen has closed, each of its corners is placed at the junction of its remaining cells (where the neighbours now meet), a small gap (half a wall thickness) apart from the corners that share it, so the cross-section of the ended cell collapses and the nodes stay distinct. `fiber_ends = "random"` draws cells of random length instead (`fiber_length`, `fiber_length_cov`, `seed`) and tapers them geometrically (`taper_length`, `taper_ratio`, as for the mesh generation); `"none"` cuts all grains into the same `nsegments` segments.
 6. The lattice is built with the functions of the mesh generation: the quadratic NURBS beams pass through the followed positions (their middle control points are set accordingly), the transverse connectors of each grid line get the wall thicknesses measured in that cross-section (or `wall_thickness` for all), the longitudinal connectors follow the walls of their cross-section, and all the usual files are written.
 
-### 5.3. Parameters
-The input file [examples/reconstruction/wood_ct.toml](./examples/reconstruction/wood_ct.toml) lists all parameters with their defaults. Besides the parameters of the image described in 5.1 and of the steps described in 5.2:
+### 6.3. Parameters
+The input file [examples/reconstruction/wood_ct.toml](./examples/reconstruction/wood_ct.toml) lists all parameters with their defaults. Besides the parameters of the image described in 6.1 and of the steps described in 6.2:
 - `geoName`, `path`, `nsegments`, `long_connector_ratio`, `skeleton_density`, `boundaryFlag`, `merge_operation`, `merge_tol`, `stlFlag`, `inpFlag` and `inpType` mean the same as for the mesh generation (section 1.2). With `boundaryFlag = false` there are no walls along the sides of the cross-section, no box corners, and no walls between two boundary points.
 - `reference_slice`: the cross-section that gives the 2D mesh (its cells and walls are the topology of the whole lattice): `"middle"` (default, the shortest way to both ends), `"bottom"`, `"top"`, a slice index, or a height in mm (written with a decimal point).
-- `fiber_ends`: `"image"` (default), `"random"` or `"none"`, see 5.2; `fiber_length`, `fiber_length_cov`, `taper_length`, `taper_ratio` and `seed` for `"random"`.
+- `fiber_ends`: `"image"` (default), `"random"` or `"none"`, see 6.2; `fiber_length`, `fiber_length_cov`, `taper_length`, `taper_ratio` and `seed` for `"random"`.
 - `link_stride`: label only every n-th cross-section when linking the cells (faster for large volumes; the cells move little from slice to slice).
 - `vtk_format`: `"ascii"` or `"binary"` Paraview files (binary files are smaller and faster for large models).
 - `save_tracks`: also write `geoName-grains.npz` with the followed in-plane positions of every cell corner in every layer (`layer_vertices`), the control points of the beams, the heights `z_coord`, how each corner was placed in each layer (`status`), the reference vertices, ridges and wall thicknesses, and the fiber ends (`fiber_ends`: pairs of grain and grid line, `z_grid`: the heights of the grid lines).
 
 A parameter left out takes its default, and the values derived from the image (threshold, longitudinal axis, merge tolerance, scales, minimum areas) are written to the report log.
 
-### 5.4. Run a Reconstruction
+### 6.4. Run a Reconstruction
 ```bash
 cd examples/reconstruction
 python wood_ct.py                   # makes a synthetic scan wood_ct.npy first, then reconstructs it
@@ -325,7 +379,7 @@ result.layer_vertices   # (nlayers, nvertex, 2): the followed cell corners of ev
 ```
 `ringspy.reconstruct` returns a `ReconstructionResult` with the output folder and files, the properties of the lattice (as `Result`) and of the image (shape, threshold, porosity), the grain angle, azimuth and dispersion of the fibers, the mean and largest inclination of the grains, how the corners were placed, the followed corners, and the fiber ends and number of fibers. The output folder holds the same files as a generated mesh (section 2.2), plus `geoName-grains.npz` and a two-panel `geoName.png`: the reference cross-section with the cell corners and walls found in it (coloured by wall thickness) and the top view of the paths of the grains (coloured by inclination). The report log has sections on the image, the fibers and the placement of the corners.
 
-### 5.5. Synthetic Scans
+### 6.5. Synthetic Scans
 To try the reconstruction without a scan, or to check it against a known geometry, `ringspy.voxelize` rasterises any RingsPy geometry into a 3D image whose fibers lean, twist and wobble:
 ```python
 cells = ringspy.load_config("wood_cube.toml").replace(r_max=2.0, nrings=3, box_size=0.6, box_center=[1.1, 0.0], z_max=0.6, iter_max=4000)
@@ -337,7 +391,7 @@ truth = scan.vertices_at(z=0.3)                  # the true cell corners at any 
 ```
 `tilt` is the slope of the fibers (dx/dz, dy/dz), `twist` the twist angle over the height, and `wobble_amplitude`/`wobble_wavelength` a smooth random displacement field that bends the fibers; `fiber_length` (with `fiber_length_cov`, `fiber_end_offset` and `taper_length`) ends the cells at random heights, each tapering to a conical tip closed by a transverse wall and followed by a cell centered a little off; `noise` and `blur` make a CT-like grayscale image instead of a boolean one. The true cell corners at any height and the cell ends (`scan.cell_ends`) are kept for checks: in the tests, the corners found by their cells lie within a voxel of the true ones, and the cell ends inside the volume are found within a grid spacing.
 
-### 5.6. Notes
+### 6.6. Notes
 - The topology of the lattice is that of the reference cross-section. Where a cell ends inside the volume, its corners get fiber ends and then move with their neighbours ("moved with their neighbours" in the report log) in the cross-sections where their junction no longer exists; the cell beginning above it has no corners of its own in the lattice. Choose the reference cross-section in the middle, or a shorter specimen (`crop`), if their number is large.
 - The linking of the cell labels tells a cell that ends (its lumen closes: its pixels have become wall in the next cross-section) from a cell that is merged with its neighbour through a hole in the wall (its pixels now belong to another cell): the first gives a fiber end, the second is bridged. A tapered cell end that is cut into a thin sliver by the threshold can read as a cell that is split: `min_cell_area` sets the smallest lumen counted as a cell.
 - A lumen that is connected to its neighbour through a resolved pit or a crack in a cross-section merges two cells there. The linking of the labels bridges a few such slices; more smoothing (`smooth_sigma`), a higher `min_wall_area`, or a segmentation done beforehand with a dedicated tool help with noisy scans.

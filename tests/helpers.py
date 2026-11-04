@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Shared helpers of the tests"""
 
+import re
 from pathlib import Path
 
 from matplotlib.path import Path as MplPath
@@ -24,14 +25,41 @@ def without_timing(log_text):
     return [line for line in log_text.splitlines() if "local time" not in line and "Time:" not in line]
 
 
-def assert_same_files(dir_a, dir_b):
-    """The two output folders hold the same files with the same content (report logs: except run times)"""
+def without_ring_labels(name, data):
+    """File content (bytes) without the growth ring labels that generate() adds since v1.4: the Ring/Dense
+    cell data of the .vtu files, the ring element sets of the .inp file, and the transition and ring radii
+    lines of the report log. Returns (content without labels, whether labels were found)."""
+    if name.endswith(".vtu"):
+        text = data.decode("ascii")
+        # the files are written in text mode: \r\n line endings on Windows
+        stripped = re.sub(r'<DataArray type="Int32" Name="(Ring|Dense)" format="ascii">\r?\n(?:-?\d+\r?\n)*</DataArray>\r?\n', "", text)
+        stripped = re.sub(r'<CellData Tensors="" Vectors="" Scalars="Ring">\r?\n</CellData>\r?\n', "", stripped)
+        return stripped.encode("ascii"), stripped != text
+    if name.endswith(".inp"):
+        text = data.decode("ascii")
+        stripped = re.sub(r"\*\* Element sets of the growth rings.*?(?=\*\* Section: Section-1\r?\n)", "", text, flags=re.S)
+        return stripped.encode("ascii"), stripped != text
+    if name.endswith("-report.log"):
+        lines = data.decode().splitlines()
+        kept = [line for line in lines if not line.startswith(("transition:", "transition_width:", "ring radii:"))]
+        return "\n".join(kept).encode(), len(kept) < len(lines)
+    return data, False
+
+
+def assert_same_files(dir_a, dir_b, ignore_ring_labels=False):
+    """The two output folders hold the same files with the same content (report logs: except run times).
+    ignore_ring_labels: the files of dir_b may carry the growth ring labels (and must, where they have them)"""
     names_a = sorted(p.name for p in Path(dir_a).iterdir())
     names_b = sorted(p.name for p in Path(dir_b).iterdir())
     assert names_a == names_b
     for name in names_a:
         a, b = Path(dir_a, name), Path(dir_b, name)
+        data_a, data_b = a.read_bytes(), b.read_bytes()
+        if ignore_ring_labels:
+            _, labels_a = without_ring_labels(name, data_a)
+            data_b, labels_b = without_ring_labels(name, data_b)
+            assert not labels_a and labels_b == name.endswith((".vtu", ".inp", "-report.log")), name
         if name.endswith("-report.log"):
-            assert without_timing(a.read_text()) == without_timing(b.read_text()), name
+            assert without_timing(data_a.decode()) == without_timing(data_b.decode()), name
         else:
-            assert a.read_bytes() == b.read_bytes(), name
+            assert data_a == data_b, name

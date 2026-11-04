@@ -531,12 +531,32 @@ def _connector_cross_sections(Meshdata, tangents, nconnector_t, nbot, ntop):
     return quad, hexa, np.vstack((hex1, hex2))
 
 
-def write_vtu_files(geoName, lattice, layer_points, all_ridges, nvertex, path='meshes', vtk_format='ascii'):
+def element_bands(lattice, vertex_band, ridge_band, wing_ridge):
+    """
+    Ring bands (see MeshGenTools.RingBands) of the elements of a lattice, for the ring element sets of
+    AbaqusFile: {'Beams': band of each beam element (that of its grain), 'TConns': of each transverse
+    connector (bot, reg, top in a row: that of its ridge), 'LConns': of each longitudinal connector
+    (that of the ridge of its wing)}. vertex_band, ridge_band: the bands of the vertices and ridges of the
+    2D mesh; wing_ridge: the ridge of each wing (flattened_all_vertices_2D[0, :]).
+    """
+    vertex_band = np.asarray(vertex_band).reshape(-1)
+    ridge_band = np.asarray(ridge_band).reshape(-1)
+    wing_ridge = np.asarray(wing_ridge, dtype=int).reshape(-1)
+    beams = lattice.beam_connectivity - 1
+    return {'Beams': vertex_band[lattice.node_grain[beams[:, 0]]],
+            'TConns': ridge_band[np.concatenate(lattice.connector_t_ridge)],
+            'LConns': ridge_band[wing_ridge[lattice.connector_l_wing]]}
+
+
+def write_vtu_files(geoName, lattice, layer_points, all_ridges, nvertex, path='meshes', vtk_format='ascii',
+                    vertex_band=None, ridge_band=None):
     """
     The Paraview files geoName_vertices.vtu, geoName_beams.vtu, geoName_conns.vtu and
     geoName_conns_vol.vtu of a lattice, as VisualizationFiles writes them: the nodes (with the IGA
     collocation flag), the beams with the wings of the cell walls, the connectors as lines and
-    cross-sections, and the connector volumes.
+    cross-sections, and the connector volumes. With vertex_band and ridge_band (the ring bands of
+    the vertices and ridges of the 2D mesh, see MeshGenTools.RingBands), every cell gets the cell
+    data 'Ring' and 'Dense' as VisualizationFiles writes them.
     """
     if vtk_format not in ['ascii', 'binary']:
         raise ValueError("vtk_format must be 'ascii' or 'binary', not {!r}".format(vtk_format))
@@ -583,15 +603,39 @@ def write_vtu_files(geoName, lattice, layer_points, all_ridges, nvertex, path='m
     hex_conn = hex_conn + npoints
     widths = np.tile(lattice.Meshdata[:, 11], 2)
 
+    # growth ring and sparse/dense labels of the cells of each file, in the order of the cells above
+    ring_vertices = ring_beams = ring_conns = []
+    if vertex_band is not None and ridge_band is not None:
+        vertex_band = np.asarray(vertex_band).reshape(-1)
+        ridge_band = np.asarray(ridge_band).reshape(-1)
+        extra_band = np.empty(nextra, dtype=int)  # the mid and quarter points take the ring of their ridge
+        extra_band[all_ridges[:, 2:6].reshape(-1) - nvertex] = np.repeat(ridge_band, 4)
+        point_band = np.concatenate((vertex_band[lattice.node_grain], np.tile(extra_band, nhalf)))
+        quad_band = np.concatenate([np.repeat(vertex_band[all_ridges[:, wing]], nelem) for wing in (0, 1)])
+        wings = np.repeat(np.arange(nvertex), np.bincount(np.asarray(all_ridges)[:, 0:2].reshape(-1), minlength=nvertex))
+        wing_ridge = np.zeros(len(wings), dtype=int)
+        order = np.argsort(np.asarray(all_ridges)[:, 0:2].reshape(-1), kind='stable')
+        wing_ridge[:] = order // 2
+        conn_band = np.concatenate((ridge_band[np.concatenate(lattice.connector_t_ridge)],
+                                    ridge_band[wing_ridge[lattice.connector_l_wing]]))
+
+        def ring_data(band):
+            ring, dense = rpgen.RingLabels(band)
+            return [('Ring', ring.astype(np.int32)), ('Dense', dense.astype(np.int32))]
+        ring_vertices = ring_data(point_band)
+        ring_beams = ring_data(np.concatenate((vertex_band[lattice.node_grain[beam_vtk[:, 0]]], quad_band)))
+        ring_conns = ring_data(np.tile(conn_band, 2))
+
     files = [
         ('_vertices', [points], [np.arange(npoints).reshape(-1, 1)], np.ones(npoints, dtype=int),
-         ('IGAcollocation_flag', collocation), None),
+         [('IGAcollocation_flag', collocation)], ring_vertices),
         ('_beams', [points], [beam_vtk, quad_connectivity],
-         np.concatenate((21*np.ones(len(beam_vtk)), 23*np.ones(len(quad_connectivity)))).astype(int), None, None),
+         np.concatenate((21*np.ones(len(beam_vtk)), 23*np.ones(len(quad_connectivity)))).astype(int), [], ring_beams),
         ('_conns', [points, quad_pts], [conn_lines[:nt], conn_lines[nt:], quad_conn],
-         np.concatenate((3*np.ones(nt + nl), 9*np.ones(nt + nl))).astype(int), None, ('Connector_width', widths)),
-        ('_conns_vol', [points, quad_pts, hex_pts], [hex_conn], (12*np.ones(2*(nt + nl))).astype(int), None,
-         ('Connector_width', widths)),
+         np.concatenate((3*np.ones(nt + nl), 9*np.ones(nt + nl))).astype(int), [],
+         [('Connector_width', widths)] + ring_conns),
+        ('_conns_vol', [points, quad_pts, hex_pts], [hex_conn], (12*np.ones(2*(nt + nl))).astype(int), [],
+         [('Connector_width', widths)] + ring_conns),
     ]
     if vtk_format == 'binary':
         for suffix, pts, cells, types, point_data, cell_data in files:

@@ -13,7 +13,6 @@ author: king_yin3613
 email: haoyin2022@u.northwestern.edu
 """
 
-import bisect
 import math
 from dataclasses import dataclass, field
 from typing import Callable, Optional, Tuple
@@ -114,10 +113,11 @@ def _resolve_geometry(geometry, rng):
     sites, radii = place_cells(c, rng)
     x_min, x_max, y_min, y_max, *_ = rpgen.Clipping_Box(c.box_shape, c.box_center, c.box_size, c.boundaryFlag,
                                                         polygon=c.box_polygon)
-    # the wall thickness rule of VertexandRidgeinfo, applied to the cells: sparse and dense rings alternate
+    # the wall thickness rule of VertexandRidgeinfo, applied to the cells: the thickness of the growth rings
     distance = np.linalg.norm(sites[:, 0:2] - np.asarray(c.generation_center, dtype=float), axis=1)
-    thickness = np.array([c.cellwallthickness_sparse if bisect.bisect(radii, d) % 2 == 0 else c.cellwallthickness_dense
-                          for d in distance])
+    profile = rpgen.RingProfile(radii, c.cellwallthickness_sparse, c.cellwallthickness_dense, c.transition,
+                                c.transition_width)
+    thickness = np.array(profile(distance), dtype=float).reshape(-1)
     return sites, thickness, (x_min, x_max, y_min, y_max, c.z_min, c.z_max), tuple(c.generation_center)
 
 
