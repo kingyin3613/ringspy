@@ -31,12 +31,13 @@ def without_ring_labels(name, data):
     lines of the report log. Returns (content without labels, whether labels were found)."""
     if name.endswith(".vtu"):
         text = data.decode("ascii")
-        stripped = re.sub(r'<DataArray type="Int32" Name="(Ring|Dense)" format="ascii">\n(?:-?\d+\n)*</DataArray>\n', "", text)
-        stripped = stripped.replace('<CellData Tensors="" Vectors="" Scalars="Ring">\n</CellData>\n', "")
+        # the files are written in text mode: \r\n line endings on Windows
+        stripped = re.sub(r'<DataArray type="Int32" Name="(Ring|Dense)" format="ascii">\r?\n(?:-?\d+\r?\n)*</DataArray>\r?\n', "", text)
+        stripped = re.sub(r'<CellData Tensors="" Vectors="" Scalars="Ring">\r?\n</CellData>\r?\n', "", stripped)
         return stripped.encode("ascii"), stripped != text
     if name.endswith(".inp"):
         text = data.decode("ascii")
-        stripped = re.sub(r"\*\* Element sets of the growth rings.*?(?=\*\* Section: Section-1\n)", "", text, flags=re.S)
+        stripped = re.sub(r"\*\* Element sets of the growth rings.*?(?=\*\* Section: Section-1\r?\n)", "", text, flags=re.S)
         return stripped.encode("ascii"), stripped != text
     if name.endswith("-report.log"):
         lines = data.decode().splitlines()
