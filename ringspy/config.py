@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Tuple, Union, get_args, get_origin
 
-from .MeshGenTools import (ABAQUS_TYPES, HEXAGON_SHAPES, POLYGON_SHAPES, SQUARE_SHAPES, TRIANGLE_SHAPES,
+from .MeshGenTools import (ABAQUS_TYPES, HEXAGON_SHAPES, POLYGON_SHAPES, SQUARE_SHAPES, TRANSITIONS, TRIANGLE_SHAPES,
                            polygon_vertices)
 
 if sys.version_info >= (3, 11):
@@ -23,6 +23,7 @@ else:
     import tomli as tomllib
 
 GROWTH_RULES = ['binary', 'binary_lloyd', 'regular_hexagonal']
+PER_RING = ['cellsize_sparse', 'cellsize_dense', 'cellwallthickness_sparse', 'cellwallthickness_dense']
 BOX_SHAPES = SQUARE_SHAPES + TRIANGLE_SHAPES + HEXAGON_SHAPES + POLYGON_SHAPES
 TRUE_STRINGS = ['on', 'y', 'yes', 'true']
 FALSE_STRINGS = ['off', 'n', 'no', 'false']
@@ -56,10 +57,13 @@ class Config:
     width_sparse: Optional[float] = None     # default 0.7*(r_max-r_min)/nrings
     width_dense: Optional[float] = None      # default 0.3*(r_max-r_min)/nrings
     generation_center: Tuple[float, float] = (0, 0)
-    cellsize_sparse: float = 0.02
-    cellsize_dense: float = 0.01
-    cellwallthickness_sparse: float = 0.006
-    cellwallthickness_dense: float = 0.010
+    cellsize_sparse: Union[float, List[float]] = 0.02          # a number, or one value per growth ring
+    cellsize_dense: Union[float, List[float]] = 0.01
+    cellwallthickness_sparse: Union[float, List[float]] = 0.006
+    cellwallthickness_dense: Union[float, List[float]] = 0.010
+    transition: str = 'abrupt'               # abrupt, linear or sigmoid: change of the cell size and wall thickness
+                                             # from the sparse part of a ring to its dense part
+    transition_width: float = 1.0            # fraction of the sparse part over which they change (linear, sigmoid)
 
     # clipping box
     boundaryFlag: bool = True
@@ -93,6 +97,8 @@ class Config:
     inpFlag: bool = True
     inpType: str = 'Abaqus'
     save_sites: bool = False                 # also save geoName_sites.npy and geoName_radii.npy
+    graphFlag: bool = False                  # also save geoName-graph.npz, the cell mesh as a graph (nodes: vertices,
+                                             # edges: cell walls) in the layout of PyTorch Geometric
 
     def __post_init__(self):
         for f in dataclasses.fields(self):
@@ -120,9 +126,21 @@ class Config:
         for name in ['iter_max', 'print_interval', 'nrings', 'nsegments']:
             if getattr(self, name) < 1:
                 raise ValueError("{} must be at least 1".format(name))
-        for name in ['r_max', 'box_size', 'cellsize_sparse', 'cellsize_dense']:
+        for name in ['r_max', 'box_size']:
             if getattr(self, name) <= 0:
                 raise ValueError("{} must be positive".format(name))
+        for name in PER_RING:
+            value = getattr(self, name)
+            values = value if isinstance(value, list) else [value]
+            if isinstance(value, list) and len(value) != self.nrings:
+                raise ValueError("{} must be a number or a list with one value per growth ring ({} values), not {!r}"
+                                 .format(name, self.nrings, value))
+            if any(v <= 0 for v in values):
+                raise ValueError("{} must be positive".format(name))
+        if self.transition not in TRANSITIONS:
+            raise ValueError("transition must be one of {}, not {!r}".format(', '.join(TRANSITIONS), self.transition))
+        if not 0 < self.transition_width <= 1:
+            raise ValueError("transition_width must be between 0 (excluded) and 1, not {!r}".format(self.transition_width))
 
     def resolved(self):
         """Copy with the parameters left at None (ring widths, z_max) replaced by their default values"""
@@ -199,10 +217,21 @@ def _is_number(value):
 def _check(name, value, tp):
     """Check value against the type annotation tp, and convert it (flags to bool, sequences to tuples)"""
     origin, args = get_origin(tp), get_args(tp)
-    if origin is Union:  # Optional[X]
+    if origin is Union:  # Optional[X], or Union[float, List[float]]: the first matching type
         if value is None:
-            return None
-        return _check(name, value, args[0])
+            if type(None) in args:
+                return None
+            raise TypeError("{} must not be None".format(name))
+        errors = []
+        for arg in args:
+            if arg is type(None):
+                continue
+            try:
+                return _check(name, value, arg)
+            except TypeError as e:
+                errors.append(str(e))
+        raise TypeError(errors[0] if len(errors) == 1 else
+                        "{} must be a number or a list of numbers, not {!r}".format(name, value))
     if tp is bool:
         return to_bool(name, value)
     if tp is int:

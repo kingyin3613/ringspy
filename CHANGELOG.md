@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+Growth rings in the output files, a gradual earlywood-latewood transition and rings that differ, and a dataset generator for machine learning.
+
+### New
+- Growth ring labels in the output files. The four ParaView `.vtu` files carry the cell data `Ring` (the growth ring of every beam, connector, wing quad and point: 0 the heart, then 1, 2, ...) and `Dense` (1 in the heart and the dense/latewood part of a ring, 0 in the sparse/earlywood part), next to `Connector_width`. The Abaqus `.inp` file gets, inside the instance, the element sets `Ring<k>Beams`, `Ring<k>TConns` and `Ring<k>LConns` of every ring k and `SparseBeams`/`SparseTConns`/`SparseLConns`, `DenseBeams`/`DenseTConns`/`DenseLConns`, so that every ring can get its own section and material without post-processing. A beam takes the ring of its vertex; a wall, and its transverse connectors, the ring of the vertex whose thickness it has (its second vertex); a longitudinal connector the ring of the wall of its wing, whose width it has. The report log lists the radii of the rings (`ring radii:`), `transition` and `transition_width`.
+- `transition = "abrupt" | "linear" | "sigmoid"` and `transition_width`: how the cell size and the wall thickness change from the sparse part of a growth ring to its dense part. `abrupt` (the default) is the step of earlier versions; `linear` and `sigmoid` change the values over the outer fraction `transition_width` of the sparse part, up to the dense values at the boundary, like the gradual earlywood-latewood transition of spruce or fir. The `binary` and `binary_lloyd` placements follow the profile (the Lloyd sub-rings get closer towards the dense part), and so does the wall thickness at every vertex. `MeshGenTools.RingProfile` gives the profile, `RingBands`/`RingLabels` the ring of any point.
+- `cellsize_sparse`, `cellsize_dense`, `cellwallthickness_sparse` and `cellwallthickness_dense` also take a list with one value per growth ring (innermost first), so that every ring can differ; the heart takes the dense values of the first ring. `examples/wood_gradual.toml` shows both.
+- `graphFlag = true` writes `geoName-graph.npz`: the clipped 2D cell mesh as a graph in the layout of a PyTorch Geometric `Data` object (`pos`, `x` with the node features ring, dense, boundary, thickness, degree, radius; `edge_index` with every wall in both directions, `edge_attr` with length, angle, thickness, ring, dense, boundary), with the cells, ring radii, model properties and the parameters of the run. `ringspy.graph_arrays(result)` gives the same arrays for any `Result`.
+- `ringspy batch wood_cube.toml --seeds 0-9 --set cellsize_sparse=0.02,0.03 --set stlFlag=false --jobs 4` (and `ringspy.batch(config, seeds=..., sweep={...}, jobs=...)`): one mesh per combination of the swept values and per seed, in parallel if wanted, each in its own folder `<geoName>_<i>`, with the table `<geoName>-batch.csv` of the runs, their parameters and descriptors (numbers of cells, vertices, walls and beam elements, mass, bulk volume and density, porosity) and the error of a run that failed.
+- `Result` holds the clipped 2D cell mesh and its labels: `vertices`, `ridges`, `vertex_ring`, `vertex_dense`, `vertex_boundary`, `vertex_thickness`, `ridge_ring`, `ridge_dense`, `ridge_boundary`, and `graph` when `graphFlag` is on.
+- `VisualizationFiles(..., vertex_band=, ridge_band=)` and `AbaqusFile(..., vertex_band=, ridge_band=, wing_ridge=)` write the labels; `LogFile(..., transition=, transition_width=, radii=, graphFlag=)` the new log lines; `VertexandRidgeinfo`, `CellPlacement_Binary` and `CellPlacement_Binary_Lloyd` take `transition=` and `transition_width=`. The `.vtu` writers accept several point and cell data arrays, integer ones as `Int32`.
+
+### Changed
+- All other files are unchanged for the same parameters and seed (checked byte for byte for all examples); template scripts of earlier versions give the same files as before, without the labels.
+
 ## v1.3.0
 
 Clip the cells with any polygon, also a non-convex one such as a dog-bone tensile specimen.
