@@ -223,8 +223,9 @@ def link_cell_labels(walls, k_ref, needed, min_lumen_pixels=0, min_wall_pixels=0
     including the slices in `needed`.
 
     Returns {k: (labels, walls2d)} for the slices in `needed` (labels: 0 = wall, cells from 1), the
-    number of labels, and {label: [first, last]}, the first and last labelled slice holding each cell
-    (where a cell begins and ends inside the volume).
+    number of labels, {label: [first, last]}, the first and last labelled slice holding each cell
+    (where a cell begins and ends inside the volume), and the set of the labels of the cells whose
+    lumen closed (the cells that end inside the volume, below or above).
     """
     nz = walls.shape[2]
     needed = set(int(k) for k in needed) | {int(k_ref)}
@@ -237,6 +238,7 @@ def link_cell_labels(walls, k_ref, needed, min_lumen_pixels=0, min_wall_pixels=0
     slices = {k_ref: (labels_ref, walls_ref)}
     next_label = n + 1
     ranges = {}
+    closed = set()
 
     def note(labels, k):
         for label in np.unique(labels).tolist():
@@ -265,12 +267,13 @@ def link_cell_labels(walls, k_ref, needed, min_lumen_pixels=0, min_wall_pixels=0
             for label in np.setdiff1d(np.unique(previous), np.unique(labels)).tolist():
                 if label > 0 and label not in dead and walls2d[previous == label].mean() >= closed_fraction:
                     dead.add(label)
+                    closed.add(label)
             if k in needed:
                 slices[k] = (labels, walls2d)
             note(labels, k)
             history.append(labels)
             del history[:-memory]
-    return slices, next_label - 1, ranges
+    return slices, next_label - 1, ranges, closed
 
 
 # =============================================================================
@@ -764,11 +767,12 @@ class DirectionField:
 # Following the cell corners through the layers
 # =============================================================================
 
-def _project_to_sides(points, ref, rows=None):
-    """Put the boundary points of `ref` (rows: which ones, default all) back on their sides, and the
-    corners at the corners"""
+def _project_to_sides(points, ref, rows=None, margin=0.0):
+    """Put the boundary points of `ref` (rows: which ones, default all) back on their sides, at least
+    `margin` away from the corners of the box (which are nodes of their own), and the corners at the corners"""
     x0, x1, y0, y1 = ref.box
     rows = range(len(points)) if rows is None else rows
+    margin = min(margin, 0.25*(x1 - x0), 0.25*(y1 - y0))
     for i in rows:
         sides = ref.sides[i]
         if not sides:
@@ -781,17 +785,25 @@ def _project_to_sides(points, ref, rows=None):
             points[i, 1] = y0
         if SIDE_Y_MAX in sides:
             points[i, 1] = y1
+        if ref.kind[i] == 1 and margin > 0:  # a boundary point on one side: not at a corner
+            if SIDE_X_MIN in sides or SIDE_X_MAX in sides:
+                points[i, 1] = min(max(points[i, 1], y0 + margin), y1 - margin)
+            else:
+                points[i, 0] = min(max(points[i, 0], x0 + margin), x1 - margin)
     return points
 
 
-def _match_corners(ref, net, predicted, max_jump):
+def _match_corners(ref, net, predicted, max_jump, gap=0.0, closed=frozenset()):
     """
     Position of every reference vertex in the slice network `net`: the junction of the same cells
     (exact match: status 0), or the junction sharing at least 3 of its cells closest to the predicted
-    position (status 1), within max_jump of the prediction. A junction takes one vertex only (the
-    one matching it best, then the closest one): two cell corners that have come together at this
-    height stay two nodes. Unmatched vertices keep the predicted position with status 3; the corners
-    of the box keep their place (status 0).
+    position (status 1), within max_jump of the prediction. Where a cell of the corner has ended (its
+    lumen closed: `closed` labels) and is gone from the cross-section, the junction of all its remaining
+    cells is taken: the corners of a closed cell collapse onto the junctions where its neighbours now
+    meet. A junction takes one vertex at its place; further vertices matching it (corners that have
+    come together) are put `gap` away from it, toward their predicted positions, so that no two nodes
+    coincide. Unmatched vertices keep the predicted position with status 3; the corners of the box keep
+    their place (status 0).
     """
     n = len(predicted)
     new = predicted.copy()
@@ -803,31 +815,58 @@ def _match_corners(ref, net, predicted, max_jump):
             status[i] = 0
             continue
         labels = ref.label_sets[i]
+        present = [label for label in labels if label in net.by_label]
+        gone = [label for label in labels if label not in net.by_label]
         candidates = Counter()
-        for label in labels:
-            for j in net.by_label.get(label, ()):
+        for label in present:
+            for j in net.by_label[label]:
                 candidates[j] += 1
         if not candidates:
             continue
         best = max(candidates.values())
-        if best < 3:
+        collapsed = best == len(present) >= 2 and gone and all(label in closed for label in gone)
+        if best < 3 and not collapsed:
             continue
         js = [j for j, c in candidates.items() if c == best]
         distance = np.linalg.norm(net.points[js] - predicted[i], axis=1)
         for j, d in sorted(zip(js, distance), key=lambda jd: jd[1]):
             if d <= max_jump:
                 proposals.append((-best, d, i, j))
-    taken = set()
+    taken = Counter()
     for shared, d, i, j in sorted(proposals):
-        if status[i] <= 1 or j in taken:
+        if status[i] <= 1:
             continue
-        new[i] = net.points[j]
-        status[i] = 0 if -shared == len(ref.label_sets[i]) else 1
-        taken.add(j)
+        point = net.points[j]
+        if taken[j]:
+            if gap <= 0:
+                continue
+            away = predicted[i] - point
+            if np.linalg.norm(away) == 0:
+                away = ref.vertices[i] - point
+            if np.linalg.norm(away) == 0:
+                away = np.array([1.0, 0.0])
+            angle = taken[j]*2*math.pi/7  # a different direction for every further corner at this junction
+            rotation = np.array([[math.cos(angle), -math.sin(angle)], [math.sin(angle), math.cos(angle)]])
+            point = point + (rotation @ (away/np.linalg.norm(away)))*gap
+        new[i] = point
+        status[i] = 0 if -shared == len(ref.label_sets[i]) and not taken[j] else 1
+        taken[j] += 1
     return new, status
 
 
-def track_corners(ref, networks, slice_z, k_ref, field=None, mode='labels', max_jump=np.inf):
+def _separate_coincident(points, rows, gap):
+    """Move the second of any two of the given points (rows) that coincide `gap` apart"""
+    if gap <= 0 or len(rows) < 2:
+        return points
+    pairs = cKDTree(points[rows]).query_pairs(r=1e-9*max(gap, 1e-300), output_type='ndarray')
+    for n, (a, b) in enumerate(pairs):
+        angle = 2*math.pi*(n % 7)/7
+        points[rows[b]] = points[rows[a]] + gap*np.array([math.cos(angle), math.sin(angle)])
+    return points
+
+
+def track_corners(ref, networks, slice_z, k_ref, field=None, mode='labels', max_jump=np.inf, gap=0.0,
+                  closed=frozenset()):
     """
     Follow the vertices of the reference network through the cross-sections in `networks`
     ({k: SliceNetwork}), from the reference slice k_ref up and down.
@@ -839,7 +878,7 @@ def track_corners(ref, networks, slice_z, k_ref, field=None, mode='labels', max_
     along the fiber directions; mode 'straight' keeps the reference positions.
 
     Returns {k: positions (n, 2)} and {k: status (n,)}, the status of each vertex in each slice
-    being the index into STATUS_NAMES.
+    being the index into STATUS_NAMES. gap and closed: see _match_corners.
     """
     if mode not in TRACKING_MODES:
         raise ValueError("tracking must be one of {}, not {!r}".format(', '.join(TRACKING_MODES), mode))
@@ -860,13 +899,13 @@ def track_corners(ref, networks, slice_z, k_ref, field=None, mode='labels', max_
                 new, st = ref.vertices.copy(), np.full(n, 3, dtype=int)
             else:
                 predicted = field.advect(previous, slice_z[k_prev], slice_z[k]) if field is not None else previous.copy()
-                predicted = _project_to_sides(predicted, ref)
+                predicted = _project_to_sides(predicted, ref, margin=gap)
                 if mode == 'direction':
                     new, st = predicted, np.full(n, 3, dtype=int)
                     new[ref.kind == 2] = ref.vertices[ref.kind == 2]
                     st[ref.kind == 2] = 0
                 else:
-                    new, st = _match_corners(ref, networks[k], predicted, max_jump)
+                    new, st = _match_corners(ref, networks[k], predicted, max_jump, gap, closed)
                     # vertices without a junction move with their matched neighbours
                     matched = st <= 1
                     displacement = new - previous
@@ -877,7 +916,8 @@ def track_corners(ref, networks, slice_z, k_ref, field=None, mode='labels', max_
                                 new[i] = previous[i] + displacement[rows].mean(axis=0)
                                 st[i] = 2
                         displacement = new - previous
-                    new = _project_to_sides(new, ref, np.nonzero(st >= 2)[0])
+                    new = _project_to_sides(new, ref, margin=gap)
+                    new = _separate_coincident(new, np.nonzero(ref.kind < 2)[0], gap)
             positions[k] = new
             status[k] = st
             k_prev = k
@@ -1104,7 +1144,8 @@ def _reconstruct(c, volume):
     pixel_area = voxel[0]*voxel[1]
     min_lumen_px = int(round(c.min_cell_area/pixel_area)) if c.min_cell_area is not None else 9
     min_wall_px = int(round(c.min_wall_area/pixel_area)) if c.min_wall_area is not None else 9
-    slices, nlabels, label_ranges = link_cell_labels(walls, k_ref, needed, min_lumen_px, min_wall_px, stride=c.link_stride)
+    slices, nlabels, label_ranges, closed = link_cell_labels(walls, k_ref, needed, min_lumen_px, min_wall_px,
+                                                             stride=c.link_stride)
     labelTime = time.time()
     print('{:d} cells labelled in {:d} cross-sections in {:.3f} seconds'.format(nlabels, len(slices), labelTime - loadTime))
 
@@ -1134,9 +1175,20 @@ def _reconstruct(c, volume):
         print('Fiber direction field: mean grain angle {:.2f} deg (azimuth {:.1f} deg), dispersion {:.2f} deg'
               .format(field.grain_angle_deg, field.azimuth_deg, field.dispersion_deg))
     max_jump = c.max_jump if c.max_jump is not None else 1.5*max(median_cell_diameter, 2*max(voxel))
-    positions, status = track_corners(ref, networks, slice_z, k_ref, field, c.tracking, max_jump)
+    positions, status = track_corners(ref, networks, slice_z, k_ref, field, c.tracking, max_jump,
+                                      gap=0.5*median_wall_thickness, closed=closed)
     layer_vertices = np.array([positions[k] for k in layer_slices])
     layer_status = np.array([status[k] for k in layer_slices])
+    cell_ends = None
+    if c.fiber_ends == 'random':  # the cells end at random heights, tapering to their ends
+        vertex_cells = [[label for label in labels if label > 0] for labels in ref.label_sets]
+        cells = sorted(set().union(*[set(v) for v in vertex_cells]))
+        cell_ends = rplat.cell_end_heights(cells, z_min, z_max, c.fiber_length, c.fiber_length_cov, rng=c.seed)
+        taper_length = c.taper_length if c.taper_length is not None else 0.15*c.fiber_length
+        sides = [('x_min', [(x_min, y_max), (x_min, y_min)]), ('y_min', [(x_min, y_min), (x_max, y_min)]),
+                 ('x_max', [(x_max, y_min), (x_max, y_max)]), ('y_max', [(x_max, y_max), (x_min, y_max)])]
+        layer_vertices = rplat.taper_vertices(layer_vertices, z_coord, vertex_cells, cell_ends, taper_length,
+                                              c.taper_ratio, kind=ref.kind, boundaries=sides)
     tracked_vertices = layer_vertices.copy()
     layer_vertices = fit_midpoints_grid(layer_vertices) if fibers_on else fit_midpoints(layer_vertices, c.nsegments, NURBS_DEGREE)
     followed = layer_status[layer_slices != k_ref][:, ref.kind < 2]  # the layers of the reference slice are trivial
@@ -1174,7 +1226,7 @@ def _reconstruct(c, volume):
         if c.fiber_ends == 'image':
             fiber_ends = fiber_ends_from_image(ref, label_ranges, nz, z_min, voxel[2], h, nelem)
         else:
-            fiber_ends = rplat.fiber_end_layers(ref.nvertex, nelem, h, c.fiber_length, c.fiber_length_cov, rng=c.seed)
+            fiber_ends = rplat.grain_ends_from_cells(vertex_cells, cell_ends, z_min, h, nelem)
         widths = np.array([widths_in_layer(2*k) for k in range(nelem + 1)])
         lat = rplat.build_lattice(all_ridges, ref.nvertex, ref.nridge, all_vertices_2D, max_wings,
                                   flattened_all_vertices_2D, layer_points, z_min, z_max, nelem, c.long_connector_ratio,
@@ -1187,7 +1239,9 @@ def _reconstruct(c, volume):
         rplat.write_vtu_files(geoName, lat, layer_points, all_ridges, ref.nvertex, path=path, vtk_format=c.vtk_format)
         fibers = {'fiber_ends': c.fiber_ends, 'nelem': nelem}
         if c.fiber_ends == 'random':
-            fibers.update({'fiber_length': c.fiber_length, 'fiber_length_cov': c.fiber_length_cov, 'seed': c.seed})
+            fibers.update({'fiber_length': c.fiber_length, 'fiber_length_cov': c.fiber_length_cov,
+                           'taper_length': taper_length, 'taper_ratio': c.taper_ratio, 'seed': c.seed,
+                           'ncell_ends': int(sum(len(v) for v in cell_ends.values()))})
         fibers.update(rplat.fiber_statistics(fiber_ends, nelem, h))
     else:
         widths = np.empty((c.nsegments, nconnector_t_per_beam, ref.nridge))

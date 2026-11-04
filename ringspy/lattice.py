@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import List
 
 import numpy as np
+from scipy.spatial import cKDTree
 
 from . import MeshGenTools as rpgen
 
@@ -64,6 +65,155 @@ def fiber_end_layers(ngrain, nelem, h, fiber_length, fiber_length_cov=0.3, rng=N
             z += rng.lognormal(mu, sigma)
         ends.append(np.unique(np.array(ks, dtype=int)))
     return ends
+
+
+def cell_end_heights(cells, z_min, z_max, fiber_length, fiber_length_cov=0.3, rng=None):
+    """
+    Heights (mm) inside the specimen at which each cell ends and the next cell begins: cell lengths from
+    a lognormal distribution of mean fiber_length and coefficient of variation fiber_length_cov, the first
+    cell of each crossing the bottom face at a random point of its length. `cells` is the number of
+    cells or a list of their ids; returns {cell id: array of heights}.
+    rng :: None (global NumPy random state), an int seed, or a np.random.Generator.
+    """
+    rng = rpgen._rng(rng)
+    if fiber_length <= 0:
+        raise ValueError("fiber_length must be positive")
+    if fiber_length_cov < 0:
+        raise ValueError("fiber_length_cov must not be negative")
+    sigma = math.sqrt(math.log(1 + fiber_length_cov**2))
+    mu = math.log(fiber_length) - sigma**2/2
+    ids = range(cells) if isinstance(cells, (int, np.integer)) else list(cells)
+    ends = {}
+    for cell in ids:
+        z = z_min + rng.lognormal(mu, sigma)*(1 - rng.random())
+        heights = []
+        while z < z_max:
+            heights.append(z)
+            z += rng.lognormal(mu, sigma)
+        ends[cell] = np.array(heights)
+    return ends
+
+
+def grain_ends_from_cells(vertex_cells, cell_ends, z_min, h, nelem):
+    """
+    Grid lines (1 .. nelem-1, spacing h from z_min) where the fibers of each grain end: wherever one of
+    the cells meeting at the grain ends (vertex_cells: the cell ids of each vertex; cell_ends:
+    {cell id: heights}, e.g. from cell_end_heights). Returns a list of sorted integer arrays.
+    """
+    ends = []
+    for cells in vertex_cells:
+        ks = set()
+        for cell in cells:
+            for z in cell_ends.get(cell, ()):
+                k = int(round((z - z_min)/h))
+                if 0 < k < nelem:
+                    ks.add(k)
+        ends.append(np.array(sorted(ks), dtype=int))
+    return ends
+
+
+def cells_of_vertices(vertices, ridges, sites, boundaries=None, tol=None):
+    """
+    The cells (sites of the Voronoi tessellation, by index) meeting at each vertex of a clipped Voronoi
+    mesh: the two sites nearest to the midpoint of a ridge are the cells the ridge separates; a ridge
+    along a side of the clipping box (boundaries, as Clipping_Box gives them) belongs to one cell.
+    Returns a list of sets of site indices.
+    """
+    vertices = np.asarray(vertices, dtype=float)
+    ridges = np.asarray(ridges)[:, 0:2].astype(int)
+    sites = np.asarray(sites, dtype=float)[:, 0:2]
+    mids = (vertices[ridges[:, 0]] + vertices[ridges[:, 1]])/2
+    k = min(2, len(sites))
+    distance, index = cKDTree(sites).query(mids, k=k)
+    index = np.asarray(index).reshape(len(mids), k)
+    along_side = np.zeros(len(mids), dtype=bool)
+    if boundaries is not None:
+        starts = np.array([b[1][0] for b in boundaries], dtype=float)
+        ends = np.array([b[1][1] for b in boundaries], dtype=float)
+        segments = ends - starts
+        lengths = np.linalg.norm(segments, axis=1)
+        if tol is None:
+            tol = 1e-6*lengths.max()
+        for p0, p1, seg, length in zip(starts, ends, segments, lengths):
+            rel = mids - p0
+            u = np.clip((rel @ seg)/length**2, 0, 1)
+            along_side |= np.linalg.norm(rel - u[:, np.newaxis]*seg, axis=1) <= tol
+    cells = [set() for _ in range(len(vertices))]
+    for r, (a, b) in enumerate(ridges):
+        members = index[r, 0:1] if along_side[r] or k < 2 else index[r]
+        for cell in members.tolist():
+            cells[a].add(cell)
+            cells[b].add(cell)
+    return cells
+
+
+def taper_vertices(vertex_layers, z_layers, vertex_cells, cell_ends, taper_length, taper_ratio=0.15, kind=None,
+                   boundaries=None):
+    """
+    Taper the cells at their ends: within taper_length of an end of a cell (cell_ends: {cell id: heights}),
+    the vertices of the cell (vertex_cells: the cell ids of each vertex) move toward the center of the cell
+    (the mean of its vertices in that layer), so that its cross-section shrinks, with a cosine profile,
+    to taper_ratio times its size at the end, and the neighbouring cells fill the space; the cell
+    beginning above the end widens the same way. The displacements of the cells ending near each other
+    add up. Vertices of kind 2 (corners of the box) stay, vertices of kind 1 (boundary points) stay on
+    their side of the box (boundaries, as Clipping_Box gives them).
+
+    vertex_layers :: (nlayers, nvertex, 2) in-plane coordinates of the vertices on every layer at the
+        heights z_layers. Returns the tapered copy.
+    """
+    V = np.array(vertex_layers, dtype=float, copy=True)
+    z = np.asarray(z_layers, dtype=float)
+    if V.ndim != 3 or V.shape[0] != len(z):
+        raise ValueError("vertex_layers must have the shape (len(z_layers), nvertex, 2)")
+    if not 0 <= taper_ratio <= 1:
+        raise ValueError("taper_ratio must be between 0 (the cell closes) and 1 (no taper)")
+    if taper_length <= 0 or taper_ratio >= 1:
+        return V
+    members = {}
+    for v, cells in enumerate(vertex_cells):
+        for cell in cells:
+            if len(cell_ends.get(cell, ())):
+                members.setdefault(cell, []).append(v)
+    displacement = np.zeros_like(V)
+    for cell, verts in members.items():
+        verts = np.array(sorted(set(verts)), dtype=int)
+        if len(verts) < 2:
+            continue
+        for z_end in cell_ends[cell]:
+            t = (z - z_end)/taper_length
+            layers = np.nonzero(np.abs(t) < 1)[0]
+            if len(layers) == 0:
+                continue
+            w = 0.5*(1 + np.cos(math.pi*t[layers]))*(1 - taper_ratio)
+            p = V[layers][:, verts]
+            center = p.mean(axis=1, keepdims=True)
+            displacement[np.ix_(layers, verts)] -= w[:, np.newaxis, np.newaxis]*(p - center)
+    tapered = V + displacement
+    if kind is not None:
+        kind = np.asarray(kind)
+        tapered[:, kind == 2] = V[:, kind == 2]
+        if boundaries is not None and np.any(kind == 1):
+            rows = np.nonzero(kind == 1)[0]
+            for m in range(len(z)):
+                tapered[m, rows] = snap_to_boundary(tapered[m, rows], V[m, rows], boundaries)
+    return tapered
+
+
+def snap_to_boundary(points, reference, boundaries):
+    """Project points onto the boundary line (segment of `boundaries`, as Clipping_Box gives them) closest
+    to their reference positions"""
+    points = np.asarray(points, dtype=float).reshape(-1, 2)
+    reference = np.asarray(reference, dtype=float).reshape(-1, 2)
+    starts = np.array([b[1][0] for b in boundaries], dtype=float)
+    ends = np.array([b[1][1] for b in boundaries], dtype=float)
+    segments = ends - starts
+    lengths2 = np.einsum('mk,mk->m', segments, segments)
+    rel = reference[:, np.newaxis, :] - starts[np.newaxis, :, :]
+    u = np.clip(np.einsum('nmk,mk->nm', rel, segments)/lengths2, 0, 1)
+    nearest = np.linalg.norm(rel - u[:, :, np.newaxis]*segments[np.newaxis, :, :], axis=2).argmin(axis=1)
+    seg = segments[nearest]
+    u = np.clip(np.einsum('nk,nk->n', points - starts[nearest], seg)/lengths2[nearest], 0, 1)
+    return starts[nearest] + u[:, np.newaxis]*seg
 
 
 def fiber_statistics(fiber_ends, nelem, h):

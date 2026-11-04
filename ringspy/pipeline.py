@@ -150,8 +150,9 @@ def _generate(c):
     if c.fiber_length is not None:
         # fibers of various lengths: every grain its own sequence of fibers (lattice module)
         return _generate_fibers(c, rng, output_dir, fig, sites, radii, nParticles, x_min, x_max, y_min, y_max,
-                                boundary_points, box_corners, all_pts_2D, all_ridges, npt_per_layer, npt_per_layer_normal,
-                                npt_per_layer_vtk, nvertex, nridge, all_vertices_2D, max_wings, flattened_all_vertices_2D,
+                                boundary_points, box_corners, boundaries, all_pts_2D, all_ridges, npt_per_layer,
+                                npt_per_layer_normal, npt_per_layer_vtk, nvertex, nvertices_in, nboundary_pts_featured,
+                                nridge, all_vertices_2D, max_wings, flattened_all_vertices_2D,
                                 [startTime, placementTime, voronoiTime, RebuildvorTime])
 
     # ==================================================================
@@ -257,19 +258,32 @@ def _generate(c):
 
 
 def _generate_fibers(c, rng, output_dir, fig, sites, radii, nParticles, x_min, x_max, y_min, y_max, boundary_points,
-                     box_corners, all_pts_2D, all_ridges, npt_per_layer, npt_per_layer_normal, npt_per_layer_vtk,
-                     nvertex, nridge, all_vertices_2D, max_wings, flattened_all_vertices_2D, times):
-    """The rest of _generate for fiber_length: the 2D mesh is extruded into fibers of various lengths"""
+                     box_corners, boundaries, all_pts_2D, all_ridges, npt_per_layer, npt_per_layer_normal,
+                     npt_per_layer_vtk, nvertex, nvertices_in, nboundary_pts_featured, nridge, all_vertices_2D,
+                     max_wings, flattened_all_vertices_2D, times):
+    """The rest of _generate for fiber_length: the cells end at random heights, tapering to their ends, and
+    the 2D mesh is extruded into fibers of various lengths (one fiber end on a grain per end of its cells)"""
     startTime, placementTime, voronoiTime, RebuildvorTime = times
     geoName, path = c.geoName, c.path
     nelem = 2*c.nsegments
     nhalf = 2*nelem + 1
-    segment_length = (c.z_max - c.z_min)/c.nsegments
+    h = (c.z_max - c.z_min)/nelem
+    segment_length = 2*h
     theta_half = np.linspace(c.theta_min, c.theta_max, nhalf)
     z_half = np.linspace(c.z_min, c.z_max, nhalf)
-    layer_points = rpgen._rotate_layers(all_pts_2D[np.arange(npt_per_layer_vtk)], theta_half, z_half,
-                                        c.generation_center)[:, :, 0:2]
-    fiber_ends = rplat.fiber_end_layers(nvertex, nelem, segment_length/2, c.fiber_length, c.fiber_length_cov, rng=rng)
+    kind = np.zeros(nvertex, dtype=int)
+    kind[nvertices_in:] = 1
+    kind[nvertex - nboundary_pts_featured:] = 2
+    # the cells meeting at each vertex, the heights at which the cells end, the fiber ends of the grains
+    vertex_cells = rplat.cells_of_vertices(all_pts_2D[:nvertex], all_ridges, sites, boundaries)
+    cells = sorted(set().union(*vertex_cells))
+    cell_ends = rplat.cell_end_heights(cells, c.z_min, c.z_max, c.fiber_length, c.fiber_length_cov, rng=rng)
+    fiber_ends = rplat.grain_ends_from_cells(vertex_cells, cell_ends, c.z_min, h, nelem)
+    # the vertices on every half-layer: twisted, and drawn in toward the cells tapering to their ends
+    vertex_layers = rpgen._rotate_layers(all_pts_2D[:nvertex], theta_half, z_half, c.generation_center)[:, :, 0:2]
+    vertex_layers = rplat.taper_vertices(vertex_layers, z_half, vertex_cells, cell_ends, c.taper_length, c.taper_ratio,
+                                         kind=kind, boundaries=boundaries)
+    layer_points = rpgen.LayerPoints(vertex_layers, all_ridges, npt_per_layer_vtk)
     lat = rplat.build_lattice(all_ridges, nvertex, nridge, all_vertices_2D, max_wings, flattened_all_vertices_2D,
                               layer_points, c.z_min, c.z_max, nelem, c.long_connector_ratio, fiber_ends)
     nbeamElem = lat.nbeamElem
@@ -305,8 +319,10 @@ def _generate_fibers(c, rng, output_dir, fig, sites, radii, nParticles, x_min, x
     FileTime = time.time()
     print('Files generated in {:.3f} seconds'.format(FileTime - BeamTime))
 
-    fibers = {'fiber_length': c.fiber_length, 'fiber_length_cov': c.fiber_length_cov, 'nelem': nelem}
-    fibers.update(rplat.fiber_statistics(fiber_ends, nelem, segment_length/2))
+    fibers = {'fiber_length': c.fiber_length, 'fiber_length_cov': c.fiber_length_cov,
+              'taper_length': c.taper_length, 'taper_ratio': c.taper_ratio, 'nelem': nelem,
+              'ncells': len(cells), 'ncell_ends': int(sum(len(v) for v in cell_ends.values()))}
+    fibers.update(rplat.fiber_statistics(fiber_ends, nelem, h))
     rpgen.LogFile(geoName, c.iter_max, c.r_min, c.r_max, c.nrings, c.width_heart, c.width_sparse, c.width_dense,
                   c.generation_center, c.box_shape, c.box_center, c.box_size, x_min, x_max, y_min, y_max,
                   c.cellsize_sparse, c.cellsize_dense, c.cellwallthickness_sparse, c.cellwallthickness_dense,

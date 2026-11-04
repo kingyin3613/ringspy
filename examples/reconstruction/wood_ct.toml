@@ -41,6 +41,8 @@ fiber_ends = "image"            # where the fibers of the grains end: image (whe
                                 # random (fibers of random length, see fiber_length), or none (all grains cut into nsegments)
 # fiber_length = 1.5            # mean fiber length (mm) for fiber_ends = "random"
 # fiber_length_cov = 0.3        # coefficient of variation of the random fiber lengths
+# taper_length = 0.2            # the random cells taper to their ends over this length (left out: 0.15*fiber_length)
+# taper_ratio = 0.15            # size of the cross-section of a cell at its end, relative (1: blunt ends)
 # seed = 2023                   # seed of the random fiber ends
 
 # Material

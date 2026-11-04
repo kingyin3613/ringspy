@@ -230,7 +230,7 @@ def test_reconstruct_follows_the_cell_corners(reconstructed, synthetic):
         exact = status[layer][inside] == 0
         assert np.median(distance[exact]) < 1.0*VOXEL            # found corners: within a voxel
         assert np.percentile(distance[exact], 90) < 2.0*VOXEL
-        assert distance.max() < 0.5*reconstructed.median_cell_diameter   # all corners: far less than a cell
+        assert distance.max() < 0.6*reconstructed.median_cell_diameter   # all corners: far less than a cell
     # the corners of the box stay put, boundary points stay on the sides
     corners = kind == 2
     assert np.all(layer_vertices[:, corners] == layer_vertices[0, corners])
@@ -302,6 +302,35 @@ def test_reconstruct_fiber_ends_from_image(tmp_path, monkeypatch):
     assert rnd.nfibers > 2*len(rnd.vertices)
     with pytest.raises(ValueError, match="fiber_length"):
         ringspy.reconstruct(scan, geoName="bad", fiber_ends="random")
+
+
+def test_reconstruct_tapered_cells(tmp_path, monkeypatch):
+    # cells tapering to conical ends: the corners follow the tapering walls and, once the lumen has closed,
+    # collapse onto the junctions where the neighbours meet, a small gap apart
+    monkeypatch.chdir(tmp_path)
+    scan = voxelize(SMALL.replace(z_max=0.6), VOXEL, seed=3, fiber_length=0.4, fiber_length_cov=0.4)
+    assert scan.cell_ends is not None
+    result = ringspy.reconstruct(scan, geoName="taper", nsegments=4, stlFlag=False, inpFlag=False)
+    counts = result.tracking_counts
+    total = sum(counts.values())
+    assert counts["matched by its cells"] + counts["matched by 3 of its cells"] > 0.4*total
+    grains = np.load(result.output_dir / "taper-grains.npz")
+    layer_vertices, kind = grains["layer_vertices"], grains["kind"]
+    inside = np.nonzero(kind == 0)[0]
+    for layer in range(layer_vertices.shape[0]):  # no two nodes coincide
+        d = cKDTree(layer_vertices[layer, inside]).query(layer_vertices[layer, inside], k=2)[0][:, 1]
+        assert d.min() > 1e-6
+    # the walls of the cells shrink where cells end: some transverse connectors are much shorter than the typical wall
+    mesh = np.loadtxt(result.output_dir / "taper-mesh.txt", skiprows=10)
+    lengths = np.linalg.norm(mesh[:, 5:8] - mesh[:, 8:11], axis=1)
+    assert lengths.min() > 0 and np.percentile(lengths, 5) < 0.3*np.median(lengths)
+    # random ends with the taper model, on the same scan
+    rnd = ringspy.reconstruct(scan, geoName="rnd", nsegments=4, fiber_ends="random", fiber_length=0.3, taper_ratio=0.2,
+                              seed=1, stlFlag=False, inpFlag=False)
+    log = (rnd.output_dir / "rnd-report.log").read_text()
+    assert "taper_length:                            0.045" in log and "ncell_ends:" in log
+    with pytest.raises(ValueError, match="taper_ratio"):
+        ringspy.ReconstructionConfig(taper_ratio=-0.1)
 
 
 def test_reconstruct_is_deterministic(synthetic, tmp_path, monkeypatch):

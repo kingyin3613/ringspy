@@ -80,6 +80,8 @@ class Config:
                                              # heights (longitudinal connectors not on common planes);
                                              # None: all grains cut into the same nsegments segments
     fiber_length_cov: float = 0.3            # coefficient of variation of the fiber lengths (lognormal)
+    taper_length: Optional[float] = None     # length (mm) over which a cell tapers to its end; None: 0.15*fiber_length
+    taper_ratio: float = 0.15                # size of the cross-section of a cell at its end, relative (1: no taper)
 
     # material
     skeleton_density: float = 1.5e-9         # tonne/mm3
@@ -131,6 +133,10 @@ class Config:
             raise ValueError("fiber_length must be positive (or left out)")
         if self.fiber_length_cov < 0:
             raise ValueError("fiber_length_cov must not be negative")
+        if self.taper_length is not None and self.taper_length <= 0:
+            raise ValueError("taper_length must be positive (or left out)")
+        if not 0 <= self.taper_ratio <= 1:
+            raise ValueError("taper_ratio must be between 0 and 1")
 
     def resolved(self):
         """Copy with the parameters left at None (ring widths, z_max) replaced by their default values"""
@@ -143,6 +149,8 @@ class Config:
                 values['z_max'] = self.z_min + max(extent)
             else:
                 values['z_max'] = self.box_size
+        if self.taper_length is None and self.fiber_length is not None:
+            values['taper_length'] = 0.15*self.fiber_length
         return dataclasses.replace(self, **values)
 
     def replace(self, **changes):
@@ -316,6 +324,9 @@ class ReconstructionConfig:
                                              # image), random (fiber_length), or none (all grains cut into nsegments)
     fiber_length: Optional[float] = None     # mean fiber length (mm) for fiber_ends = random
     fiber_length_cov: float = 0.3            # coefficient of variation of the random fiber lengths
+    taper_length: Optional[float] = None     # fiber_ends = random: length (mm) over which a cell tapers to its end
+                                             # (None: 0.15*fiber_length); the image gives the taper for fiber_ends = image
+    taper_ratio: float = 0.15                # size of the cross-section of a cell at its end, relative (1: no taper)
     seed: Optional[int] = None               # seed of the random fiber ends
 
     # material
@@ -352,6 +363,10 @@ class ReconstructionConfig:
             raise ValueError("fiber_ends = 'random' needs fiber_length, the mean fiber length")
         if self.fiber_length_cov < 0:
             raise ValueError("fiber_length_cov must not be negative")
+        if self.taper_length is not None and self.taper_length <= 0:
+            raise ValueError("taper_length must be positive (or left out)")
+        if not 0 <= self.taper_ratio <= 1:
+            raise ValueError("taper_ratio must be between 0 and 1")
         if self.seed is not None and self.seed < 0:
             raise ValueError("seed must be a non-negative integer or None")
         if self.vtk_format not in VTK_FORMATS:

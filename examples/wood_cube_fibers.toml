@@ -43,8 +43,10 @@ theta_max = 0.05                # unit: radian
 z_min = 0
 z_max = 4.0
 long_connector_ratio = 0.02     # longitudinal joint length = ratio * segment_length (segment_length = 2 elements)
-fiber_length = 2.0              # mean fiber length; the fibers end at different heights on every grain
-fiber_length_cov = 0.3          # coefficient of variation of the fiber lengths (lognormal distribution)
+fiber_length = 2.0              # mean cell length; the cells end at different heights, the grains at their corners with them
+fiber_length_cov = 0.3          # coefficient of variation of the cell lengths (lognormal distribution)
+taper_length = 0.3              # the cells taper to their ends over this length (left out: 0.15*fiber_length)
+taper_ratio = 0.15              # size of the cross-section of a cell at its end, relative to its size (1: blunt ends)
 
 # Material
 skeleton_density = 1.5e-9       # unit: tonne/mm3

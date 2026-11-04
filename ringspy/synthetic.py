@@ -52,7 +52,8 @@ class SyntheticVolume:
 
     def vertices_at(self, z, margin=0.0):
         """The Voronoi vertices (cell corners) of the cells at height z that lie inside the
-        volume, at least `margin` away from its sides"""
+        volume, at least `margin` away from its sides (the tapering of the cells near their ends is
+        not accounted for)"""
         x_min, x_max, y_min, y_max, _, _ = self.box
         sites = self.sites_at(z)
         vertices = Voronoi(sites).vertices
@@ -122,7 +123,7 @@ def _resolve_geometry(geometry, rng):
 
 def voxelize(geometry, voxel_size, tilt=(0.0, 0.0), twist=0.0, wobble_amplitude=0.0, wobble_wavelength=None,
              seed=None, noise=0.0, blur=0.0, margin=0.0, progress=False, fiber_length=None, fiber_length_cov=0.3,
-             fiber_end_offset=None):
+             fiber_end_offset=None, taper_length=None):
     """
     Rasterise a RingsPy cell geometry into a synthetic 3D image, slice by slice.
 
@@ -151,6 +152,9 @@ def voxelize(geometry, voxel_size, tilt=(0.0, 0.0), twist=0.0, wobble_amplitude=
         crossing the bottom face at a random point of its length. A cell ends with a transverse wall as thick
         as its walls, and the next cell is centered up to `fiber_end_offset` (mm, default a quarter of the
         cell size) away. Default: no cell ends inside the volume.
+    taper_length :: the cells taper to their ends (and widen from their beginnings) over this length (mm,
+        default 0.15*fiber_length; 0: blunt ends): the walls of the cell move in linearly, so its lumen
+        closes like a cone, and the neighbouring cells fill the space.
 
     Returns a SyntheticVolume: the (nx, ny, nz) array with the longitudinal (fiber) direction along the
     last axis, voxel (i, j, k) covering x in [x_min + i*vx, x_min + (i+1)*vx] etc., and the geometry.
@@ -198,6 +202,10 @@ def voxelize(geometry, voxel_size, tilt=(0.0, 0.0), twist=0.0, wobble_amplitude=
         radius = fiber_end_offset*np.sqrt(rng.random(len(end_z)))
         angle = rng.uniform(0, 2*math.pi, len(end_z))
         end_jump = np.column_stack((radius*np.cos(angle), radius*np.sin(angle)))
+        if taper_length is None:
+            taper_length = 0.15*fiber_length
+    # the cell closes when the walls have moved in by the half distance to its neighbours
+    half_spacing = cKDTree(sites_xy).query(sites_xy, k=min(2, len(sites)))[0][:, -1]/2
 
     def sites_at(z):
         """(x, y) of the cell sites at height z: twisted, tilted and wobbled, and moved at every cell end below z"""
@@ -223,11 +231,21 @@ def voxelize(geometry, voxel_size, tilt=(0.0, 0.0), twist=0.0, wobble_amplitude=
         z = z_min + (k + 0.5)*voxel[2]
         moved = sites_at(z)
         distance, index = cKDTree(moved).query(pixels, k=k_near)
+        power = distance**2
+        if len(end_z) and taper_length > 0:
+            # tapering cells: a negative power weight moves their walls in, up to the site at the very end
+            closing = np.zeros(len(sites))
+            nearness = np.maximum(0.0, 1 - np.abs(end_z - z)/taper_length)
+            np.maximum.at(closing, end_site, nearness)
+            power = power + (2*half_spacing[index]*closing[index])**2
+            order = np.argsort(power, axis=1, kind='stable')
+            power = np.take_along_axis(power, order, axis=1)
+            index = np.take_along_axis(index, order, axis=1)
         solid = np.zeros(len(pixels), dtype=bool)
         for j in range(1, k_near):
             # distance from the pixel to the bisector (cell wall) between its nearest cell and the j-th nearest
             separation = np.linalg.norm(moved[index[:, j]] - moved[index[:, 0]], axis=1)
-            to_wall = (distance[:, j]**2 - distance[:, 0]**2)/(2*np.maximum(separation, 1e-300))
+            to_wall = (power[:, j] - power[:, 0])/(2*np.maximum(separation, 1e-300))
             half_wall = 0.5*(thickness[index[:, 0]] + thickness[index[:, j]])/2
             solid |= to_wall < half_wall
         if len(end_z):  # the transverse walls closing the cells that end at this height

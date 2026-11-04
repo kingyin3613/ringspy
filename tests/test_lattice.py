@@ -137,7 +137,8 @@ def test_generate_with_fibers_writes_all_files(extra, tmp_path, monkeypatch):
         assert "AllPrecrackTConns" in inp and "nconnector_t_precrack" in log
     iga = (result.output_dir / "fibersIGA.txt").read_text().splitlines()
     sizes = [int(iga[i + 1]) for i, line in enumerate(iga) if line.startswith("Size of knot vectors")]
-    assert len(set(sizes)) > 1  # fibers of various lengths: knot vectors of various sizes
+    if config.nsegments > 1:
+        assert len(set(sizes)) > 1  # fibers of various lengths: knot vectors of various sizes
     assert max(sizes) == (int(iga[5]) - 1)//2 + 5  # a patch of n elements: n + 5 knots, 2n + 1 control points
     assert max(sizes) == int(iga[7]) + 5
     # the same seed gives the same lattice
@@ -146,10 +147,97 @@ def test_generate_with_fibers_writes_all_files(extra, tmp_path, monkeypatch):
     assert (again.output_dir / "fibersIGA.txt").read_bytes() == (result.output_dir / "fibersIGA.txt").read_bytes()
 
 
+def test_cells_of_vertices_and_taper():
+    c, all_pts_2D, all_ridges, nvertex, nridge, all_vertices_2D, max_wings, flattened, npt_vtk = mesh2d(SMALL)
+    from ringspy.pipeline import place_cells
+    sites, _ = place_cells(c, np.random.default_rng(c.seed))
+    _, _, _, _, boundaries, _, _ = rpgen.Clipping_Box(c.box_shape, c.box_center, c.box_size, True)
+    vertex_cells = L.cells_of_vertices(all_pts_2D[:nvertex], all_ridges, sites, boundaries)
+    assert len(vertex_cells) == nvertex
+    corners_of_box = [v for v in range(nvertex) if np.isclose(abs(all_pts_2D[v, 0] - 0.55), 0.25) and np.isclose(abs(all_pts_2D[v, 1]), 0.25)]
+    assert all(len(vertex_cells[v]) >= (1 if v in corners_of_box else 2) for v in range(nvertex))
+    # the cells of an inside vertex are its nearest sites (a Voronoi vertex is equidistant to three sites)
+    from scipy.spatial import cKDTree
+    tree = cKDTree(sites[:, :2])
+    kinds = np.zeros(nvertex, dtype=int)
+    ridges = np.asarray(all_ridges)[:, :2]
+    on_side = np.isclose(np.abs(all_pts_2D[:nvertex, 0] - 0.55), 0.25) | np.isclose(np.abs(all_pts_2D[:nvertex, 1]), 0.25)
+    kinds[on_side] = 1
+    inside = np.nonzero(~on_side)[0]
+    nearest3 = tree.query(all_pts_2D[inside], k=3)[1]
+    agree = [set(nearest3[i]) <= vertex_cells[v] for i, v in enumerate(inside) if len(vertex_cells[v]) == 3]
+    assert np.mean(agree) > 0.95
+    # taper: a cell ending at z = 0.5 shrinks to taper_ratio of its size there, and is untouched far away
+    nl = 21
+    z = np.linspace(0, 1, nl)
+    V = np.repeat(all_pts_2D[np.newaxis, :nvertex], nl, axis=0)
+    cell = next(cell for cell in sorted(set().union(*vertex_cells))
+                if sum(1 for v in range(nvertex) if cell in vertex_cells[v] and not on_side[v]) >= 4
+                and all(not on_side[v] for v in range(nvertex) if cell in vertex_cells[v]))
+    verts = [v for v in range(nvertex) if cell in vertex_cells[v]]
+    tapered = L.taper_vertices(V, z, vertex_cells, {cell: np.array([0.5])}, taper_length=0.2, taper_ratio=0.2,
+                               kind=kinds, boundaries=boundaries)
+    center = V[0, verts].mean(axis=0)
+    size = lambda m: np.linalg.norm(tapered[m, verts] - center, axis=1).mean()  # noqa: E731
+    assert size(10) == pytest.approx(0.2*size(0), rel=1e-6)   # at the end
+    assert size(0) == pytest.approx(np.linalg.norm(V[0, verts] - center, axis=1).mean())
+    np.testing.assert_allclose(tapered[[0, 5, 15, 20]], V[[0, 5, 15, 20]])  # outside the taper length
+    assert size(9) < size(8) < size(7) < size(0)
+    untouched = [v for v in range(nvertex) if v not in verts]
+    np.testing.assert_allclose(tapered[:, untouched], V[:, untouched])
+    # boundary points stay on their sides, corners of the box stay put
+    side_cell = next(cell for cell in sorted(set().union(*vertex_cells)) if any(on_side[v] for v in range(nvertex) if cell in vertex_cells[v]))
+    kinds2 = kinds.copy()
+    corners = [v for v in range(nvertex) if np.isclose(abs(all_pts_2D[v, 0] - 0.55), 0.25) and np.isclose(abs(all_pts_2D[v, 1]), 0.25)]
+    kinds2[corners] = 2
+    tapered = L.taper_vertices(V, z, vertex_cells, {side_cell: np.array([0.5])}, 0.3, 0.1, kind=kinds2, boundaries=boundaries)
+    rows = [v for v in range(nvertex) if side_cell in vertex_cells[v] and kinds2[v] == 1]
+    moved = tapered[10, rows]
+    assert np.all(np.isclose(np.abs(moved[:, 0] - 0.55), 0.25) | np.isclose(np.abs(moved[:, 1]), 0.25))
+    np.testing.assert_allclose(tapered[:, corners], V[:, corners])
+    with pytest.raises(ValueError):
+        L.taper_vertices(V, z, vertex_cells, {cell: np.array([0.5])}, 0.2, taper_ratio=1.5)
+    # cell ends and the fiber ends of the grains
+    ends = L.cell_end_heights(sorted(set().union(*vertex_cells)), 0.0, 1.0, 0.4, 0.3, rng=3)
+    grain_ends = L.grain_ends_from_cells(vertex_cells, ends, 0.0, 0.0625, 16)
+    assert all(np.all((e >= 1) & (e <= 15)) for e in grain_ends)
+    expected = sorted({int(round(zz/0.0625)) for cl in vertex_cells[0] for zz in ends[cl] if 0 < round(zz/0.0625) < 16})
+    assert grain_ends[0].tolist() == expected
+
+
+def test_generate_taper_moves_the_corners_of_the_ending_cells(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    blunt = ringspy.generate(SMALL, geoName="blunt", fiber_length=0.3, taper_ratio=1.0)
+    tapered = ringspy.generate(SMALL, geoName="tapered", fiber_length=0.3, taper_ratio=0.1, path="t")
+    assert tapered.nbeamElem == blunt.nbeamElem and tapered.mass != blunt.mass
+    nodes = lambda result: np.loadtxt(result.output_dir / (result.config.geoName + "_vertices.vtu"), skiprows=5,  # noqa: E731
+                                      max_rows=20)
+    # same cells and fiber ends (same seed), different node positions near the cell ends only
+    mesh_b = np.loadtxt(blunt.output_dir / "blunt-mesh.txt", skiprows=10)
+    mesh_t = np.loadtxt(tapered.output_dir / "tapered-mesh.txt", skiprows=10)
+    assert mesh_b.shape == mesh_t.shape and np.array_equal(mesh_b[:, 0:2], mesh_t[:, 0:2])
+    header = (blunt.output_dir / "blunt-mesh.txt").read_text().splitlines()
+    ntransverse = sum(int(header[i]) for i in (2, 4, 6))
+    lengths_b = np.linalg.norm(mesh_b[:ntransverse, 5:8] - mesh_b[:ntransverse, 8:11], axis=1)
+    lengths_t = np.linalg.norm(mesh_t[:ntransverse, 5:8] - mesh_t[:ntransverse, 8:11], axis=1)
+    assert np.percentile(lengths_t, 5) < 0.5*np.percentile(lengths_b, 5)   # walls of tapering cells shrink
+    assert np.isclose(lengths_t, lengths_b).mean() > 0.1                    # walls far from any cell end are as before
+    log = (tapered.output_dir / "tapered-report.log").read_text()
+    assert "taper_length:                            0.045" in log and "ncell_ends:" in log
+    mesh = np.loadtxt(tapered.output_dir / "tapered-mesh.txt", skiprows=10)
+    assert np.linalg.norm(mesh[:, 5:8] - mesh[:, 8:11], axis=1).min() > 0
+
+
 def test_fiber_config_checks():
     with pytest.raises(ValueError, match="fiber_length"):
         ringspy.Config(fiber_length=0)
     with pytest.raises(ValueError, match="fiber_length_cov"):
         ringspy.Config(fiber_length_cov=-1)
+    with pytest.raises(ValueError, match="taper_ratio"):
+        ringspy.Config(taper_ratio=2)
+    with pytest.raises(ValueError, match="taper_length"):
+        ringspy.Config(taper_length=0)
+    assert ringspy.Config(fiber_length=2.0).resolved().taper_length == pytest.approx(0.3)
+    assert ringspy.Config().resolved().taper_length is None
     config = ringspy.load_config(EXAMPLES_DIR / "wood_cube_fibers.toml")
     assert config.fiber_length is not None and config.fiber_length > 0
