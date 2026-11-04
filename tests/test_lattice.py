@@ -160,7 +160,6 @@ def test_cells_of_vertices_and_taper():
     from scipy.spatial import cKDTree
     tree = cKDTree(sites[:, :2])
     kinds = np.zeros(nvertex, dtype=int)
-    ridges = np.asarray(all_ridges)[:, :2]
     on_side = np.isclose(np.abs(all_pts_2D[:nvertex, 0] - 0.55), 0.25) | np.isclose(np.abs(all_pts_2D[:nvertex, 1]), 0.25)
     kinds[on_side] = 1
     inside = np.nonzero(~on_side)[0]
@@ -210,8 +209,6 @@ def test_generate_taper_moves_the_corners_of_the_ending_cells(tmp_path, monkeypa
     blunt = ringspy.generate(SMALL, geoName="blunt", fiber_length=0.3, taper_ratio=1.0)
     tapered = ringspy.generate(SMALL, geoName="tapered", fiber_length=0.3, taper_ratio=0.1, path="t")
     assert tapered.nbeamElem == blunt.nbeamElem and tapered.mass != blunt.mass
-    nodes = lambda result: np.loadtxt(result.output_dir / (result.config.geoName + "_vertices.vtu"), skiprows=5,  # noqa: E731
-                                      max_rows=20)
     # same cells and fiber ends (same seed), different node positions near the cell ends only
     mesh_b = np.loadtxt(blunt.output_dir / "blunt-mesh.txt", skiprows=10)
     mesh_t = np.loadtxt(tapered.output_dir / "tapered-mesh.txt", skiprows=10)
