@@ -76,6 +76,10 @@ class Config:
     z_min: float = 0
     z_max: Optional[float] = None            # default box_size (polygon: z_min + its largest width)
     long_connector_ratio: float = 0.02
+    fiber_length: Optional[float] = None     # mean length (mm) of the fibers of a grain, which then end at different
+                                             # heights (longitudinal connectors not on common planes);
+                                             # None: all grains cut into the same nsegments segments
+    fiber_length_cov: float = 0.3            # coefficient of variation of the fiber lengths (lognormal)
 
     # material
     skeleton_density: float = 1.5e-9         # tonne/mm3
@@ -123,6 +127,10 @@ class Config:
         for name in ['r_max', 'box_size', 'cellsize_sparse', 'cellsize_dense']:
             if getattr(self, name) <= 0:
                 raise ValueError("{} must be positive".format(name))
+        if self.fiber_length is not None and self.fiber_length <= 0:
+            raise ValueError("fiber_length must be positive (or left out)")
+        if self.fiber_length_cov < 0:
+            raise ValueError("fiber_length_cov must not be negative")
 
     def resolved(self):
         """Copy with the parameters left at None (ring widths, z_max) replaced by their default values"""
@@ -253,6 +261,7 @@ def to_bool(name, value):
 # =============================================================================
 
 TRACKING_MODES = ['labels', 'direction', 'straight']
+FIBER_END_MODES = ['image', 'random', 'none']
 SOLID_PHASES = ['bright', 'dark']
 VTK_FORMATS = ['ascii', 'binary']
 REFERENCE_SLICES = ['middle', 'bottom', 'top']
@@ -301,8 +310,13 @@ class ReconstructionConfig:
     wall_thickness: Optional[float] = None   # None: measured in the image, wall by wall and layer by layer
 
     # longitudinal direction
-    nsegments: int = 2
+    nsegments: int = 2                       # the grains are made of 2*nsegments beam elements
     long_connector_ratio: float = 0.02
+    fiber_ends: str = 'image'                # where the fibers of the grains end: image (where the cells end in the
+                                             # image), random (fiber_length), or none (all grains cut into nsegments)
+    fiber_length: Optional[float] = None     # mean fiber length (mm) for fiber_ends = random
+    fiber_length_cov: float = 0.3            # coefficient of variation of the random fiber lengths
+    seed: Optional[int] = None               # seed of the random fiber ends
 
     # material
     skeleton_density: float = 1.5e-9         # tonne/mm3
@@ -332,6 +346,14 @@ class ReconstructionConfig:
             raise ValueError("solid must be 'bright' or 'dark', not {!r}".format(self.solid))
         if self.tracking not in TRACKING_MODES:
             raise ValueError("tracking must be one of {}, not {!r}".format(', '.join(TRACKING_MODES), self.tracking))
+        if self.fiber_ends not in FIBER_END_MODES:
+            raise ValueError("fiber_ends must be one of {}, not {!r}".format(', '.join(FIBER_END_MODES), self.fiber_ends))
+        if self.fiber_ends == 'random' and self.fiber_length is None:
+            raise ValueError("fiber_ends = 'random' needs fiber_length, the mean fiber length")
+        if self.fiber_length_cov < 0:
+            raise ValueError("fiber_length_cov must not be negative")
+        if self.seed is not None and self.seed < 0:
+            raise ValueError("seed must be a non-negative integer or None")
         if self.vtk_format not in VTK_FORMATS:
             raise ValueError("vtk_format must be 'ascii' or 'binary', not {!r}".format(self.vtk_format))
         text = self.reference_slice.strip().lower()

@@ -35,8 +35,13 @@ boundaryFlag = true             # walls along the sides of the cross-section
 # wall_thickness = 0.008        # (left out: measured in the image, wall by wall and layer by layer)
 
 # Longitudinal direction
-nsegments = 4                   # beam segments along the fibers; more segments follow curved fibers more closely
-long_connector_ratio = 0.02     # longitudinal joint length = ratio * segment_length
+nsegments = 4                   # the grains are made of 2*nsegments beam elements; more elements follow curved fibers more closely
+long_connector_ratio = 0.02     # longitudinal joint length = ratio * segment_length (segment_length = 2 elements)
+fiber_ends = "image"            # where the fibers of the grains end: image (where the cells end in the image),
+                                # random (fibers of random length, see fiber_length), or none (all grains cut into nsegments)
+# fiber_length = 1.5            # mean fiber length (mm) for fiber_ends = "random"
+# fiber_length_cov = 0.3        # coefficient of variation of the random fiber lengths
+# seed = 2023                   # seed of the random fiber ends
 
 # Material
 skeleton_density = 1.5e-9       # unit: tonne/mm3

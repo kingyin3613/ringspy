@@ -2300,10 +2300,22 @@ def VisualizationFiles(geoName,NURBS_degree,nlayers,npt_per_layer_vtk,all_pts_2D
             _write_vtu_appended(Path(path, geoName, geoName + suffix + '.vtu'),np.vstack(points),cells,types,point_data,cell_data)
         return
 
+    _write_vtu_files_ascii(path,geoName,files)
+
+
+def _write_vtu_files_ascii(path,geoName,files):
+    """
+    Write the Paraview files of VisualizationFiles as text: files is a list of
+    (suffix, point arrays, connectivity arrays, cell types, point data, cell data).
+    A point array used by several files is formatted once.
+    """
     # ASCII files (the points shared by several files are formatted once)
     points_format = ' %11.8e  %11.8e  %11.8e\n'
-    shared_points_text = {id(VTKvertices): _format_rows(VTKvertices,points_format),
-                          id(quad_conn_vertices): _format_rows(quad_conn_vertices,points_format)}
+    shared_points_text = {}
+    for suffix, points, cells, types, point_data, cell_data in files:
+        for p in points:
+            if id(p) not in shared_points_text:
+                shared_points_text[id(p)] = _format_rows(p,points_format)
     for suffix, points, cells, types, point_data, cell_data in files:
         with open(Path(path, geoName, geoName + suffix + '.vtu'),'w') as vtkfile:
             write = vtkfile.write
@@ -2315,10 +2327,7 @@ def VisualizationFiles(geoName,NURBS_degree,nlayers,npt_per_layer_vtk,all_pts_2D
             write('<Points>\n')
             write('<DataArray type="Float64" NumberOfComponents="3" format="ascii">\n')
             for p in points:
-                if id(p) in shared_points_text:
-                    write(shared_points_text[id(p)])
-                else:
-                    vtkfile.writelines(_format_rows(p,points_format,join=False))
+                write(shared_points_text[id(p)])
             write('</DataArray>\n')
             write('</Points>\n')
             # </Points>
@@ -2417,9 +2426,13 @@ def AbaqusFile(geoName,NURBS_degree,npatch,IGAvertices,beam_connectivity,\
                x_max,x_min,y_max,y_min,z_coord,box_shape,box_size,\
                cellwallthickness_sparse,cellwallthickness_dense,\
                merge_operation,merge_tol,\
-               precrackFlag='off',precrack_elem=None,path='meshes'):
+               precrackFlag='off',precrack_elem=None,path='meshes',connector_t_ridge=None):
     
-    """Write the Abaqus input file (geoName.inp) with beam (B32) and connector (T3D2) elements"""
+    """Write the Abaqus input file (geoName.inp) with beam (B32) and connector (T3D2) elements
+
+    connector_t_ridge :: the ridge (cell wall) of every transverse connector, as three arrays for the
+        bot, reg and top connectivity arrays, for lattices whose connectors do not repeat every
+        nridge rows (fibers of various lengths). Default: row i belongs to ridge i % nridge."""
     if precrack_elem is None:
         precrack_elem = []
     height_connector_t = segment_length/4 # height of bot/top transverse connectors [mm]
@@ -2445,10 +2458,14 @@ def AbaqusFile(geoName,NURBS_degree,npatch,IGAvertices,beam_connectivity,\
     nelem_total = nelem + nelem_connector_t_bot + nelem_connector_t_reg + nelem_connector_t_top + nelem_connector_l
     
     # transverse connectors of precracked ridges (cell walls) are cracked in every segment
-    nsegments = len(z_coord)//(2*NURBS_degree+1)
+    nsegments = max(len(z_coord)//(2*NURBS_degree+1),1)
     nridge = nelem_connector_t_bot//nsegments
     precrack_ridges = [int(ridge) for ridge in precrack_elem] if _is_on(precrackFlag) else []
-    def precracked_rows(connectivity): # rows of the bot/reg/top transverse connector arrays, which repeat every nridge rows
+    if connector_t_ridge is None:
+        connector_t_ridge = (None,None,None)
+    def precracked_rows(connectivity,ridge=None): # rows of the bot/reg/top transverse connector arrays, which repeat every nridge rows
+        if ridge is not None:
+            return np.isin(np.asarray(ridge),precrack_ridges)
         return np.isin(np.arange(connectivity.shape[0]) % max(nridge,1),precrack_ridges)
     
     xaxis = 1
@@ -2493,12 +2510,12 @@ def AbaqusFile(geoName,NURBS_degree,npatch,IGAvertices,beam_connectivity,\
     # bottom/regular/top transverse connector element connectivity, precracked connectors are collected
     connector_t_precracked_index = []
     connector_t_precracked_connectivity = []
-    for elset, connectivity in [('AllBotConns',connector_t_bot_connectivity),\
+    for (elset, connectivity), ridge in zip([('AllBotConns',connector_t_bot_connectivity),\
                                 ('AllRegConns',connector_t_reg_connectivity),\
-                                ('AllTopConns',connector_t_top_connectivity)]:
+                                ('AllTopConns',connector_t_top_connectivity)],connector_t_ridge):
         meshinpfile.write('*Element, type=T3D2,elset={:s}\n'.format(elset))
         ids = np.arange(count,count+connectivity.shape[0])
-        cracked = precracked_rows(connectivity)
+        cracked = precracked_rows(connectivity,ridge)
         write_elements(ids[~cracked],connectivity[~cracked,0:nelnode_connector])
         connector_t_precracked_index.extend(ids[cracked].tolist())
         connector_t_precracked_connectivity.extend(connectivity[cracked,0:nelnode_connector])
@@ -2522,12 +2539,12 @@ def AbaqusFile(geoName,NURBS_degree,npatch,IGAvertices,beam_connectivity,\
         count += nelem
 
     visual_connector_precracked_index = []
-    for elset, connectivity in [('VisualBotConns',connector_t_bot_connectivity),\
+    for (elset, connectivity), ridge in zip([('VisualBotConns',connector_t_bot_connectivity),\
                                 ('VisualRegConns',connector_t_reg_connectivity),\
-                                ('VisualTopConns',connector_t_top_connectivity)]:
+                                ('VisualTopConns',connector_t_top_connectivity)],connector_t_ridge):
         meshinpfile.write('*ELEMENT, TYPE=T3D2, ELSET={:s}\n'.format(elset))
         ids = np.arange(count,count+connectivity.shape[0])
-        cracked = precracked_rows(connectivity)
+        cracked = precracked_rows(connectivity,ridge)
         write_elements(ids[~cracked],connectivity[~cracked,0:nelnode_connector])
         visual_connector_precracked_index.extend(ids[cracked].tolist())
         count += connectivity.shape[0]
@@ -3063,7 +3080,8 @@ def LogFile(geoName,iter_max,r_min,r_max,nrings,width_heart,width_sparse,width_d
         NURBS_degree,nctrlpt_per_beam,nconnector_t_precrack,nconnector_l_precrack,\
         nParticles,nbeamElem,skeleton_density,mass,volume,density,porosity,\
         stlFlag,inpFlag,inpType,radial_growth_rule,\
-        startTime,placementTime,voronoiTime,RebuildvorTime,BeamTime,FileTime,path='meshes',seed=None,box_polygon=None):
+        startTime,placementTime,voronoiTime,RebuildvorTime,BeamTime,FileTime,path='meshes',seed=None,box_polygon=None,\
+        fibers=None):
 
     """Generate the log file (geoName.log file) for the generation procedure.
 
@@ -3072,6 +3090,8 @@ def LogFile(geoName,iter_max,r_min,r_max,nrings,width_heart,width_sparse,width_d
     geoName :: string, geometry name.
     -
     seed :: int seed of the cell placement, or None for the global NumPy random state.
+    fibers :: dict of the fiber statistics of a lattice with fibers of various lengths (see
+        ringspy.lattice.fiber_statistics), written as a FIBERS section; None: regular segments.
 
     Returns
     -------
@@ -3137,6 +3157,11 @@ def LogFile(geoName,iter_max,r_min,r_max,nrings,width_heart,width_sparse,width_d
     logfile.write('long_connector_ratio:                    ' + str(long_connector_ratio) + '\n')
     logfile.write('NURBS_degree:                            ' + str(NURBS_degree) + '\n')
     logfile.write('nctrlpt_per_beam:                        ' + str(nctrlpt_per_beam) + '\n')
+    if fibers is not None:
+        logfile.write('\n')
+        logfile.write('FIBERS:\n')
+        for key, value in fibers.items():
+            logfile.write('{:<41s}'.format(key + ':') + str(value) + '\n')
     logfile.write('\n')
     logfile.write('GENERATION:\n')  
     logfile.write('nParticles:                              ' + str(nParticles) + '\n')

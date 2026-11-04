@@ -16,7 +16,7 @@ email: haoyin2022@u.northwestern.edu
 import bisect
 import math
 from dataclasses import dataclass, field
-from typing import Callable, Tuple
+from typing import Callable, Optional, Tuple
 
 import numpy as np
 from scipy.spatial import Voronoi, cKDTree
@@ -36,6 +36,7 @@ class SyntheticVolume:
     tilt: Tuple[float, float] = (0.0, 0.0)
     twist: float = 0.0
     wobble_amplitude: float = 0.0
+    cell_ends: Optional[list] = None   # heights (mm) at which each cell ends and the next one begins (fiber_length)
 
     @property
     def shape(self):
@@ -120,7 +121,8 @@ def _resolve_geometry(geometry, rng):
 
 
 def voxelize(geometry, voxel_size, tilt=(0.0, 0.0), twist=0.0, wobble_amplitude=0.0, wobble_wavelength=None,
-             seed=None, noise=0.0, blur=0.0, margin=0.0, progress=False):
+             seed=None, noise=0.0, blur=0.0, margin=0.0, progress=False, fiber_length=None, fiber_length_cov=0.3,
+             fiber_end_offset=None):
     """
     Rasterise a RingsPy cell geometry into a synthetic 3D image, slice by slice.
 
@@ -144,6 +146,11 @@ def voxelize(geometry, voxel_size, tilt=(0.0, 0.0), twist=0.0, wobble_amplitude=
     margin :: extra width (mm) of cells kept around the box when placing sites (the Voronoi cells of the
         sites near the box sides are correct only with their neighbours present; the growth rules place
         cells well beyond the box, so 0 is fine for them).
+    fiber_length, fiber_length_cov :: the cells end and new ones begin at random heights: cell lengths from a
+        lognormal distribution of this mean (mm) and coefficient of variation, the first cell of each site
+        crossing the bottom face at a random point of its length. A cell ends with a transverse wall as thick
+        as its walls, and the next cell is centered up to `fiber_end_offset` (mm, default a quarter of the
+        cell size) away. Default: no cell ends inside the volume.
 
     Returns a SyntheticVolume: the (nx, ny, nz) array with the longitudinal (fiber) direction along the
     last axis, voxel (i, j, k) covering x in [x_min + i*vx, x_min + (i+1)*vx] etc., and the geometry.
@@ -166,12 +173,42 @@ def voxelize(geometry, voxel_size, tilt=(0.0, 0.0), twist=0.0, wobble_amplitude=
     sites_xy = sites[:, 0:2]
     wobble_ref = wobble(sites_xy, z_min)
 
+    # cells ending inside the volume: end heights, and the offset of the next cell
+    cell_ends = None
+    end_site = np.zeros(0, dtype=int)
+    end_z = np.zeros(0)
+    end_jump = np.zeros((0, 2))
+    if fiber_length is not None:
+        if fiber_length <= 0 or fiber_length_cov < 0:
+            raise ValueError("fiber_length must be positive and fiber_length_cov not negative")
+        if fiber_end_offset is None:
+            fiber_end_offset = 0.5*float(np.median(sites[:, 2])) if np.any(sites[:, 2] > 0) else 0.0
+        sigma = math.sqrt(math.log(1 + fiber_length_cov**2))
+        mu = math.log(fiber_length) - sigma**2/2
+        cell_ends = []
+        for i in range(len(sites)):
+            z = z_min + rng.lognormal(mu, sigma)*(1 - rng.random())
+            ends = []
+            while z < z_max:
+                ends.append(z)
+                z += rng.lognormal(mu, sigma)
+            cell_ends.append(np.array(ends))
+        end_site = np.concatenate([np.full(len(e), i) for i, e in enumerate(cell_ends)]).astype(int)
+        end_z = np.concatenate(cell_ends)
+        radius = fiber_end_offset*np.sqrt(rng.random(len(end_z)))
+        angle = rng.uniform(0, 2*math.pi, len(end_z))
+        end_jump = np.column_stack((radius*np.cos(angle), radius*np.sin(angle)))
+
     def sites_at(z):
-        """(x, y) of the cell sites at height z: twisted, tilted and wobbled"""
+        """(x, y) of the cell sites at height z: twisted, tilted and wobbled, and moved at every cell end below z"""
         angle = twist*(z - z_min)/height
         rotated = center + (sites_xy - center) @ np.array([[math.cos(angle), -math.sin(angle)],
                                                             [math.sin(angle), math.cos(angle)]]).T
-        return rotated + (z - z_min)*tilt + wobble(sites_xy, z) - wobble_ref
+        moved = rotated + (z - z_min)*tilt + wobble(sites_xy, z) - wobble_ref
+        below = end_z < z
+        if below.any():
+            np.add.at(moved, end_site[below], end_jump[below])
+        return moved
 
     # pixel centers of a slice
     xs = x_min + (np.arange(nx) + 0.5)*voxel[0]
@@ -193,6 +230,10 @@ def voxelize(geometry, voxel_size, tilt=(0.0, 0.0), twist=0.0, wobble_amplitude=
             to_wall = (distance[:, j]**2 - distance[:, 0]**2)/(2*np.maximum(separation, 1e-300))
             half_wall = 0.5*(thickness[index[:, 0]] + thickness[index[:, j]])/2
             solid |= to_wall < half_wall
+        if len(end_z):  # the transverse walls closing the cells that end at this height
+            closing = np.zeros(len(sites), dtype=bool)
+            closing[end_site[np.abs(end_z - z) <= thickness[end_site]/2]] = True
+            solid |= closing[index[:, 0]]
         volume[:, :, k] = solid.reshape(nx, ny)
         if progress and (k % 50 == 0 or k == nz - 1):
             print('slice {:d}/{:d} rasterised'.format(k + 1, nz))
@@ -208,4 +249,4 @@ def voxelize(geometry, voxel_size, tilt=(0.0, 0.0), twist=0.0, wobble_amplitude=
 
     return SyntheticVolume(volume=volume, voxel_size=tuple(voxel), origin=(x_min, y_min, z_min), sites=sites,
                            wall_thickness=thickness, sites_at=sites_at, tilt=tuple(tilt), twist=twist,
-                           wobble_amplitude=wobble_amplitude)
+                           wobble_amplitude=wobble_amplitude, cell_ends=cell_ends)

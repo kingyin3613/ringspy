@@ -39,6 +39,7 @@ from scipy.spatial import cKDTree
 
 from . import MeshGenTools as rpgen
 from . import __version__
+from . import lattice as rplat
 from .synthetic import SyntheticVolume
 
 NURBS_DEGREE = 2
@@ -171,14 +172,15 @@ def clean_slice(walls2d, min_lumen_pixels=0, min_wall_pixels=0):
     return _remove_small_components(~void, min_wall_pixels)
 
 
-def _link_regions(current, ncurrent, history, next_label, min_overlap):
+def _link_regions(current, ncurrent, history, next_label, min_overlap, dead=()):
     """
     Give the regions of the current cross-section (labels 1..ncurrent) the labels of the regions
     they overlap most in the previous cross-sections (history, most recent last; each previous
-    label goes to one current region only); regions overlapping none get new labels.
+    label goes to one current region only, labels in `dead` to none); regions overlapping none get
+    new labels.
     """
     assigned = np.zeros(ncurrent + 1, dtype=np.int64)
-    taken = set()
+    taken = set(dead)
     area = np.bincount(current.reshape(-1), minlength=ncurrent + 1)
     for previous in reversed(history):
         pending = assigned == 0
@@ -206,8 +208,8 @@ def _link_regions(current, ncurrent, history, next_label, min_overlap):
     return assigned[current], next_label + len(new)
 
 
-def link_cell_labels(walls, k_ref, needed, min_lumen_pixels=0, min_wall_pixels=0, stride=1, memory=3,
-                     min_overlap=0.25):
+def link_cell_labels(walls, k_ref, needed, min_lumen_pixels=0, min_wall_pixels=0, stride=1, memory=8,
+                     min_overlap=0.25, closed_fraction=0.5):
     """
     Label the lumens (cells) of the cross-sections, keeping the label of a cell from slice to slice.
 
@@ -215,11 +217,14 @@ def link_cell_labels(walls, k_ref, needed, min_lumen_pixels=0, min_wall_pixels=0
     up and down from it, every slice's regions take the labels of the regions they overlap most
     in the previous `memory` labelled slices (so a label survives a slice in which two cells touch
     through a hole in their wall, or a cell is split by a speck), and new cells get new labels.
+    A cell whose lumen closes (most of its pixels have become wall in the next slice: the cell
+    ends) keeps its label for no later region, so the cell beginning above it is a new cell.
     Only every `stride`-th slice is labelled (the cells move little from slice to slice), always
     including the slices in `needed`.
 
-    Returns {k: (labels, walls2d)} for the slices in `needed` (labels: 0 = wall, cells from 1) and
-    the number of labels.
+    Returns {k: (labels, walls2d)} for the slices in `needed` (labels: 0 = wall, cells from 1), the
+    number of labels, and {label: [first, last]}, the first and last labelled slice holding each cell
+    (where a cell begins and ends inside the volume).
     """
     nz = walls.shape[2]
     needed = set(int(k) for k in needed) | {int(k_ref)}
@@ -231,8 +236,18 @@ def link_cell_labels(walls, k_ref, needed, min_lumen_pixels=0, min_wall_pixels=0
     labels_ref = labels_ref.astype(np.int64)
     slices = {k_ref: (labels_ref, walls_ref)}
     next_label = n + 1
+    ranges = {}
+
+    def note(labels, k):
+        for label in np.unique(labels).tolist():
+            if label > 0:
+                span = ranges.setdefault(label, [k, k])
+                span[0] = min(span[0], k)
+                span[1] = max(span[1], k)
+    note(labels_ref, k_ref)
     for step in (1, -1):
         history = [labels_ref]
+        dead = set()
         last = max(needed) if step > 0 else min(needed)
         ks = list(range(k_ref + step*stride, last, step*stride))
         if last != k_ref:
@@ -244,12 +259,18 @@ def link_cell_labels(walls, k_ref, needed, min_lumen_pixels=0, min_wall_pixels=0
         for k in ks:
             walls2d = clean_slice(walls[:, :, k], min_lumen_pixels, min_wall_pixels)
             current, ncurrent = ndimage.label(~walls2d)
-            labels, next_label = _link_regions(current, ncurrent, history, next_label, min_overlap)
+            labels, next_label = _link_regions(current, ncurrent, history, next_label, min_overlap, dead)
+            # cells whose lumen has closed end here: their labels are not given to the cells beginning above
+            previous = history[-1]
+            for label in np.setdiff1d(np.unique(previous), np.unique(labels)).tolist():
+                if label > 0 and label not in dead and walls2d[previous == label].mean() >= closed_fraction:
+                    dead.add(label)
             if k in needed:
                 slices[k] = (labels, walls2d)
+            note(labels, k)
             history.append(labels)
             del history[:-memory]
-    return slices, next_label - 1
+    return slices, next_label - 1, ranges
 
 
 # =============================================================================
@@ -882,6 +903,41 @@ def fit_midpoints(layer_vertices, nsegments, degree=NURBS_DEGREE):
     return layer_vertices
 
 
+def fit_midpoints_grid(layer_vertices):
+    """fit_midpoints for positions on the half-layers of a grid of quadratic beam elements (odd half-layers
+    hold the middle control points of the elements)"""
+    layer_vertices = np.array(layer_vertices, dtype=float, copy=True)
+    for m in range(1, len(layer_vertices) - 1, 2):
+        layer_vertices[m] = 2*layer_vertices[m] - (layer_vertices[m - 1] + layer_vertices[m + 1])/2
+    return layer_vertices
+
+
+def fiber_ends_from_image(ref, label_ranges, nz, z_min, vz, h, nelem):
+    """
+    The grid lines (1 .. nelem-1, spacing h from z_min) where the fibers of each vertex of the reference
+    network end: wherever one of the cells meeting at the vertex begins or ends inside the volume
+    (label_ranges: the first and last of the nz slices holding each cell, from link_cell_labels).
+    """
+    ends = []
+    for labels in ref.label_sets:
+        ks = set()
+        for label in labels:
+            if label < 0 or label not in label_ranges:
+                continue
+            first, last = label_ranges[label]
+            heights = []
+            if first > 0:
+                heights.append(z_min + first*vz)
+            if last < nz - 1:
+                heights.append(z_min + (last + 1)*vz)
+            for z in heights:
+                k = int(round((z - z_min)/h))
+                if 0 < k < nelem:
+                    ks.add(k)
+        ends.append(np.array(sorted(ks), dtype=int))
+    return ends
+
+
 def connector_tangents(IGAvertices, connectivity, npt_per_layer, nctrlpt_per_beam):
     """Unit tangents (along the grains) of the transverse connectors with the given 1-based node
     pairs: the mean of the directions of the two grains at their nodes (between the neighbouring
@@ -932,6 +988,8 @@ class ReconstructionResult:
     z_coord: np.ndarray              # heights of the layers
     vertices: np.ndarray             # (nvertex, 2) of the reference cross-section
     ridges: np.ndarray               # (nridge, 2)
+    fiber_ends: Optional[list] = None  # grid lines where the fibers of each grain end (fiber_ends != 'none')
+    nfibers: int = 0
 
 
 def reconstruct(config, **changes):
@@ -1023,21 +1081,30 @@ def _reconstruct(c, volume):
 
     # ==================================================================
     # Layers of control points and the cross-sections they need
-    theta, z_coord, nlayers, segment_length = rpgen.LayerHeights(NURBS_DEGREE, c.nsegments, 0.0, 0.0, z_min, z_max,
-                                                                 c.long_connector_ratio)
     nctrlpt_per_beam = 2*NURBS_DEGREE + 1
+    fibers_on = c.fiber_ends != 'none'
+    if fibers_on:  # a grid of 2*nsegments beam elements, nodes on its half-layers; fibers end on its lines
+        nelem = 2*c.nsegments
+        nlayers = 2*nelem + 1
+        h = (z_max - z_min)/nelem
+        z_coord = z_min + np.arange(nlayers)*h/2
+        segment_length = 2*h
+        theta = np.zeros(nlayers)
+    else:          # the regular segments, with the layers at the segment interfaces repeated
+        theta, z_coord, nlayers, segment_length = rpgen.LayerHeights(NURBS_DEGREE, c.nsegments, 0.0, 0.0, z_min, z_max,
+                                                                     c.long_connector_ratio)
+        nelem, h = 2*c.nsegments, segment_length/2
     layer_slices = np.clip(np.floor((z_coord - z_min)/voxel[2]).astype(int), 0, nz - 1)
     k_ref = _reference_slice(c.reference_slice, nz, z_min, voxel[2])
     needed = set(layer_slices.tolist()) | {k_ref}
     slice_z = {k: z_min + (k + 0.5)*voxel[2] for k in needed}
-    slice_z[k_ref] = z_min + (k_ref + 0.5)*voxel[2]
 
     # ==================================================================
     # Cell labels of the cross-sections, consistent from slice to slice
     pixel_area = voxel[0]*voxel[1]
     min_lumen_px = int(round(c.min_cell_area/pixel_area)) if c.min_cell_area is not None else 9
     min_wall_px = int(round(c.min_wall_area/pixel_area)) if c.min_wall_area is not None else 9
-    slices, nlabels = link_cell_labels(walls, k_ref, needed, min_lumen_px, min_wall_px, stride=c.link_stride)
+    slices, nlabels, label_ranges = link_cell_labels(walls, k_ref, needed, min_lumen_px, min_wall_px, stride=c.link_stride)
     labelTime = time.time()
     print('{:d} cells labelled in {:d} cross-sections in {:.3f} seconds'.format(nlabels, len(slices), labelTime - loadTime))
 
@@ -1071,7 +1138,7 @@ def _reconstruct(c, volume):
     layer_vertices = np.array([positions[k] for k in layer_slices])
     layer_status = np.array([status[k] for k in layer_slices])
     tracked_vertices = layer_vertices.copy()
-    layer_vertices = fit_midpoints(layer_vertices, c.nsegments, NURBS_DEGREE)
+    layer_vertices = fit_midpoints_grid(layer_vertices) if fibers_on else fit_midpoints(layer_vertices, c.nsegments, NURBS_DEGREE)
     followed = layer_status[layer_slices != k_ref][:, ref.kind < 2]  # the layers of the reference slice are trivial
     tracking_counts = {name: int(np.count_nonzero(followed == s)) for s, name in enumerate(STATUS_NAMES)}
     chord = tracked_vertices[-1] - tracked_vertices[0]
@@ -1083,12 +1150,11 @@ def _reconstruct(c, volume):
     # ==================================================================
     # Wall thickness of every transverse connector, measured in its layer
     nconnector_t_per_beam = int((nctrlpt_per_beam - 1)/NURBS_DEGREE + 1)
-    widths = np.empty((c.nsegments, nconnector_t_per_beam, ref.nridge))
-    for seg in range(c.nsegments):
-        for j in range(nconnector_t_per_beam):
-            k = layer_slices[seg*nctrlpt_per_beam + j*NURBS_DEGREE]
-            widths[seg, j] = _widths_in_slice(ref, networks[k]) if c.wall_thickness is None else c.wall_thickness
-    connector_t_widths = np.concatenate([widths[:, 0].reshape(-1), widths[:, 1:-1].reshape(-1), widths[:, -1].reshape(-1)])
+
+    def widths_in_layer(layer):
+        if c.wall_thickness is not None:
+            return np.full(ref.nridge, float(c.wall_thickness))
+        return _widths_in_slice(ref, networks[layer_slices[layer]])
 
     # ==================================================================
     # The lattice: the same steps and files as the mesh generation
@@ -1101,54 +1167,93 @@ def _reconstruct(c, volume):
         rpgen.VertexandRidgeinfo(all_pts_2D, all_ridges, npt_per_layer, npt_per_layer_normal, npt_per_layer_vtk,
                                  ref.nridge, geoName, np.array([0.0]), (0.0, 0.0), median_wall_thickness,
                                  median_wall_thickness, path=path, ridge_widths=ref.thickness)
-    [IGAvertices, vertex_connectivity, beam_connectivity_original, nbeam_total,
-     beam_connectivity, nbeamElem, nctrlpt_per_beam, nlayers, segment_length, connector_t_connectivity,
-     connector_t_bot_connectivity, connector_t_top_connectivity,
-     connector_t_reg_connectivity, connector_l_connectivity, nconnector_t_per_beam,
-     nconnector_t_per_grain, nconnector_t, nconnector_l, nconnector_total,
-     theta, z_coord, connector_l_vertex_dict] = \
-        rpgen.GenerateBeamElement(NURBS_DEGREE, c.nsegments, 0.0, 0.0, z_min, z_max, c.long_connector_ratio,
-                                  npt_per_layer, ref.vertices, ref.nvertex, ref.ridges, ref.nridge, (0.0, 0.0),
-                                  all_vertices_2D, max_wings, flattened_all_vertices_2D, all_ridges,
-                                  layer_vertices=layer_vertices)
-    [ConnMeshData, conn_l_tangents] = \
-        rpgen.ConnectorMeshFile(geoName, IGAvertices, connector_t_bot_connectivity, connector_t_reg_connectivity,
-                                connector_t_top_connectivity, connector_l_connectivity, all_vertices_2D, max_wings,
-                                flattened_all_vertices_2D, c.nsegments, segment_length, nctrlpt_per_beam, theta,
-                                ref.nridge, connector_l_vertex_dict, path=path, layer_vertices=layer_vertices,
-                                connector_t_widths=connector_t_widths)
-    [mass, bulk_volume, bulk_density, porosity] = \
-        rpgen.ModelInfo('square', boundary_points, z_min, z_max, c.skeleton_density, ConnMeshData, polygon=boundary_points)
-    knotVec = rpgen.BezierExtraction(NURBS_DEGREE, nbeam_total)
-    npatch = beam_connectivity_original.shape[0]
-    rpgen.BezierBeamFile(geoName, NURBS_DEGREE, nctrlpt_per_beam, nconnector_t_per_beam, npatch, knotVec, path=path)
-    tangents = connector_tangents(IGAvertices, np.vstack((connector_t_bot_connectivity, connector_t_reg_connectivity,
-                                                           connector_t_top_connectivity)), npt_per_layer, nctrlpt_per_beam)
-    rpgen.VisualizationFiles(geoName, NURBS_DEGREE, nlayers, npt_per_layer_vtk, all_pts_2D, segment_length, theta,
-                             z_coord, c.nsegments, ref.nridge, ref.ridges, (0.0, 0.0), all_ridges, ref.nvertex,
-                             nconnector_t, nconnector_l, nctrlpt_per_beam, ConnMeshData, conn_l_tangents,
-                             all_vertices_2D, max_wings, flattened_all_vertices_2D, path=path, vtk_format=c.vtk_format,
-                             layer_points=rpgen.LayerPoints(layer_vertices, all_ridges, npt_per_layer_vtk),
-                             connector_t_tangents=tangents)
+    layer_points = rpgen.LayerPoints(layer_vertices, all_ridges, npt_per_layer_vtk)
+    fiber_ends = None
+    fibers = None
+    if fibers_on:
+        if c.fiber_ends == 'image':
+            fiber_ends = fiber_ends_from_image(ref, label_ranges, nz, z_min, voxel[2], h, nelem)
+        else:
+            fiber_ends = rplat.fiber_end_layers(ref.nvertex, nelem, h, c.fiber_length, c.fiber_length_cov, rng=c.seed)
+        widths = np.array([widths_in_layer(2*k) for k in range(nelem + 1)])
+        lat = rplat.build_lattice(all_ridges, ref.nvertex, ref.nridge, all_vertices_2D, max_wings,
+                                  flattened_all_vertices_2D, layer_points, z_min, z_max, nelem, c.long_connector_ratio,
+                                  fiber_ends, ridge_widths=widths)
+        nbeamElem, npatch, nconnector_total = lat.nbeamElem, lat.npatch, lat.nconnector_t + lat.nconnector_l
+        rplat.write_connector_file(geoName, lat, path=path)
+        [mass, bulk_volume, bulk_density, porosity] = \
+            rpgen.ModelInfo('square', boundary_points, z_min, z_max, c.skeleton_density, lat.Meshdata, polygon=boundary_points)
+        rplat.write_iga_file(geoName, lat, path=path)
+        rplat.write_vtu_files(geoName, lat, layer_points, all_ridges, ref.nvertex, path=path, vtk_format=c.vtk_format)
+        fibers = {'fiber_ends': c.fiber_ends, 'nelem': nelem}
+        if c.fiber_ends == 'random':
+            fibers.update({'fiber_length': c.fiber_length, 'fiber_length_cov': c.fiber_length_cov, 'seed': c.seed})
+        fibers.update(rplat.fiber_statistics(fiber_ends, nelem, h))
+    else:
+        widths = np.empty((c.nsegments, nconnector_t_per_beam, ref.nridge))
+        for seg in range(c.nsegments):
+            for j in range(nconnector_t_per_beam):
+                widths[seg, j] = widths_in_layer(seg*nctrlpt_per_beam + j*NURBS_DEGREE)
+        connector_t_widths = np.concatenate([widths[:, 0].reshape(-1), widths[:, 1:-1].reshape(-1), widths[:, -1].reshape(-1)])
+        [IGAvertices, vertex_connectivity, beam_connectivity_original, nbeam_total,
+         beam_connectivity, nbeamElem, nctrlpt_per_beam, nlayers, segment_length, connector_t_connectivity,
+         connector_t_bot_connectivity, connector_t_top_connectivity,
+         connector_t_reg_connectivity, connector_l_connectivity, nconnector_t_per_beam,
+         nconnector_t_per_grain, nconnector_t, nconnector_l, nconnector_total,
+         theta, z_coord, connector_l_vertex_dict] = \
+            rpgen.GenerateBeamElement(NURBS_DEGREE, c.nsegments, 0.0, 0.0, z_min, z_max, c.long_connector_ratio,
+                                      npt_per_layer, ref.vertices, ref.nvertex, ref.ridges, ref.nridge, (0.0, 0.0),
+                                      all_vertices_2D, max_wings, flattened_all_vertices_2D, all_ridges,
+                                      layer_vertices=layer_vertices)
+        [ConnMeshData, conn_l_tangents] = \
+            rpgen.ConnectorMeshFile(geoName, IGAvertices, connector_t_bot_connectivity, connector_t_reg_connectivity,
+                                    connector_t_top_connectivity, connector_l_connectivity, all_vertices_2D, max_wings,
+                                    flattened_all_vertices_2D, c.nsegments, segment_length, nctrlpt_per_beam, theta,
+                                    ref.nridge, connector_l_vertex_dict, path=path, layer_vertices=layer_vertices,
+                                    connector_t_widths=connector_t_widths)
+        [mass, bulk_volume, bulk_density, porosity] = \
+            rpgen.ModelInfo('square', boundary_points, z_min, z_max, c.skeleton_density, ConnMeshData, polygon=boundary_points)
+        knotVec = rpgen.BezierExtraction(NURBS_DEGREE, nbeam_total)
+        npatch = beam_connectivity_original.shape[0]
+        rpgen.BezierBeamFile(geoName, NURBS_DEGREE, nctrlpt_per_beam, nconnector_t_per_beam, npatch, knotVec, path=path)
+        tangents = connector_tangents(IGAvertices, np.vstack((connector_t_bot_connectivity, connector_t_reg_connectivity,
+                                                               connector_t_top_connectivity)), npt_per_layer, nctrlpt_per_beam)
+        rpgen.VisualizationFiles(geoName, NURBS_DEGREE, nlayers, npt_per_layer_vtk, all_pts_2D, segment_length, theta,
+                                 z_coord, c.nsegments, ref.nridge, ref.ridges, (0.0, 0.0), all_ridges, ref.nvertex,
+                                 nconnector_t, nconnector_l, nctrlpt_per_beam, ConnMeshData, conn_l_tangents,
+                                 all_vertices_2D, max_wings, flattened_all_vertices_2D, path=path, vtk_format=c.vtk_format,
+                                 layer_points=layer_points, connector_t_tangents=tangents)
     meshTime = time.time()
-    print('{:d} beam elements and {:d} connectors generated in {:.3f} seconds'.format(nbeamElem, nconnector_total, meshTime - trackTime))
+    print('{:d} beam elements of {:d} fibers and {:d} connectors generated in {:.3f} seconds'
+          .format(nbeamElem, npatch, nconnector_total, meshTime - trackTime))
 
     _preview_figure(Path(output_dir, geoName + '.png'), slices[k_ref][1], ref, tracked_vertices, z_coord, inclination,
                     voxel, origin, k_ref, field)
     if c.save_tracks:
+        end_pairs = np.array([(g, int(k)) for g, ks in enumerate(fiber_ends) for k in ks], dtype=int).reshape(-1, 2) \
+            if fiber_ends is not None else np.zeros((0, 2), dtype=int)
         np.savez(Path(output_dir, geoName + '-grains.npz'), layer_vertices=tracked_vertices,
                  control_points=layer_vertices, z_coord=z_coord, status=layer_status, vertices=ref.vertices,
-                 ridges=ref.ridges, wall_thickness=ref.thickness, kind=ref.kind)
+                 ridges=ref.ridges, wall_thickness=ref.thickness, kind=ref.kind, fiber_ends=end_pairs,
+                 z_grid=z_min + np.arange(nelem + 1)*h)
     if c.stlFlag:
         rpgen.StlModelFile(geoName, path=path)
     if c.inpFlag:
-        rpgen.AbaqusFile(geoName, NURBS_DEGREE, npatch, IGAvertices, beam_connectivity,
-                         connector_t_bot_connectivity, connector_t_reg_connectivity,
-                         connector_t_top_connectivity, connector_l_connectivity, nbeamElem,
-                         nconnector_t, nconnector_l, 0, 0, segment_length, c.long_connector_ratio,
-                         x_max, x_min, y_max, y_min, z_coord, 'square', max(x_max - x_min, y_max - y_min),
-                         median_wall_thickness, median_wall_thickness, c.merge_operation, merge_tol,
-                         'off', [], path=path)
+        if fibers_on:
+            rpgen.AbaqusFile(geoName, NURBS_DEGREE, lat.npatch, lat.nodes, lat.beam_connectivity, lat.connector_t_bot,
+                             lat.connector_t_reg, lat.connector_t_top, lat.connector_l, nbeamElem, lat.nconnector_t,
+                             lat.nconnector_l, 0, 0, segment_length, c.long_connector_ratio, x_max, x_min, y_max, y_min,
+                             lat.nodes[:, 2], 'square', max(x_max - x_min, y_max - y_min), median_wall_thickness,
+                             median_wall_thickness, c.merge_operation, merge_tol, 'off', [], path=path,
+                             connector_t_ridge=lat.connector_t_ridge)
+        else:
+            rpgen.AbaqusFile(geoName, NURBS_DEGREE, npatch, IGAvertices, beam_connectivity,
+                             connector_t_bot_connectivity, connector_t_reg_connectivity,
+                             connector_t_top_connectivity, connector_l_connectivity, nbeamElem,
+                             nconnector_t, nconnector_l, 0, 0, segment_length, c.long_connector_ratio,
+                             x_max, x_min, y_max, y_min, z_coord, 'square', max(x_max - x_min, y_max - y_min),
+                             median_wall_thickness, median_wall_thickness, c.merge_operation, merge_tol,
+                             'off', [], path=path)
     fileTime = time.time()
     print('Files generated in {:.3f} seconds'.format(fileTime - meshTime))
 
@@ -1167,9 +1272,9 @@ def _reconstruct(c, volume):
         grain_inclination_max=float(inclination.max()) if len(inclination) else 0.0,
         tracking_counts=tracking_counts, median_cell_diameter=median_cell_diameter,
         median_wall_thickness=median_wall_thickness, layer_vertices=tracked_vertices, z_coord=z_coord,
-        vertices=ref.vertices, ridges=ref.ridges)
+        vertices=ref.vertices, ridges=ref.ridges, fiber_ends=fiber_ends, nfibers=npatch)
     _write_log(result, k_ref, segment_length, nctrlpt_per_beam, nconnector_total, nlabels,
-               [startTime, loadTime, labelTime, networkTime, trackTime, meshTime, fileTime])
+               [startTime, loadTime, labelTime, networkTime, trackTime, meshTime, fileTime], fibers)
     result.files = sorted(output_dir.iterdir())
     return result
 
@@ -1258,7 +1363,7 @@ def _preview_figure(file, walls2d, ref, layer_vertices, z_coord, inclination, vo
     plt.close(fig)
 
 
-def _write_log(result, k_ref, segment_length, nctrlpt_per_beam, nconnector_total, nlabels, times):
+def _write_log(result, k_ref, segment_length, nctrlpt_per_beam, nconnector_total, nlabels, times, fibers=None):
     """The report log geoName-report.log of a reconstruction"""
     c = result.config
     geoName = c.geoName
@@ -1320,6 +1425,13 @@ def _write_log(result, k_ref, segment_length, nctrlpt_per_beam, nconnector_total
     w('long_connector_ratio:                    ' + str(c.long_connector_ratio))
     w('NURBS_degree:                            ' + str(NURBS_DEGREE))
     w('nctrlpt_per_beam:                        ' + str(nctrlpt_per_beam))
+    w('')
+    w('FIBERS:')
+    if fibers is None:
+        w('fiber_ends:                              none (all grains cut into nsegments segments)')
+    else:
+        for key, value in fibers.items():
+            w('{:<41s}'.format(key + ':') + str(value))
     w('')
     w('GENERATION:')
     w('nParticles:                              ' + str(result.nParticles))

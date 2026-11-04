@@ -218,7 +218,7 @@ def test_reconstruct_writes_all_files(reconstructed):
 def test_reconstruct_follows_the_cell_corners(reconstructed, synthetic):
     grains = np.load(reconstructed.output_dir / "rec-grains.npz")
     layer_vertices, status, kind, z = grains["layer_vertices"], grains["status"], grains["kind"], grains["z_coord"]
-    assert layer_vertices.shape == (10, len(kind), 2) and status.shape == (10, len(kind))
+    assert layer_vertices.shape == (9, len(kind), 2) and status.shape == (9, len(kind))  # 2*nsegments elements: 9 half-layers
     np.testing.assert_array_equal(layer_vertices, reconstructed.layer_vertices)
     inside = kind == 0
     counts = reconstructed.tracking_counts
@@ -264,6 +264,44 @@ def test_reconstruct_measures_wall_thickness(reconstructed, synthetic):
     assert not np.isnan(mesh).any()
     assert mesh[:, 11].min() > 0.003 and mesh[:, 11].max() < 0.014
     assert np.linalg.norm(mesh[:, 5:8] - mesh[:, 8:11], axis=1).min() > 0
+
+
+def test_reconstruct_fiber_ends_from_image(tmp_path, monkeypatch):
+    # cells ending inside the volume become fiber ends (longitudinal connectors) of the grains at their corners
+    monkeypatch.chdir(tmp_path)
+    scan = voxelize(SMALL, VOXEL, tilt=TILT, wobble_amplitude=0.003, seed=3, fiber_length=0.4, fiber_length_cov=0.4)
+    assert scan.cell_ends is not None and sum(len(e) for e in scan.cell_ends) > 0
+    result = ringspy.reconstruct(scan, geoName="ends", nsegments=4, stlFlag=False, inpFlag=False)
+    grains = np.load(result.output_dir / "ends-grains.npz")
+    ends, z_grid = grains["fiber_ends"], grains["z_grid"]
+    h = z_grid[1] - z_grid[0]
+    assert len(ends) > 0 and result.nfibers > len(result.vertices)
+    assert np.all((ends[:, 1] >= 1) & (ends[:, 1] <= 7))
+    # every true cell end inside the box has a detected fiber end within a grid spacing (the ends are rounded to the grid)
+    truth = [z for i, e in enumerate(scan.cell_ends) for z in e
+             if 0.42 < scan.sites[i, 0] < 0.68 and abs(scan.sites[i, 1]) < 0.13]
+    detected = np.unique(z_grid[ends[:, 1]])
+    found = sum(1 for z in truth if np.any(np.abs(detected - z) <= h))
+    assert len(truth) > 5 and found >= 0.8*len(truth)
+    log = (result.output_dir / "ends-report.log").read_text()
+    assert "fiber_ends:                              image" in log and "nfiber_ends:" in log
+    mesh = np.loadtxt(result.output_dir / "ends-mesh.txt", skiprows=10)
+    header = (result.output_dir / "ends-mesh.txt").read_text().splitlines()
+    nbot, nreg, ntop, nlong = [int(header[i]) for i in (2, 4, 6, 8)]
+    assert nlong > 0 and len(mesh) == nbot + nreg + ntop + nlong
+    assert nbot == ntop and nbot > len(result.ridges)  # bot/top connectors at the faces and at every fiber end
+    assert not np.isnan(mesh).any()
+    # the fibers of the grains without a cell end run through the whole height: one patch
+    iga = (result.output_dir / "endsIGA.txt").read_text()
+    assert "Number of Patches \n{:d}".format(result.nfibers) in iga
+    # other modes
+    none = ringspy.reconstruct(scan, geoName="none", nsegments=2, fiber_ends="none", stlFlag=False, inpFlag=False)
+    assert none.fiber_ends is None and none.layer_vertices.shape[0] == 10
+    rnd = ringspy.reconstruct(scan, geoName="rnd", nsegments=3, fiber_ends="random", fiber_length=0.15, seed=4,
+                              stlFlag=False, inpFlag=False)
+    assert rnd.nfibers > 2*len(rnd.vertices)
+    with pytest.raises(ValueError, match="fiber_length"):
+        ringspy.reconstruct(scan, geoName="bad", fiber_ends="random")
 
 
 def test_reconstruct_is_deterministic(synthetic, tmp_path, monkeypatch):

@@ -20,6 +20,7 @@ import numpy as np
 from scipy.spatial import Voronoi, voronoi_plot_2d
 
 from . import MeshGenTools as rpgen
+from . import lattice as rplat
 from .config import Config
 
 NURBS_DEGREE = 2
@@ -146,6 +147,13 @@ def _generate(c):
                                  npt_per_layer_vtk, nridge, geoName, radii, c.generation_center,
                                  c.cellwallthickness_sparse, c.cellwallthickness_dense, path=path)
 
+    if c.fiber_length is not None:
+        # fibers of various lengths: every grain its own sequence of fibers (lattice module)
+        return _generate_fibers(c, rng, output_dir, fig, sites, radii, nParticles, x_min, x_max, y_min, y_max,
+                                boundary_points, box_corners, all_pts_2D, all_ridges, npt_per_layer, npt_per_layer_normal,
+                                npt_per_layer_vtk, nvertex, nridge, all_vertices_2D, max_wings, flattened_all_vertices_2D,
+                                [startTime, placementTime, voronoiTime, RebuildvorTime])
+
     # ==================================================================
     # Extrude in the parallel-to-grain (longitudinal) direction
     [IGAvertices, vertex_connectivity, beam_connectivity_original, nbeam_total,
@@ -243,6 +251,72 @@ def _generate(c):
                   startTime, placementTime, voronoiTime, RebuildvorTime, BeamTime, FileTime,
                   path=path, seed=c.seed, box_polygon=c.box_polygon)
 
+    return Result(config=c, output_dir=output_dir, files=sorted(output_dir.iterdir()), sites=sites, radii=radii,
+                  nParticles=nParticles, nbeamElem=nbeamElem, mass=mass, bulk_volume=bulk_volume,
+                  bulk_density=bulk_density, porosity=porosity)
+
+
+def _generate_fibers(c, rng, output_dir, fig, sites, radii, nParticles, x_min, x_max, y_min, y_max, boundary_points,
+                     box_corners, all_pts_2D, all_ridges, npt_per_layer, npt_per_layer_normal, npt_per_layer_vtk,
+                     nvertex, nridge, all_vertices_2D, max_wings, flattened_all_vertices_2D, times):
+    """The rest of _generate for fiber_length: the 2D mesh is extruded into fibers of various lengths"""
+    startTime, placementTime, voronoiTime, RebuildvorTime = times
+    geoName, path = c.geoName, c.path
+    nelem = 2*c.nsegments
+    nhalf = 2*nelem + 1
+    segment_length = (c.z_max - c.z_min)/c.nsegments
+    theta_half = np.linspace(c.theta_min, c.theta_max, nhalf)
+    z_half = np.linspace(c.z_min, c.z_max, nhalf)
+    layer_points = rpgen._rotate_layers(all_pts_2D[np.arange(npt_per_layer_vtk)], theta_half, z_half,
+                                        c.generation_center)[:, :, 0:2]
+    fiber_ends = rplat.fiber_end_layers(nvertex, nelem, segment_length/2, c.fiber_length, c.fiber_length_cov, rng=rng)
+    lat = rplat.build_lattice(all_ridges, nvertex, nridge, all_vertices_2D, max_wings, flattened_all_vertices_2D,
+                              layer_points, c.z_min, c.z_max, nelem, c.long_connector_ratio, fiber_ends)
+    nbeamElem = lat.nbeamElem
+    BeamTime = time.time()
+    print('{:d} beam elements of {:d} fibers generated in {:.3f} seconds'.format(nbeamElem, lat.npatch, BeamTime - RebuildvorTime))
+
+    if c.precrackFlag:
+        precrack_nodes = np.array(c.precrack_nodes if c.precrack_nodes is not None
+                                  else default_precrack_nodes(c, x_min))
+        [precrack_elem, nconnector_t_precrack, nconnector_l_precrack] = \
+            rpgen.insert_precracks(all_pts_2D, all_ridges, nridge, npt_per_layer, npt_per_layer_normal,
+                                   npt_per_layer_vtk, nhalf, precrack_nodes, c.precrack_widths, c.cellsize_sparse)
+    else:
+        precrack_elem, nconnector_t_precrack, nconnector_l_precrack = [], 0, 0
+
+    rplat.write_connector_file(geoName, lat, path=path)
+    [mass, bulk_volume, bulk_density, porosity] = \
+        rpgen.ModelInfo(c.box_shape, boundary_points, c.z_min, c.z_max, c.skeleton_density, lat.Meshdata,
+                        polygon=box_corners if c.box_shape in rpgen.POLYGON_SHAPES else None)
+    rplat.write_iga_file(geoName, lat, path=path)
+    rplat.write_vtu_files(geoName, lat, layer_points, all_ridges, nvertex, path=path)
+    fig.savefig(Path(output_dir, geoName + '.png'))
+    if c.stlFlag:
+        rpgen.StlModelFile(geoName, path=path)
+    if c.inpFlag:
+        rpgen.AbaqusFile(geoName, NURBS_DEGREE, lat.npatch, lat.nodes, lat.beam_connectivity,
+                         lat.connector_t_bot, lat.connector_t_reg, lat.connector_t_top, lat.connector_l, nbeamElem,
+                         lat.nconnector_t, lat.nconnector_l, nconnector_t_precrack, nconnector_l_precrack,
+                         segment_length, c.long_connector_ratio, x_max, x_min, y_max, y_min, lat.nodes[:, 2],
+                         c.box_shape, c.box_size, c.cellwallthickness_sparse, c.cellwallthickness_dense,
+                         c.merge_operation, c.merge_tol, c.precrackFlag, precrack_elem, path=path,
+                         connector_t_ridge=lat.connector_t_ridge)
+    FileTime = time.time()
+    print('Files generated in {:.3f} seconds'.format(FileTime - BeamTime))
+
+    fibers = {'fiber_length': c.fiber_length, 'fiber_length_cov': c.fiber_length_cov, 'nelem': nelem}
+    fibers.update(rplat.fiber_statistics(fiber_ends, nelem, segment_length/2))
+    rpgen.LogFile(geoName, c.iter_max, c.r_min, c.r_max, c.nrings, c.width_heart, c.width_sparse, c.width_dense,
+                  c.generation_center, c.box_shape, c.box_center, c.box_size, x_min, x_max, y_min, y_max,
+                  c.cellsize_sparse, c.cellsize_dense, c.cellwallthickness_sparse, c.cellwallthickness_dense,
+                  c.merge_operation, c.merge_tol, c.precrackFlag, c.precrack_widths, c.boundaryFlag,
+                  segment_length, c.theta_min, c.theta_max, c.z_min, c.z_max, c.long_connector_ratio,
+                  NURBS_DEGREE, 2*NURBS_DEGREE + 1, nconnector_t_precrack, nconnector_l_precrack,
+                  nParticles, nbeamElem, c.skeleton_density, mass, bulk_volume, bulk_density, porosity,
+                  c.stlFlag, c.inpFlag, c.inpType, c.radial_growth_rule,
+                  startTime, placementTime, voronoiTime, RebuildvorTime, BeamTime, FileTime,
+                  path=path, seed=c.seed, box_polygon=c.box_polygon, fibers=fibers)
     return Result(config=c, output_dir=output_dir, files=sorted(output_dir.iterdir()), sites=sites, radii=radii,
                   nParticles=nParticles, nbeamElem=nbeamElem, mass=mass, bulk_volume=bulk_volume,
                   bulk_density=bulk_density, porosity=porosity)
