@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v2.0.0
 
 Growth rings in the output files, a gradual earlywood-latewood transition and rings that differ, and a dataset generator for machine learning.
 
