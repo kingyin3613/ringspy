@@ -167,7 +167,9 @@ def _generate(c):
 
     # Visualize the original 2D Voronoi diagram (a preview draws the clipped mesh instead, plot_mesh)
     vor = Voronoi(sites[:, 0:2])
-    fig = None
+    # (a preview draws nothing here, but gets its own figure so that the lines RebuildVoronoi draws in the
+    # current axes do not land in a figure of the caller; generate() closes it afterwards)
+    fig = plt.figure() if c.previewFlag else None
     if not c.previewFlag:
         voronoi_plot_2d(vor, show_vertices=False, line_width=0.5, line_alpha=0.6, point_size=2)
         fig = plt.gcf()
