@@ -5,16 +5,19 @@ Build the README animation contents/ringspy_hero.gif from real RingsPy output.
     python contents/make_hero_gif.py prepare --data <folder>   # generate the mesh, keep what the frames need
     python contents/make_hero_gif.py render  --data <folder>   # render the frames and write the GIF
 
-prepare runs ringspy.generate() with contents/hero_log.toml (37k cells; about two minutes and 3 GB of
-memory, the temporary mesh files take ~1 GB) and writes ~250 MB of compact data to <folder>. render needs
-vtk, scipy and Pillow and an OpenGL context for off-screen rendering (about a minute with a GPU); it writes
-the frames to <folder>/frames/ and the GIF next to this script, and checks the GIF (decoded frames, size).
+prepare runs ringspy.generate() with contents/hero_log.toml (a hardwood log of 40k cells with vessels and
+rays, eccentric wavy rings, a taper and a spiral grain; a few minutes and 3 GB of memory, the temporary
+mesh files take ~1 GB) and writes ~250 MB of compact data to <folder>. render needs vtk, scipy and Pillow
+and an OpenGL context for off-screen rendering (OSMesa or Xvfb will do; about a minute with a GPU, some
+ten minutes with software rendering); it writes the frames to <folder>/frames/ and the GIF next to this
+script, and checks the GIF (decoded frames, size).
 
-Story of the loop: the finished twisted log orbits while it is wiped from the .vtu colours to the .stl
-solid and the .inp mesh, where the orbit comes to rest; cell seeds are placed ring by ring; Voronoi cell
-walls replace them, the camera zooms down to single cells and back; the log is clipped with a dog-bone, a
-star and an irregular polygon, then the hexagonal specimen is clipped; the camera tilts over it while it
-is extruded layer by layer with the twist, and eases back into the orbit of the first frame.
+Story of the loop: the finished tapered, twisted log orbits while it is wiped from the .vtu colours to
+the .stl solid and the .inp mesh, where the orbit comes to rest; the rays and vessels are placed, then
+the fibers ring by ring; Voronoi cell walls replace them, the camera zooms down to single cells (thick
+latewood walls, vessels, rays) and back; the log is clipped with a dog-bone drawn in an SVG file, a star
+and an irregular polygon, then the hexagonal specimen is clipped; the camera tilts over it while it is
+extruded layer by layer with the taper and the twist, and eases back into the orbit of the first frame.
 """
 
 import argparse
@@ -29,14 +32,15 @@ import numpy as np
 
 HERE = Path(__file__).resolve().parent
 TOML = HERE / 'hero_log.toml'
+SVG = HERE / 'hero_dogbone.svg'
 GIF = HERE / 'ringspy_hero.gif'
 
-# Polygons the log is clipped with in turn before the hexagon of hero_log.toml (mm, pith at the origin):
-# a dog-bone tensile specimen, a star and an irregular polygon; all non-convex (box_shape = 'polygon')
+# Outlines the log is clipped with in turn before the hexagon of hero_log.toml (mm, pith at the origin):
+# a dog-bone tensile specimen drawn in an SVG file (hero_dogbone.svg, read as box_polygon does), a star
+# and an irregular polygon; all non-convex (box_shape = 'polygon')
 _star_angles = np.pi/2 + np.arange(10)*np.pi/5
 CLIP_POLYGONS = {
-    'dogbone': [[-5.0, -2.6], [-3.0, -2.6], [-2.0, -1.3], [2.0, -1.3], [3.0, -2.6], [5.0, -2.6],
-                [5.0, 2.6], [3.0, 2.6], [2.0, 1.3], [-2.0, 1.3], [-3.0, 2.6], [-5.0, 2.6]],
+    'dogbone': SVG,
     'star': np.column_stack((np.where(np.arange(10) % 2 == 0, 5.2, 2.3)*np.cos(_star_angles),
                              np.where(np.arange(10) % 2 == 0, 5.2, 2.3)*np.sin(_star_angles))).round(4).tolist(),
     'irregular': [[-4.6, -2.2], [-2.0, -4.3], [1.2, -3.4], [3.0, -4.6], [4.8, -1.6], [2.6, 0.4], [4.4, 3.0],
@@ -48,20 +52,33 @@ K = W/800
 SS = 2                    # supersampling of the 2D drawings
 SS3D = 4                  # supersampling of the 3D renders (sub-pixel cell walls shimmer less)
 DELAY_MS = 80             # 12.5 frames per second
-CENTER_PX = (round(535*K), round(240*K))    # where the log centre goes on the canvas
+CENTER_PX = (round(548*K), round(236*K))    # where the log centre goes on the canvas
 CAPTION_BOX = tuple(round(v*K) for v in (12, 6, 322, 172))     # wordmark and captions (x0, y0, x1, y1)
-LEGEND_BOX = tuple(round(v) for v in (12*K, H - 66*K, 322*K, H - 2*K))   # colour key; the object
+LEGEND_BOX = tuple(round(v) for v in (12*K, H - 112*K, 322*K, H - 2*K))  # colour key; the object
                                                                    # must stay clear of both
 
 BG = (0x2B, 0x2F, 0x3D)
 EARLY = (0xA9, 0xC1, 0xEE)        # thin cell walls (Connector_width = smaller value)
 LATE = (0xE0, 0x55, 0x45)         # thick cell walls (Connector_width = larger value)
+VESSEL = (0xF2, 0xB7, 0x3C)       # walls of the vessels (Vessel cell data)
+RAY = (0x6F, 0xD0, 0x8E)          # walls of the ray cells (Ray cell data)
 GUIDE = (0x4A, 0x50, 0x68)
 LIGHT = (0xE6, 0xE9, 0xF0)
 CAPTION = (0xB8, 0xBF, 0xD0)
 IVORY = (0xEC, 0xE3, 0xCF)
 BEAM = (0x8E, 0x96, 0xAB)
-KEY_COLORS = [BG, EARLY, LATE, GUIDE, LIGHT, CAPTION, IVORY, BEAM]
+KEY_COLORS = [BG, EARLY, LATE, VESSEL, RAY, GUIDE, LIGHT, CAPTION, IVORY, BEAM]
+SHAPE_PARAMS = ['ring_ellipticity', 'ring_ellipse_angle', 'ring_eccentricity', 'ring_eccentricity_angle',
+                'ring_waviness', 'ring_wave_order', 'ring_wave_phase']
+
+
+def clip_polygon(key):
+    """The vertices of one of CLIP_POLYGONS: a list, or an SVG/DXF file read as box_polygon reads it"""
+    polygon = CLIP_POLYGONS[key]
+    if isinstance(polygon, Path):
+        from ringspy.outline import read_outline
+        return read_outline(polygon, tolerance=0.03)
+    return np.asarray(polygon, dtype=float)
 
 
 # ============================================================================ prepare
@@ -79,14 +96,17 @@ def prepare(data, work):
     polygon = rp.Clipping_Box(c.box_shape, c.box_center, c.box_size, c.boundaryFlag)[5]
     np.savez_compressed(data / 'cells.npz', sites=res.sites, radii=res.radii, polygon=polygon,
                         thickness=np.array([c.cellwallthickness_sparse, c.cellwallthickness_dense]),
-                        center=np.array(c.generation_center, dtype=float))
+                        center=np.array(c.generation_center, dtype=float), site_type=res.site_type,
+                        shape=np.array([getattr(c, p) for p in SHAPE_PARAMS], dtype=float))
     check_latewood_walls(out / (name + '-vertex.mesh'), res.radii, c)
     clipped_meshes(res, c, data / 'clips.npz')
     nfaces, levels = connector_volume_surface(out / (name + '_conns_vol.vtu'), data / 'conns_vol.vtp')
     nbeams, nconns = inp_lines(out / (name + '.inp'), data / 'inp_lines.vtp')
-    info = dict(cells=int(res.nParticles), beam_elements=int(res.nbeamElem), porosity=float(res.porosity),
-                surface_faces=nfaces, zc_levels=levels, inp_beams=nbeams, inp_top_connectors=nconns,
-                z_min=c.z_min, z_max=c.z_max, theta_max=c.theta_max)
+    info = dict(cells=int(res.nParticles), vessels=int((res.site_type == 1).sum()),
+                ray_cells=int((res.site_type == 2).sum()), beam_elements=int(res.nbeamElem),
+                porosity=float(res.porosity), surface_faces=nfaces, zc_levels=levels, inp_beams=nbeams,
+                inp_top_connectors=nconns, z_min=c.z_min, z_max=c.z_max, theta_max=c.theta_max,
+                stem_taper=c.stem_taper, grain_angle=c.grain_angle)
     (data / 'info.json').write_text(json.dumps(info, indent=1))
     print('prepare done in {:.1f} s: {}'.format(time.time() - t0, info))
 
@@ -98,7 +118,7 @@ def clipped_meshes(res, c, path):
     from scipy.spatial import Voronoi
     from ringspy import MeshGenTools as rp
     vor = Voronoi(res.sites[:, 0:2])
-    shapes = [(key, 'polygon', polygon) for key, polygon in CLIP_POLYGONS.items()] + [('box', c.box_shape, None)]
+    shapes = [(key, 'polygon', clip_polygon(key).tolist()) for key in CLIP_POLYGONS] + [('box', c.box_shape, None)]
     arrays = {}
     for key, shape, polygon in shapes:
         x_min, x_max, y_min, y_max, boundaries, corners, _ = \
@@ -115,10 +135,11 @@ def clipped_meshes(res, c, path):
     np.savez_compressed(path, order=np.array(list(CLIP_POLYGONS) + ['box']), **arrays)
 
 
-def ring_bins(points, radii, center):
-    """0 = heart, odd = rings placed with cellsize_sparse, even >= 2 = rings placed with cellsize_dense"""
-    r = np.linalg.norm(np.asarray(points)[:, :2] - center, axis=1)
-    return np.searchsorted(radii, r, side='right') - 1
+def ring_bins(points, radii, center, shape):
+    """0 = heart, odd = rings placed with cellsize_sparse, even >= 2 = rings placed with cellsize_dense
+    (RingsPy's bands of the ring coordinate of the shaped rings)"""
+    from ringspy import MeshGenTools as rp
+    return rp.RingBands(np.asarray(points)[:, :2], radii, center, shape=shape)
 
 
 def check_latewood_walls(vertex_mesh, radii, c):
@@ -127,7 +148,7 @@ def check_latewood_walls(vertex_mesh, radii, c):
     max_wings = int(lines[4])
     table = np.loadtxt(io.StringIO('\n'.join(lines[6:])))
     width = table[:, 3 + 3*max_wings]
-    bins = ring_bins(table[:, :2], radii, np.asarray(c.generation_center, dtype=float))
+    bins = ring_bins(table[:, :2], radii, np.asarray(c.generation_center, dtype=float), c.ring_shape())
     dense = width[(bins >= 2) & (bins % 2 == 0)].mean()
     sparse = width[bins % 2 == 1].mean()
     print('mean wall thickness: dense rings {:.4f}, sparse rings {:.4f}'.format(dense, sparse))
@@ -235,12 +256,20 @@ class Renderer3D:
         self.lines = read('inp_lines.vtp')
         width = vtk_to_numpy(self.solid.GetCellData().GetArray('Connector_width'))
         thick = width > (width.min() + width.max()) / 2
-        colors = numpy_to_vtk(np.where(thick[:, None], LATE, EARLY).astype(np.uint8), deep=True)
+        rgb = np.where(thick[:, None], LATE, EARLY)
+        for name, color in (('Vessel', VESSEL), ('Ray', RAY)):    # the walls of the vessels and rays
+            array = self.solid.GetCellData().GetArray(name)
+            if array is not None:
+                rgb = np.where(vtk_to_numpy(array)[:, None] > 0, color, rgb)
+        colors = numpy_to_vtk(rgb.astype(np.uint8), deep=True)
         colors.SetName('rgb')
         self.solid.GetCellData().AddArray(colors)
         self.lines = self._lattice(self.lines, polygon)
         self.zc = vtk_to_numpy(self.solid.GetCellData().GetArray('zc'))
-        self.levels = np.unique(self.zc)
+        # the z levels of the connector volumes, grouped: with a spiral grain the connectors lean with the
+        # grains, so the volumes of one layer spread a little in z (every group ends at its highest value)
+        levels = np.unique(self.zc)
+        self.levels = levels[np.append(np.diff(levels) > 0.02, True)]
         b = self.solid.GetBounds()
         self.zmid = (b[4] + b[5]) / 2
         self.size = max(b[1] - b[0], b[3] - b[2], b[5] - b[4])
@@ -278,18 +307,22 @@ class Renderer3D:
         self.layers = {}
 
     def _lid(self, polygon):
-        """The clipping polygon at the top of the model, turned by the twist of the top layer (measured
-        on the .inp nodes: the median turn of each grain from the bottom to the top layer)"""
+        """The clipping polygon at the top of the model, turned by the twist of the top layer and scaled
+        by its taper (measured on the .inp nodes: the median turn and the median radius ratio of the grains
+        from the bottom to the top layer)"""
         from vtkmodules.util.numpy_support import numpy_to_vtk, numpy_to_vtkIdTypeArray
         from vtkmodules.vtkCommonCore import vtkPoints
         from vtkmodules.vtkCommonDataModel import vtkCellArray, vtkPolyData
         nodes = self.vtk_to_numpy(self.lines.GetPoints().GetData())[1:]     # point 0 is unused
         npl = int(np.isclose(nodes[:, 2], nodes[:, 2].min()).sum())
         bottom, top = nodes[:npl], nodes[-npl:]
+        outer = np.linalg.norm(bottom[:, :2], axis=1) > 0.5
         turn = np.angle(np.exp(1j*(np.arctan2(top[:, 1], top[:, 0]) - np.arctan2(bottom[:, 1], bottom[:, 0]))))
-        turn = np.median(turn[np.linalg.norm(bottom[:, :2], axis=1) > 0.5])
+        turn = np.median(turn[outer])
+        grow = np.median(np.linalg.norm(top[outer, :2], axis=1)/np.linalg.norm(bottom[outer, :2], axis=1))
         c, s_ = np.cos(turn), np.sin(turn)
-        corners = np.column_stack((polygon @ np.array([[c, s_], [-s_, c]]), np.full(len(polygon), top[:, 2].max())))
+        corners = np.column_stack((grow*(polygon @ np.array([[c, s_], [-s_, c]])),
+                                   np.full(len(polygon), top[:, 2].max())))
         points = vtkPoints()
         points.SetData(numpy_to_vtk(corners, deep=True))
         cells = vtkCellArray()
@@ -461,36 +494,50 @@ class Drawer2D:
     3D renders: x right, y up, pith at CENTER_PX, `scale` pixels per mm (before supersampling)."""
 
     def __init__(self, cells, scale):
-        from scipy.spatial import Voronoi
+        from scipy.spatial import Voronoi, cKDTree
+        from ringspy import MeshGenTools as rp
         self.sites, self.radii, self.polygon = cells['sites'], cells['radii'], cells['polygon']
         self.center = cells['center']
+        self.site_type = cells['site_type']                   # 0 fiber, 1 vessel, 2 ray cell
+        self.shape = rp.RingShape(self.center, *cells['shape'])
         self.scale = scale
         thick_sparse, thick_dense = cells['thickness']
-        self.bins = ring_bins(self.sites, self.radii, self.center)
-        assert np.all(np.diff(self.bins) >= 0), 'sites are not in placement order'
+        self.bins = ring_bins(self.sites, self.radii, self.center, self.shape)
+        self.preplaced = int(np.argmax(self.site_type == 0))  # the rays and vessels come first, then the
+        fibers = self.bins[self.preplaced:]                   # fibers ring by ring
+        assert np.all(self.site_type[:self.preplaced] != 0) and np.all(np.diff(fibers) >= 0), \
+            'sites are not in placement order'
+        self.tree = cKDTree(self.sites[:, :2])
 
         vor = Voronoi(self.sites[:, :2])
         ridges = np.array([r for r in vor.ridge_vertices if -1 not in r])
         segments = vor.vertices[ridges]                       # (n, 2, 2)
-        keep = np.all(np.linalg.norm(segments - self.center, axis=2) < self.radii[-1], axis=1)
+        keep = np.all(self.shape.rho(segments) < self.radii[-1], axis=1)
         self.segments = segments[keep]
         mid = self.segments.mean(axis=1)
-        self.mid_r = np.linalg.norm(mid - self.center, axis=1)
+        self.mid_r = self.shape.rho(mid)
         self.thick_sparse, self.thick_dense = thick_sparse, thick_dense
         self.thickness, self.thick = self.wall_thickness(self.segments)
+        self.kind = self.wall_kind(self.segments)
         from matplotlib.path import Path as MplPath
         self.mid_inside = MplPath(self.polygon).contains_points(mid)
 
     def wall_thickness(self, segments):
-        """RingsPy's rule: each vertex gets the thickness of its ring, bisect(radii, r) even (a ring placed
-        with cellsize_sparse) -> cellwallthickness_sparse, else cellwallthickness_dense (VertexandRidgeinfo),
-        and a wall takes the thickness of its second vertex (ConnectorMeshFile); scipy's ridge order is
-        kept by RingsPy for walls inside the box. Returns the thickness of each wall and whether it is
-        the thicker one."""
-        r1 = np.linalg.norm(segments[:, 1] - self.center, axis=1)
-        sparse = (np.searchsorted(self.radii, r1, side='right') % 2) == 0
+        """RingsPy's rule: each vertex gets the thickness of its ring (RingBands of the ring coordinate:
+        odd bands were placed with cellsize_sparse -> cellwallthickness_sparse, the heart and even bands
+        cellwallthickness_dense, VertexandRidgeinfo), and a wall takes the thickness of its second vertex
+        (ConnectorMeshFile); scipy's ridge order is kept by RingsPy for walls inside the box. Returns the
+        thickness of each wall and whether it is the thicker one."""
+        sparse = ring_bins(segments[:, 1], self.radii, self.center, self.shape) % 2 == 1
         thickness = np.where(sparse, self.thick_sparse, self.thick_dense)
         return thickness, thickness == max(self.thick_sparse, self.thick_dense)
+
+    def wall_kind(self, segments):
+        """0 for a wall between fibers, 1 for a wall of a vessel, 2 for a wall of a ray cell (the two
+        cells of a wall are the two sites nearest to its midpoint, as CellTypeLabels labels them)"""
+        _, cells = self.tree.query(segments.mean(axis=1), k=2)
+        types = self.site_type[cells]
+        return np.where(np.any(types == 1, axis=1), 1, np.where(np.any(types == 2, axis=1), 2, 0))
 
     def to_px(self, xy, view):
         """world (mm) -> supersampled pixels for a view (center_world, scale, center_px)"""
@@ -511,29 +558,32 @@ class Drawer2D:
         p = self.to_px(self.sites[indices, :2], view)
         r = np.maximum(self.sites[indices, 2]*view[1]*SS*size, 0.8)
         dense = self.bins[indices] % 2 == 0
-        for (x, y), rr, d in zip(p, r, dense):
-            draw.ellipse((x - rr, y - rr, x + rr, y + rr), fill=LATE if d else EARLY)
+        kind = self.site_type[indices]
+        for (x, y), rr, d, k in zip(p, r, dense, kind):
+            color = VESSEL if k == 1 else RAY if k == 2 else LATE if d else EARLY
+            draw.ellipse((x - rr, y - rr, x + rr, y + rr), fill=color)
 
-    def guide_circle(self, image, radius, view):
+    def guide_ring(self, image, radius, view):
+        """The boundary of the growth ring at the ring coordinate `radius` (a circle for circular rings)"""
         from PIL import ImageDraw
         draw = ImageDraw.Draw(image)
-        (x, y), r = self.to_px(self.center, view), radius*view[1]*SS
-        draw.ellipse((x - r, y - r, x + r, y + r), outline=GUIDE, width=SS)
+        p = self.to_px(self.shape.boundary(radius, npoints=720), view)
+        draw.line([tuple(q) for q in p], fill=GUIDE, width=SS, joint='curve')
 
     def walls(self, image, view, max_r=np.inf, only_inside=False, tint=1.0):
         """The walls of the whole log's Voronoi tessellation (with midpoint within max_r)"""
         sel = self.mid_r <= max_r
         if only_inside:
             sel &= self.mid_inside
-        self.draw_walls(image, self.segments[sel], self.thickness[sel], self.thick[sel], view, tint)
+        self.draw_walls(image, self.segments[sel], self.thickness[sel], self.thick[sel], self.kind[sel], view, tint)
 
     def mesh(self, image, vertices, ridges, view, tint=1.0):
         """The walls of a mesh made by RingsPy (vertices and ridges of RebuildVoronoi(_merge))"""
         segments = vertices[ridges]
         thickness, thick = self.wall_thickness(segments)
-        self.draw_walls(image, segments, thickness, thick, view, tint)
+        self.draw_walls(image, segments, thickness, thick, self.wall_kind(segments), view, tint)
 
-    def draw_walls(self, image, segments, thickness, thick, view, tint):
+    def draw_walls(self, image, segments, thickness, thick, kind, view, tint):
         from PIL import ImageDraw
         draw = ImageDraw.Draw(image)
         p = self.to_px(segments, view)
@@ -547,6 +597,7 @@ class Drawer2D:
         widths = np.maximum(np.rint(px), 1)
         cover = tint*np.minimum(px/widths, 1)[:, None] + (1 - tint)
         colors = np.where(thick[:, None], LATE, EARLY)
+        colors = np.where(kind[:, None] == 1, VESSEL, np.where(kind[:, None] == 2, RAY, colors))
         fills = np.rint(np.array(BG) + cover*(colors - np.array(BG))).astype(int)
         for (a, b), w, c in zip(p[on], widths[on].astype(int), fills[on]):
             draw.line((a[0], a[1], b[0], b[1]), fill=tuple(c), width=int(w))
@@ -591,17 +642,18 @@ def render_frames(data, frames_dir):
         old.unlink()
     cells = np.load(data / 'cells.npz')
     polygon = cells['polygon']
-    scale = 0.80*H / (polygon[:, 1].max() - polygon[:, 1].min())    # px per mm
+    scale = 0.64*H / (polygon[:, 1].max() - polygon[:, 1].min())    # px per mm (the tapered top is 1.2x wider)
     r3d = Renderer3D(data, scale, polygon)
     d2d = Drawer2D(cells, scale)
     fonts = load_fonts()
     frames = []
     overlaps = []      # frames whose object reaches into the caption or legend boxes (zoomed frames excepted)
 
-    def emit(image, caption, fills_canvas=False, legend=True):
+    def emit(image, caption, fills_canvas=False, legend=True, file_label=False):
         """image: supersampled image of the object only; caption: list of text lines.
         fills_canvas: the object covers the whole canvas (zoom), the caption gets a backdrop.
-        legend: show the colour key (frames coloured by wall thickness)."""
+        legend: show the colour key (frames coloured by wall thickness and cell type).
+        file_label: the last caption line is a file type, in bold."""
         if isinstance(image, np.ndarray):
             image = Image.fromarray(image)
         small = image.reduce(SS)
@@ -611,7 +663,7 @@ def render_frames(data, frames_dir):
                 n = int(np.any(pixels[y0:y1, x0:x1] != BG, axis=2).sum())
                 if n:
                     overlaps.append((len(frames), n))
-        frames.append((small, caption, fills_canvas, legend))
+        frames.append((small, caption, fills_canvas, legend, file_label))
 
     def blend(a, b, t):
         a = a if isinstance(a, Image.Image) else Image.fromarray(a)
@@ -658,7 +710,7 @@ def render_frames(data, frames_dir):
                 old = r3d.render(views[previous], el_hero, az, r3d.zmid)
                 image = wipe(old, image, (i + 1)/(n + 1))
                 shown = kind if i >= n//2 else previous
-            emit(image, tagline + [labels[shown]], legend=(shown == 'vtu'))
+            emit(image, tagline + [labels[shown]], legend=(shown == 'vtu'), file_label=True)
             k += 1
     print('S1 done ({} frames, {:.0f} s)'.format(len(frames), time.time() - t))
 
@@ -667,17 +719,21 @@ def render_frames(data, frames_dir):
     wide = (tuple(d2d.center), min(scale, 0.43*H/r_log), CENTER_PX)
     rings = d2d.canvas()
     for r in d2d.radii[1:]:
-        d2d.guide_circle(rings, r, wide)
+        d2d.guide_ring(rings, r, wide)
     for i in range(4):
         emit(blend(image, rings, (i + 1)/4), [], legend=False)
 
-    # S3: RingsPy draws the ring radii first, then places the cell seeds ring by ring (real order)
-    caption = ['1  Cell seeds placed', 'ring by ring']
-    nsites, nframes = len(d2d.sites), 32
+    # S3: RingsPy draws the ring boundaries first, places the rays and the vessels, then the fiber seeds
+    # ring by ring (real order)
+    caption = ['1  Rays and vessels,', 'then fibers placed', 'ring by ring']
+    nsites, n_pre, nframes = len(d2d.sites), d2d.preplaced, 32
     shown = 0
     base = rings.copy()
     for f in range(nframes):
-        upto = int(round(nsites*((f + 4)/(nframes + 3))**1.3))
+        if f < 6:                                   # the rays, then the vessels
+            upto = int(round(n_pre*(f + 1)/6))
+        else:
+            upto = n_pre + int(round((nsites - n_pre)*((f - 6 + 4)/(nframes - 6 + 3))**1.3))
         new = np.arange(shown, upto)
         image = base.copy()
         d2d.nuclei(image, new, wide, size=0.6)
@@ -688,8 +744,8 @@ def render_frames(data, frames_dir):
     # S4: Voronoi walls replace the seeds from the pith outward, zoom down to single cells and back
     # out to the specimen scale, clip the hexagon
     caption = ['2  Voronoi', 'tessellation']
-    close_caption = ['2  Thick cell walls', 'in latewood']
-    site_r = np.linalg.norm(d2d.sites[:, :2] - d2d.center, axis=1)
+    close_caption = ['2  Thick latewood', 'walls, vessels, rays']
+    site_r = d2d.shape.rho(d2d.sites[:, :2])
     rmax = max(d2d.mid_r.max(), site_r.max())
     for f in range(12):
         front = rmax*smoothstep((f + 1)/12)
@@ -701,9 +757,13 @@ def render_frames(data, frames_dir):
     walls_full = d2d.canvas()
     d2d.walls(walls_full, full)
 
-    # zoom target: the outer edge of a dense (latewood) ring, lower right of the pith
-    ring = d2d.radii[2*(len(d2d.radii)//4) + 1]
-    target = d2d.center + ring*np.array([math.cos(math.radians(-25)), math.sin(math.radians(-25))])
+    # zoom target: the boundary between a latewood ring and the next earlywood (with its vessels), on a
+    # ray, lower right of the pith
+    ring = d2d.radii[2*(len(d2d.radii)//4) + 2]
+    rays = d2d.sites[d2d.site_type == 2, :2]
+    angles = np.arctan2(rays[:, 1] - d2d.center[1], rays[:, 0] - d2d.center[0])
+    angle = angles[np.argmin(np.abs(np.angle(np.exp(1j*(angles - math.radians(-25))))))]
+    target = d2d.shape.point(ring, angle)
     s_close = 14*scale
     def zoom_view(u, s_far):
         """u = 0: the pith at CENTER_PX at s_far px/mm; u = 1: the target at the canvas centre, s_close"""
@@ -727,7 +787,7 @@ def render_frames(data, frames_dir):
     # Clipping: the log is clipped with several polygons in turn, each time RingsPy's clipped mesh is shown
     # over the dimmed log; the last one is the hexagon of hero_log.toml, whose outside then fades out.
     # (the walls of the whole log reach the caption corner, so these frames get the caption backdrop)
-    caption = ['3  Clipped to', 'any polygon']
+    caption = ['3  Clipped to any', 'outline: SVG, DXF', 'or polygon']
     clips = np.load(data / 'clips.npz')
     dimmed = blend(walls_full, d2d.canvas(), 0.8)
     shown = walls_full                         # what the outline of the next polygon is traced over
@@ -763,7 +823,7 @@ def render_frames(data, frames_dir):
     # S5: the camera tilts to the S1 elevation over the bottom slab, the layers are added at a fixed
     # azimuth (so all the turning seen is RingsPy's twist), then the camera eases into the S1 orbit:
     # the last frame is one orbit step before frame 0
-    caption = ['4  Extruded with', 'a twist']
+    caption = ['4  Extruded with a', 'taper, a twist and', 'a spiral grain']
     n_tilt, n_build, n_ease = 9, 17, 6
     azimuth = np.zeros(n_ease)
     azimuth[-1] = az0 - step
@@ -785,8 +845,8 @@ def render_frames(data, frames_dir):
         emit(r3d.render(r3d.solid_actor, el_hero, azimuth[f], r3d.zmid), caption)
     print('S5 done ({} frames, {:.0f} s)'.format(len(frames), time.time() - t))
 
-    for i, (small, caption, fills_canvas, legend) in enumerate(frames):
-        annotate(small, caption, fonts, backdrop=fills_canvas, legend=legend).save(
+    for i, (small, caption, fills_canvas, legend, file_label) in enumerate(frames):
+        annotate(small, caption, fonts, backdrop=fills_canvas, legend=legend, file_label=file_label).save(
             frames_dir / 'frame_{:04d}.png'.format(i))
     if overlaps:
         raise RuntimeError('the object overlaps the captions or the legend in frames (index, pixels) {}; '
@@ -799,26 +859,28 @@ def load_fonts():
     bold = font_manager.findfont(font_manager.FontProperties(family='DejaVu Sans', weight='bold'))
     regular = font_manager.findfont(font_manager.FontProperties(family='DejaVu Sans'))
     return dict(wordmark=ImageFont.truetype(bold, round(30*K)), caption=ImageFont.truetype(regular, round(26*K)),
-                label=ImageFont.truetype(bold, round(25*K)), legend=ImageFont.truetype(regular, round(20*K)))
+                label=ImageFont.truetype(bold, round(25*K)), legend=ImageFont.truetype(regular, round(19*K)))
 
 
-def annotate(image, caption, fonts, backdrop=False, legend=False):
-    """Wordmark and caption lines at the top left (the last line of a 3-line caption is the file type,
-    in bold), the colour key at the bottom left; each group on a darkened backdrop when the object
-    fills the canvas. All text must fit in CAPTION_BOX / LEGEND_BOX."""
+def annotate(image, caption, fonts, backdrop=False, legend=False, file_label=False):
+    """Wordmark and caption lines at the top left (with file_label, the last line is the file type, in
+    bold), the colour key at the bottom left; each group on a darkened backdrop when the object fills
+    the canvas. All text must fit in CAPTION_BOX / LEGEND_BOX."""
     from PIL import Image, ImageDraw
     image = image.copy()
     draw = ImageDraw.Draw(image)
     x = round(22*K)
     texts = [((x, round(14*K)), 'RingsPy', fonts['wordmark'], LIGHT)]
     for i, line in enumerate(caption):
-        bold = len(caption) == 3 and i == 2
+        bold = file_label and i == len(caption) - 1
         texts.append(((x, round((56 + 32*i + (6 if bold else 0))*K)), line,
                       fonts['label' if bold else 'caption'], LIGHT if bold else CAPTION))
     swatches = []
     if legend:
-        for i, (color, text) in enumerate([(LATE, 'latewood: thick walls'), (EARLY, 'earlywood: thin walls')]):
-            y = H - round((60 - 28*i)*K)
+        key = [(LATE, 'latewood: thick walls'), (EARLY, 'earlywood: thin walls'), (VESSEL, 'vessels'),
+               (RAY, 'rays')]
+        for i, (color, text) in enumerate(key):
+            y = H - round((106 - 25*i)*K)
             texts.append(((x + round(24*K), y), text, fonts['legend'], CAPTION))
             swatches.append(((x, y + round(4*K), x + round(15*K), y + round(19*K)), color))
     boxes = np.array([draw.textbbox(xy, text, font=font) for xy, text, font, _ in texts] +
@@ -852,8 +914,9 @@ def shade_palette(frames, ncolors):
         return [tuple(np.rint(np.array(BG) + (np.array(color) - np.array(BG))*t).astype(int)) for t in ts]
     entries = [BG, GUIDE, LIGHT, CAPTION]
     entries += ramp(EARLY, (.45, .55, .65, .75, .88, 1)) + ramp(LATE, (.45, .6, .75, .88, 1))
+    entries += ramp(VESSEL, (.45, .6, .75, .88, 1)) + ramp(RAY, (.45, .6, .75, .88, 1))
     entries += ramp(IVORY, (.33, .37, .41, .45, .55, .62, .68, .75, .88, 1)) + ramp(BEAM, (.8, 1))
-    for color in (EARLY, LATE, IVORY, LIGHT):
+    for color in (EARLY, LATE, VESSEL, RAY, IVORY, LIGHT):
         entries += mixes(color, (.25, .5, .75))
     entries += mixes(LATE, (.12,))
     entries = list(dict.fromkeys(entries))
@@ -870,7 +933,7 @@ def shade_palette(frames, ncolors):
     return entries[:ncolors]
 
 
-def encode(frames, path, preview=None, ncolors=48, budget_bytes=5_000_000):
+def encode(frames, path, preview=None, ncolors=56, budget_bytes=5_000_000):
     """GIF with one global palette and no dithering. Identical consecutive frames are merged; each
     stored frame keeps only its changed pixels (the others are transparent) when that is smaller."""
     from PIL import Image, ImageSequence

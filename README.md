@@ -7,7 +7,7 @@
 [![codecov](https://codecov.io/gh/kingyin3613/ringspy/branch/main/graph/badge.svg?token=4AZN3HGGET)](https://codecov.io/gh/kingyin3613/ringspy)
 [![DOI](https://joss.theoj.org/papers/10.21105/joss.04945/status.svg)](https://doi.org/10.21105/joss.04945)
 
-![RingsPy: cell seeds placed ring by ring, Voronoi tessellation, clipping to any polygon (a dog-bone, a star, an irregular polygon, a hexagon) and extrusion with a twist into a 3D cellular mesh, exported for ParaView, 3D printing and Abaqus](./contents/ringspy_hero.gif)
+![RingsPy: rays, vessels and fiber seeds placed ring by ring around an eccentric pith, Voronoi tessellation with thick latewood walls, clipping to any outline (a dog-bone from an SVG drawing, a star, an irregular polygon, a hexagon) and extrusion with a taper, a twist and a spiral grain into a 3D cellular mesh, exported for ParaView, 3D printing and Abaqus](./contents/ringspy_hero.gif)
 
 RingsPy is a Voronoi diagrams-based geometric generation tool that generates 3D meshes and models of prismatic cellular solids with radial growth rules.
 
