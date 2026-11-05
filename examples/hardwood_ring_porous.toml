@@ -30,7 +30,7 @@ vessel_zone = 0.5               # ring-porous: inner fraction of the earlywood t
 # Rays: radial files of cells, about ray_spacing apart around the circumference
 ray_spacing = 0.3
 ray_width = 0.02                # width of the ray cells (about the fiber size where it is smaller)
-ray_cell_length = 0.08          # radial length of the ray cells
+ray_cell_length = 0.1           # radial spacing of the ray cells
 
 # Clipping box
 boundaryFlag = true
@@ -54,3 +54,4 @@ stlFlag = false
 inpFlag = true
 inpType = "Abaqus"
 graphFlag = false
+statsFlag = true                # also save the statistics of the cells, rings and walls as CSV files (section 5.3)

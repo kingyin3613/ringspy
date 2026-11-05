@@ -29,7 +29,7 @@ vessel_arrangement = "diffuse"
 # Rays
 ray_spacing = 0.25
 ray_width = 0.02
-ray_cell_length = 0.06
+ray_cell_length = 0.08
 
 # Clipping box
 boundaryFlag = true

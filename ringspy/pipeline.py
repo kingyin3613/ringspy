@@ -22,6 +22,7 @@ from scipy.spatial import Voronoi, voronoi_plot_2d
 
 from . import MeshGenTools as rpgen
 from . import lattice as rplat
+from . import stats as rpstats
 from .config import Config
 
 NURBS_DEGREE = 2
@@ -60,6 +61,13 @@ class Result:
     ring_shape: object = None    # the shape of the growth rings (MeshGenTools.RingShape): ring_shape.rho(points) is the
                                  # ring coordinate, ring_shape.boundary(result.radii[k]) the outline of a ring boundary
     graph: Optional[dict] = None # the arrays of geoName-graph.npz when graphFlag is on, see graph_arrays()
+    cell_stats: Optional[dict] = None  # one value per cell: area, neighbours, aspect ratio, ... (stats.cell_statistics)
+    ring_stats: Optional[dict] = None  # one value per band of the rings: cell counts, 2D porosity, ... (stats.ring_statistics)
+    wall_stats: Optional[dict] = None  # one value per wall: length, thickness, cells, ... (stats.wall_statistics)
+
+    def summary(self):
+        """Descriptors of the mesh (dict, see stats.summary): numbers, mean cell area and shape, 2D porosity, ..."""
+        return rpstats.summary(self.cell_stats, self.ring_stats, self.wall_stats)
 
     @property
     def nvertex(self):
@@ -327,6 +335,7 @@ def _generate(c):
     if c.graphFlag:
         result.graph = graph_arrays(result)
         rpgen.GraphFile(geoName, result.graph, path=path)
+    _add_statistics(result, boundaries, c.statsFlag)
 
     FileTime = time.time()
     print('Files generated in {:.3f} seconds'.format(FileTime - BeamTime))
@@ -344,10 +353,20 @@ def _generate(c):
                   startTime, placementTime, voronoiTime, RebuildvorTime, BeamTime, FileTime,
                   path=path, seed=c.seed, box_polygon=c.box_polygon,
                   transition=c.transition, transition_width=c.transition_width, radii=radii, graphFlag=c.graphFlag,
-                  hardwood=hardwood_log, ring_shape=shape, extrusion=extrusion_log)
+                  hardwood=hardwood_log, ring_shape=shape, extrusion=extrusion_log, statsFlag=c.statsFlag)
 
     result.files = sorted(output_dir.iterdir())
     return result
+
+
+def _add_statistics(result, boundaries, write):
+    """The statistics of the cells, rings and walls of a Result (always kept), and their CSV files (statsFlag)"""
+    result.cell_stats = rpstats.cell_statistics(result, boundaries)
+    result.ring_stats = rpstats.ring_statistics(result.cell_stats)
+    result.wall_stats = rpstats.wall_statistics(result, boundaries)
+    if write:
+        rpstats.write_statistics(result.config.geoName, result.cell_stats, result.ring_stats, result.wall_stats,
+                                 path=result.config.path)
 
 
 NODE_FEATURES = ['ring', 'dense', 'boundary', 'thickness', 'degree', 'radius', 'vessel', 'ray']
@@ -486,6 +505,7 @@ def _generate_fibers(c, rng, output_dir, fig, sites, radii, nParticles, x_min, x
     if c.graphFlag:
         result.graph = graph_arrays(result)
         rpgen.GraphFile(geoName, result.graph, path=path)
+    _add_statistics(result, boundaries, c.statsFlag)
     FileTime = time.time()
     print('Files generated in {:.3f} seconds'.format(FileTime - BeamTime))
 
@@ -504,7 +524,8 @@ def _generate_fibers(c, rng, output_dir, fig, sites, radii, nParticles, x_min, x
                   startTime, placementTime, voronoiTime, RebuildvorTime, BeamTime, FileTime,
                   path=path, seed=c.seed, box_polygon=c.box_polygon,
                   transition=c.transition, transition_width=c.transition_width, radii=radii, graphFlag=c.graphFlag,
-                  fibers=fibers, hardwood=hardwood_log, ring_shape=cell_labels['ring_shape'], extrusion=extrusion_log)
+                  fibers=fibers, hardwood=hardwood_log, ring_shape=cell_labels['ring_shape'], extrusion=extrusion_log,
+                  statsFlag=c.statsFlag)
     result.files = sorted(output_dir.iterdir())
     return result
 

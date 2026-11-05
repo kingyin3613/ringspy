@@ -47,8 +47,11 @@ def test_ring_radii_and_preplaced_cells_keep_the_softwood_identical():
 def test_place_rays():
     radii = np.array([0, 0.3, 1.0, 1.3, 2.0, 2.3])
     cellsize = rpgen.RingProfile(radii, 0.02, 0.01)
-    circles, nrays = rpgen.PlaceRays((0, 0), radii, 0.25, 0.02, 0.08, cellsize, rng=0)
+    circles, nrays, segments = rpgen.PlaceRays((0, 0), radii, 0.25, 0.02, 0.08, cellsize, rng=0)
     circles = np.array(circles)
+    segments = np.array(segments)
+    assert len(segments) == len(circles) - nrays and segments.shape[1] == 5  # one between consecutive cells of a ray
+    assert np.all(segments[:, 4] > 0)
     r = np.linalg.norm(circles[:, :2], axis=1)
     assert nrays >= round(2*np.pi*0.3/0.25) and len(circles) > nrays
     assert r.min() > 0.3 and r.max() < 2.3
@@ -64,6 +67,21 @@ def test_place_rays():
     # ray cells about ray_cell_length apart along a ray
     one = np.sort(r[angles == angles[0]])
     assert 0.06 < np.median(np.diff(one)) < 0.1
+    # the fibers (and vessels) keep out of the corridors between the consecutive cells of a ray
+    sites, _, site_type, _ = rpgen.CellPlacement_Hardwood((0, 0), 2.3, 0, 2, 0.3, 0.7, 0.3, 0.02, 0.01, 300, 10**6, rng=0,
+                                                          ray_spacing=0.25, ray_width=0.02, ray_cell_length=0.08,
+                                                          vessel_fraction=0.1, vessel_size=0.08)
+    rays = sites[site_type == 2]
+    angle_of = np.round(np.arctan2(rays[:, 1], rays[:, 0]), 9)
+    segments = []
+    for a in np.unique(angle_of):
+        cells = rays[angle_of == a]
+        cells = cells[np.argsort(np.linalg.norm(cells[:, :2], axis=1))]
+        segments += [[*cells[k, :2], *cells[k + 1, :2], min(cells[k, 2], cells[k + 1, 2])] for k in range(len(cells) - 1)]
+    index = rpgen._SegmentIndex(segments)
+    assert len(segments) > 50
+    assert all(index.clear(c) for c in sites[site_type != 2].tolist())
+    assert not index.clear([*rays[1, :2], 0.01]) or len(rays) < 2
     with pytest.raises(ValueError):
         rpgen.PlaceRays((0, 0), radii, 0.0, 0.02, 0.08, cellsize)
 
@@ -118,7 +136,7 @@ def test_hardwood_placement_types_and_counts():
 
 def test_config_hardwood_parameters():
     c = ringspy.Config(vessel_fraction=0.2, vessel_size=0.1, vessel_arrangement="ring", ray_spacing=0.3)
-    assert c.ray_width == 0.02 and c.ray_cell_length == 0.08 and ringspy.Config().vessel_fraction == 0
+    assert c.ray_width == 0.02 and c.ray_cell_length == 0.1 and ringspy.Config().vessel_fraction == 0
     assert ringspy.Config().ray_spacing is None
 
 

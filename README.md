@@ -108,7 +108,7 @@ vessel_arrangement = "diffuse"  # diffuse (vessels over all rings) or ring (ring
 vessel_zone = 0.5               # ring-porous: inner fraction of the earlywood that holds the vessels
 # ray_spacing = 0.3             # spacing of the rays around the circumference (left out: no rays)
 ray_width = 0.02                # width of the ray cells
-ray_cell_length = 0.08          # radial length of the ray cells
+ray_cell_length = 0.1           # radial spacing of the ray cells
 
 # Clipping box
 boundaryFlag = true
@@ -142,6 +142,7 @@ inpFlag = true                  # input file for simulations
 inpType = "Abaqus"
 save_sites = false              # also save wood_cube_sites.npy and wood_cube_radii.npy, to reuse the cells later
 graphFlag = false               # also save wood_cube-graph.npz, the cell mesh as a graph (PyTorch Geometric layout)
+statsFlag = false               # also save wood_cube-cells.csv, -rings.csv, -walls.csv (statistics of the cells)
 ```
 
 A parameter that is left out takes its default value, which is its value in `wood_cube.toml`; a misspelled parameter name is an error. Flags take `true`/`false` (the `'on'`/`'off'` strings of earlier versions also work).
@@ -174,13 +175,14 @@ A parameter that is left out takes its default value, which is its value in `woo
 - `inpFlag` flag can be turned on/off for generating input files for numerical simulations.
 - `inpType` indicates the software(s) that the mesh generation should generate input files for.
 - `graphFlag` flag can be turned on/off for saving the 2D cell mesh as a graph (`geoName-graph.npz`, see section 5.2).
+- `statsFlag` flag can be turned on/off for saving the statistics of the cells, walls and rings as CSV files (section 5.3).
 - `vessel_fraction`, `vessel_size`, `vessel_arrangement`, `vessel_zone`, `ray_spacing`, `ray_width` and `ray_cell_length` add the vessels and rays of a hardwood (section 1.3).
 - `ring_ellipticity`, `ring_ellipse_angle`, `ring_eccentricity`, `ring_eccentricity_angle`, `ring_waviness`, `ring_wave_order` and `ring_wave_phase` shape the growth rings (section 1.4).
 
 ### 1.3. Hardwood features: vessels and rays
 A hardwood (with the `binary` growth rule) gets its vessels and rays before the fibers are packed around them, so that the fibers keep clear of them and the Voronoi cells of the vessel and ray sites come out with the asked sizes:
 - `vessel_fraction` is the fraction of the area that the vessels cover in the zone they are spread over; 0 (the default) places none. `vessel_size` is the width of the vessel cells (mm). With `vessel_arrangement = "diffuse"` the vessels are spread evenly over every growth ring (a diffuse-porous wood such as maple or birch); with `"ring"` they are in the inner fraction `vessel_zone` of the sparse (earlywood) part of every ring only, as the large earlywood vessels of a ring-porous wood such as oak or ash. The heart has no vessels.
-- `ray_spacing` places rays, radial files of cells, about that far apart around the circumference: rays start at the edge of the heart, and new rays start in between them wherever the spacing has grown to 1.5 times `ray_spacing`, so that the spacing stays between 0.75 and 1.5 times `ray_spacing` out to the outermost ring. The ray cells are `ray_cell_length` long (radially, with a random jitter) and `ray_width` wide; where `ray_width` is smaller than the fibers around the ray, the ray cells come out about as wide as the fibers, so choose `ray_cell_length` a few times the fiber size for visibly elongated ray cells.
+- `ray_spacing` places rays, radial files of cells, about that far apart around the circumference: rays start at the edge of the heart, and new rays start in between them wherever the spacing has grown to 1.5 times `ray_spacing`, so that the spacing stays between 0.75 and 1.5 times `ray_spacing` out to the outermost ring. The cells of a ray are `ray_cell_length` apart (radially, with a random jitter) and `ray_width` wide, and the fibers and vessels keep out of the corridor of a ray between its cells, so that every ray is a continuous file. Two limits of a Voronoi tessellation apply: where `ray_width` is smaller than the fibers around the ray, the ray cells come out about as wide as the fibers (the walls lie halfway to them); and a cell cannot be longer than about twice the distance to the cells beside it, so the ray cells stay roughly as long as they are wide however large `ray_cell_length` is (a larger value only spreads the ray cells out along the file). In a transverse section this is what a uniseriate ray looks like: a radial file of cells about one fiber wide.
 
 The cell type of every site is kept (`result.site_type`: 0 fiber, 1 vessel, 2 ray cell; `save_sites` also writes `geoName_types.npy`, which a `*_sites.npy` growth rule reads back), and the walls and vertices of the vessels and rays are labelled (`result.ridge_vessel`, `result.ridge_ray`, `result.vertex_vessel`, `result.vertex_ray`): the `.vtu` files carry the cell data `Vessel` and `Ray` next to `Ring` and `Dense`, the `.inp` file gets the element sets `VesselBeams`, `VesselTConns`, `VesselLConns` and `RayBeams`, `RayTConns`, `RayLConns` next to the ring sets (section 4.3), the graph file the node and edge features `vessel` and `ray`, and the report log a `HARDWOOD` section with the numbers of vessels, rays and ray cells placed. A wall between a vessel and a ray cell counts as a vessel wall. See [examples/hardwood_ring_porous.toml](./examples/hardwood_ring_porous.toml) and [examples/hardwood_diffuse.toml](./examples/hardwood_diffuse.toml); `fiber_length` (fibers of various lengths) works with them too.
 
@@ -376,6 +378,15 @@ data = Data(x=torch.from_numpy(g["x"]).float(), edge_index=torch.from_numpy(g["e
             y=torch.tensor([float(g["porosity"])]))
 ```
 The same arrays are returned by `ringspy.graph_arrays(result)` for any `Result`, and held in `result.graph` when the flag is on.
+
+### 5.3 Statistics of the Cells, Walls and Rings
+Every `Result` holds the statistics of its clipped 2D cell mesh (`ringspy.stats`), the descriptors needed to compare a generated structure with a micrograph or to sweep parameters; `statsFlag = true` also writes them as CSV files next to the other outputs.
+- `result.cell_stats` (`geoName-cells.csv`), one row per cell site: its coordinates and type (fiber, vessel, ray), band, growth ring and dense flag, whether it is cut by the clipping box (`boundary`), the numbers of walls and of neighbouring cells, area, perimeter, wall area (half of every shared wall), solid fraction, equivalent diameter, aspect ratio and orientation (from the second moments of the cell polygon), radial elongation (1 for a cell elongated along the direction from the pith, as a ray cell) and the mean thickness of its walls. The cells are the Voronoi regions clipped by the box, rebuilt from the walls: the two sites nearest to the midpoint of a wall are the cells on its sides. A site whose region lies outside the box has no polygon (empty values).
+- `result.ring_stats` (`geoName-rings.csv`), one row per band of the growth rings (the heart, then the sparse and dense part of every ring): the numbers of cells (all, and the interior ones not cut by the box), the area of its cells and of their walls, the 2D porosity (`1 - wall area / area`), and the mean area, equivalent diameter, aspect ratio, number of neighbours and wall thickness of its interior cells.
+- `result.wall_stats` (`geoName-walls.csv`), one row per wall: its vertices, the cells on its sides, length, thickness, angle, ring, dense, vessel, ray and boundary flags.
+- `result.summary()`: the number of cells, the mean cell area, equivalent diameter, aspect ratio and number of neighbours (interior cells), the 2D porosity of all cells and of the sparse and the dense rings, and the mean wall length and thickness. `ringspy batch` writes these columns into its table for every run.
+
+The 2D porosity differs from the porosity of the report log, which comes from the volumes of the 3D connectors. Statistics of the cut cells along the box are kept in the tables (`boundary = 1`) but left out of the means.
 
 ### 6. Reconstruction from a 3D Image (new in v2.1.0)
 

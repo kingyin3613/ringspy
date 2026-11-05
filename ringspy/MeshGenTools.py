@@ -184,6 +184,38 @@ class _CircleGrid:
             neighbours.extend(self.bins.get(key, ()))
         return check_overlap(neighbours, circC)
 
+class _SegmentIndex:
+    """
+    Line segments with a half-width (capsules) that new circles must keep clear of, e.g. the rays
+    of a hardwood between their consecutive cells: clear(circC) is True when the circle [x, y, w]
+    is at least half_width + w away from every segment. The segments are found through a KD-tree
+    of their midpoints.
+    """
+    def __init__(self, segments):
+        segments = np.asarray(segments,dtype=float).reshape(-1,5) # x0, y0, x1, y1, half_width
+        self.p0 = segments[:,0:2]
+        self.p1 = segments[:,2:4]
+        self.half_width = segments[:,4]
+        self.mid = (self.p0 + self.p1)/2
+        self.half_length = np.linalg.norm(self.p1 - self.p0,axis=1)/2
+        self.reach = float((self.half_length + self.half_width).max()) if len(segments) else 0.0
+        self.tree = cKDTree(self.mid) if len(segments) else None
+
+    def clear(self, circC):
+        if self.tree is None:
+            return True
+        near = self.tree.query_ball_point(circC[0:2],self.reach + circC[2])
+        if not near:
+            return True
+        near = np.asarray(near)
+        p = np.asarray(circC[0:2],dtype=float)
+        d = self.p1[near] - self.p0[near]
+        length2 = np.sum(d*d,axis=1)
+        t = np.clip(np.sum((p - self.p0[near])*d,axis=1)/np.where(length2 > 0,length2,1.0),0,1)
+        distance = np.linalg.norm(p - self.p0[near] - t[:,np.newaxis]*d,axis=1)
+        return bool(np.all(distance >= self.half_width[near] + circC[2]))
+
+
 def check_iscollinear(p1,p2,boundaries):
     """ Make sure the line segment x1-x2 is collinear with 
         any line segment of the boundary polygon
@@ -605,7 +637,7 @@ def RingRadii(width_heart,width_sparse,width_dense,nrings,rng=None):
 def CellPlacement_Binary(generation_center,r_max,r_min,nrings,width_heart,
                          width_sparse,width_dense,cellsize_sparse,cellsize_dense,\
                          iter_max,print_interval,rng=None,transition='abrupt',transition_width=1.0,\
-                         radii=None,preplaced=None,shape=None):
+                         radii=None,preplaced=None,shape=None,preplaced_segments=None):
     """
     packing cells by randomly placing new cells in the generation rings
 
@@ -619,9 +651,12 @@ def CellPlacement_Binary(generation_center,r_max,r_min,nrings,width_heart,
         new cells keep clear of them
     shape :: the shape of the rings (RingShape; default: circles around generation_center): the
         cells are placed in the bands of its ring coordinate, evenly over their area
+    preplaced_segments :: segments [x0, y0, x1, y1, half_width] the new cells keep clear of (at
+        half_width + their size), e.g. the rays between their consecutive cells
     """
     rng = _rng(rng)
     shaped = shape is not None and not shape.circular
+    segments = _SegmentIndex(preplaced_segments) if preplaced_segments else None
 
     # generate radii for rings
     if radii is None:
@@ -663,7 +698,7 @@ def CellPlacement_Binary(generation_center,r_max,r_min,nrings,width_heart,
             
             inside = shape.inside_band(circC,radii[ibin],radii[ibin+1]) if shaped else \
                 check_isinside_boundcircle(circC,generation_center,radii[ibin],radii[ibin+1])
-            if grid.check_overlap(circC) and inside:
+            if grid.check_overlap(circC) and inside and (segments is None or segments.clear(circC)):
                 circles.append(circC)
                 grid.add(circC)
                 
@@ -699,9 +734,10 @@ def PlaceRays(generation_center,radii,ray_spacing,ray_width,ray_cell_length,cell
     with a random jitter of +-10%) and ray_width wide: the sites keep the fibers next to them
     (cellsize: the cell size profile, see RingProfile) at half that width.
 
-    Returns the sites as [x, y, size] circles (size: the half-distance kept to the fibers), and the
-    number of rays. With a RingShape (shape), the rays follow its directions and the radii are its
-    ring coordinate.
+    Returns the sites as [x, y, size] circles (size: the half-distance kept to the fibers), the
+    number of rays, and the segments [x0, y0, x1, y1, size] between the consecutive cells of every
+    ray, which the fibers keep clear of too (so that no fiber slips in between the cells of a ray).
+    With a RingShape (shape), the rays follow its directions and the radii are its ring coordinate.
     """
     rng = _rng(rng)
     radii = np.asarray(radii,dtype=float)
@@ -726,20 +762,26 @@ def PlaceRays(generation_center,radii,ray_spacing,ray_width,ray_cell_length,cell
         r = r_split
     # the cells of every ray, from its start to the outermost ring
     circles = []
+    segments = []
     for r0, angle in rays:
         s = float(shape.scale(angle)) if shaped else 1.0 # radius per unit of ring coordinate along this ray
         rr = r0 + ray_cell_length/2/s
+        previous = None
         while rr < r_end - ray_cell_length/4/s:
             x = rr*s*math.cos(angle) + generation_center[0]
             y = rr*s*math.sin(angle) + generation_center[1]
             local = float(cellsize(rr))
-            circles.append([x,y,max(ray_width - local,ray_width/2)]) # the wall halfway to a fiber: the cell ray_width wide
+            w = max(ray_width - local,ray_width/2) # the wall halfway to a fiber: the cell ray_width wide
+            circles.append([x,y,w])
+            if previous is not None:
+                segments.append([previous[0],previous[1],x,y,min(previous[2],w)])
+            previous = (x,y,w)
             rr += ray_cell_length*(1 + 0.2*(rng.random() - 0.5))/s
-    return circles, len(rays)
+    return circles, len(rays), segments
 
 
 def PlaceVessels(generation_center,radii,vessel_size,vessel_fraction,vessel_arrangement,vessel_zone,cellsize,grid,\
-                 rng=None,iter_max=500,shape=None):
+                 rng=None,iter_max=500,shape=None,segments=None):
     """
     The vessels of a hardwood: cells about vessel_size wide, covering the fraction vessel_fraction of
     the area they are spread over: all the growth rings (vessel_arrangement 'diffuse', a diffuse-porous
@@ -750,11 +792,13 @@ def PlaceVessels(generation_center,radii,vessel_size,vessel_fraction,vessel_arra
     in grid (a _CircleGrid, e.g. the rays), to which they are added.
 
     Returns the sites as [x, y, size] circles (size: the half-distance kept to the fibers). With a
-    RingShape (shape), the zones are bands of its ring coordinate.
+    RingShape (shape), the zones are bands of its ring coordinate. segments: the rays' segments
+    (see PlaceRays), which the vessels keep clear of.
     """
     rng = _rng(rng)
     radii = np.asarray(radii,dtype=float)
     shaped = shape is not None and not shape.circular
+    segment_index = _SegmentIndex(segments) if segments else None
     if vessel_arrangement not in VESSEL_ARRANGEMENTS:
         raise ValueError("vessel_arrangement must be one of {}, not {!r}".format(', '.join(VESSEL_ARRANGEMENTS),vessel_arrangement))
     if not 0 <= vessel_fraction < 1 or vessel_size <= 0 or not 0 < vessel_zone <= 1:
@@ -793,7 +837,7 @@ def PlaceVessels(generation_center,radii,vessel_size,vessel_fraction,vessel_arra
             circC = [x,y,w]
             inside = shape.inside_band(circC,r_lo - w/2,r_hi + w/2) if shaped else \
                 check_isinside_boundcircle(circC,generation_center,r_lo - w/2,r_hi + w/2)
-            if grid.check_overlap(circC) and inside:
+            if grid.check_overlap(circC) and inside and (segment_index is None or segment_index.clear(circC)):
                 circles.append(circC)
                 grid.add(circC)
                 placed += 1
@@ -804,7 +848,7 @@ def CellPlacement_Hardwood(generation_center,r_max,r_min,nrings,width_heart,widt
                            cellsize_sparse,cellsize_dense,iter_max,print_interval,rng=None,\
                            transition='abrupt',transition_width=1.0,vessel_fraction=0.0,vessel_size=0.05,\
                            vessel_arrangement='diffuse',vessel_zone=0.5,ray_spacing=None,ray_width=0.015,\
-                           ray_cell_length=0.08,shape=None):
+                           ray_cell_length=0.1,shape=None):
     """
     The cells of a hardwood: the rays (PlaceRays, when ray_spacing is given) and the vessels
     (PlaceVessels, when vessel_fraction > 0) are placed first, then the fibers are packed around them
@@ -820,21 +864,22 @@ def CellPlacement_Hardwood(generation_center,r_max,r_min,nrings,width_heart,widt
     cellsize = RingProfile(radii,cellsize_sparse,cellsize_dense,transition,transition_width)
     preplaced, types = [], []
     nrays = 0
+    segments = []
     if ray_spacing is not None:
-        rays, nrays = PlaceRays(generation_center,radii,ray_spacing,ray_width,ray_cell_length,cellsize,rng,shape=shape)
+        rays, nrays, segments = PlaceRays(generation_center,radii,ray_spacing,ray_width,ray_cell_length,cellsize,rng,shape=shape)
         preplaced.extend(rays)
         types.extend([CELL_TYPES['ray']]*len(rays))
     grid = _CircleGrid(max([float(w) for w in cellsize.values] + [circC[2] for circC in preplaced] + [vessel_size]))
     for circC in preplaced:
         grid.add(circC)
     vessels = PlaceVessels(generation_center,radii,vessel_size,vessel_fraction,vessel_arrangement,vessel_zone,cellsize,grid,
-                           rng,iter_max,shape=shape)
+                           rng,iter_max,shape=shape,segments=segments)
     preplaced.extend(vessels)
     types.extend([CELL_TYPES['vessel']]*len(vessels))
     sites, radii = CellPlacement_Binary(generation_center,r_max,r_min,nrings,width_heart,width_sparse,width_dense,
                                         cellsize_sparse,cellsize_dense,iter_max,print_interval,rng=rng,
                                         transition=transition,transition_width=transition_width,radii=radii,
-                                        preplaced=preplaced,shape=shape)
+                                        preplaced=preplaced,shape=shape,preplaced_segments=segments)
     site_type = np.zeros(len(sites),dtype=int)
     site_type[0:len(types)] = types
     info = {'nvessels': len(vessels), 'nrays': nrays, 'nray_cells': len(preplaced) - len(vessels)}
@@ -3803,7 +3848,7 @@ def LogFile(geoName,iter_max,r_min,r_max,nrings,width_heart,width_sparse,width_d
         stlFlag,inpFlag,inpType,radial_growth_rule,\
         startTime,placementTime,voronoiTime,RebuildvorTime,BeamTime,FileTime,path='meshes',seed=None,box_polygon=None,\
         transition=None,transition_width=None,radii=None,graphFlag=False,fibers=None,hardwood=None,ring_shape=None,\
-        extrusion=None):
+        extrusion=None,statsFlag=False):
 
     """Generate the log file (geoName.log file) for the generation procedure.
 
@@ -3955,6 +4000,10 @@ def LogFile(geoName,iter_max,r_min,r_max,nrings,width_heart,width_sparse,width_d
     if _is_on(graphFlag):
         logfile.write('Graph File:                              ' + prefix \
             + '-graph.npz\n')
+    if _is_on(statsFlag):
+        logfile.write('Cell Statistics File:                    ' + prefix + '-cells.csv\n')
+        logfile.write('Ring Statistics File:                    ' + prefix + '-rings.csv\n')
+        logfile.write('Wall Statistics File:                    ' + prefix + '-walls.csv\n')
     logfile.write('Log File:                                ' + prefix \
         + '-report.log\n')
     logfile.close()

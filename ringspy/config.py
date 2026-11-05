@@ -85,7 +85,7 @@ class Config:
     ray_spacing: Optional[float] = None      # spacing of the rays (radial files of cells) around the circumference (mm);
                                              # None: no rays
     ray_width: float = 0.02                  # width of the ray cells (mm, across the ray)
-    ray_cell_length: float = 0.08            # radial length of the ray cells (mm)
+    ray_cell_length: float = 0.1             # radial spacing of the ray cells (mm)
 
     # clipping box
     boundaryFlag: bool = True
@@ -130,6 +130,8 @@ class Config:
     inpFlag: bool = True
     inpType: str = 'Abaqus'
     save_sites: bool = False                 # also save geoName_sites.npy and geoName_radii.npy
+    statsFlag: bool = False                  # also save geoName-cells.csv, -rings.csv and -walls.csv: the statistics
+                                             # of the cells (area, neighbours, shape), rings (2D porosity) and walls
     graphFlag: bool = False                  # also save geoName-graph.npz, the cell mesh as a graph (nodes: vertices,
                                              # edges: cell walls) in the layout of PyTorch Geometric
 

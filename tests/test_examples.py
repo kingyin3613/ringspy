@@ -59,6 +59,8 @@ def test_example_writes_all_files(toml, generated):
         expected.append(config.geoName + ".inp")
     if config.graphFlag:
         expected.append(config.geoName + "-graph.npz")
+    if config.statsFlag:
+        expected.extend(config.geoName + suffix for suffix in ["-cells.csv", "-rings.csv", "-walls.csv"])
     assert sorted(p.name for p in out.iterdir()) == sorted(expected)
     assert sorted(p.name for p in result.files) == sorted(expected)
     for name in expected:

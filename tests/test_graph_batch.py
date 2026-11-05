@@ -90,8 +90,10 @@ def test_batch_sweeps_and_seeds(tmp_path):
     with open(tmp_path / "out" / "sweep-batch.csv", newline="") as f:
         rows = list(csv.DictReader(f))
     assert len(rows) == 4
+    from ringspy.stats import SUMMARY_FIELDS
     assert list(rows[0]) == ["run", "geoName", "seed", "cellsize_sparse", "theta_max", "nParticles", "nvertex", "nridge",
-                             "nbeamElem", "mass", "bulk_volume", "bulk_density", "porosity", "output_dir", "error"]
+                             "nbeamElem", "mass", "bulk_volume", "bulk_density", "porosity"] + SUMMARY_FIELDS + ["output_dir", "error"]
+    assert 0 < float(rows[0]["porosity_2d"]) < 1 and float(rows[0]["mean_cell_area"]) > 0
     assert [int(r["run"]) for r in rows] == [0, 1, 2, 3]
     assert [r["seed"] for r in rows] == ["1", "2", "1", "2"]
     assert [float(r["cellsize_sparse"]) for r in rows] == [0.02, 0.02, 0.03, 0.03]
