@@ -1,5 +1,6 @@
 # Input file of the README animation contents/ringspy_hero.gif (built by contents/make_hero_gif.py):
-# a hexagonal log of 12 growth rings around the pith, extruded with a spiral-grain twist.
+# a hexagonal log of a hardwood (ring-porous vessels and rays) with 12 growth rings around an eccentric
+# pith, tapered and extruded with a twist and a spiral grain.
 #     ringspy run contents/hero_log.toml --path <folder>
 geoName = "hero_log"
 path = "meshes"
@@ -19,19 +20,36 @@ cellsize_dense = 0.015
 cellwallthickness_sparse = 0.004
 cellwallthickness_dense = 0.008
 
+# hardwood: large vessels in the inner part of the earlywood of every ring (ring-porous), and rays
+vessel_fraction = 0.12
+vessel_size = 0.12
+vessel_arrangement = "ring"
+vessel_zone = 0.4
+ray_spacing = 0.45
+ray_width = 0.03
+ray_cell_length = 0.1
+
+# growth rings wider on one side (an eccentric pith) and slightly wavy
+ring_eccentricity = 0.2
+ring_eccentricity_angle = 0.6
+ring_waviness = 0.025
+ring_wave_order = 7
+
 # clipping box: hexagon centred on the pith
 boundaryFlag = true
 box_shape = "hexagon"
 box_center = [0.0, 0.0]
 box_size = 5.0
 
-# longitudinal extrusion with a twist of 0.35 rad
+# longitudinal extrusion with a twist of 0.35 rad, a taper (the top 20 % wider) and a spiral grain
 nsegments = 4
 theta_min = 0.0
 theta_max = 0.35
 z_min = 0.0
 z_max = 3.0
 long_connector_ratio = 0.02
+stem_taper = 0.2
+grain_angle = 0.15
 
 merge_operation = true
 merge_tol = 0.01
