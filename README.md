@@ -57,9 +57,9 @@ Since v2.1.0, the same lattice can also be reconstructed from a 3D image of a re
 The first step to generate a cellular geometry is selecting geometry and appropriate parameters. 
 
 ### 1.1. Geometry
-An input file in [TOML](https://toml.io) format, for example [`wood_cube.toml`](https://github.com/kingyin3613/ringspy/tree/main/examples/wood_cube.toml) in the [examples](https://github.com/kingyin3613/ringspy/tree/main/examples/) directory, holds the parameters for the generation of a cubic wood specimen. The other examples there are a wood specimen with more regular cells (`wood_cube_lloyd.toml`), a softwood with a gradual earlywood-latewood transition and rings that differ (`wood_gradual.toml`), honeycombs clipped by a hexagon or a triangle (`honeycomb_hex.toml`, `honeycomb_tri.toml`), a dog-bone tensile specimen clipped by a polygon (`dogbone.toml`), and a mesh of previously saved cells (`saved_sites.toml`). Copy the one closest to the wanted geometry and edit it.
+An input file in [TOML](https://toml.io) format, for example [`wood_cube.toml`](https://github.com/kingyin3613/ringspy/tree/main/examples/wood_cube.toml) in the [examples](https://github.com/kingyin3613/ringspy/tree/main/examples/) directory, holds the parameters for the generation of a cubic wood specimen. The other examples there are a wood specimen with more regular cells (`wood_cube_lloyd.toml`), a softwood with a gradual earlywood-latewood transition and rings that differ (`wood_gradual.toml`), a ring-porous and a diffuse-porous hardwood with vessels and rays (`hardwood_ring_porous.toml`, `hardwood_diffuse.toml`), reaction wood with an eccentric pith and elliptical, wavy rings (`wood_eccentric.toml`), a tapered stem section with spiral grain (`wood_spiral.toml`), honeycombs clipped by a hexagon or a triangle (`honeycomb_hex.toml`, `honeycomb_tri.toml`), a dog-bone tensile specimen clipped by a polygon (`dogbone.toml`) or by the same outline read from an SVG drawing (`dogbone_svg.toml`), and a mesh of previously saved cells (`saved_sites.toml`). Copy the one closest to the wanted geometry and edit it.
 
-*Note: The Mesh Generation Tool accepts the pre-defined boundary geometries triangle, square and hexagon, and any simple polygon given by its vertices (`box_shape = "polygon"`); importing of CAD and/or other 3D model files will be implemented in subsequent versions.*
+*Note: The Mesh Generation Tool accepts the pre-defined boundary geometries triangle, square and hexagon, and any simple polygon given by its vertices or drawn in an SVG or DXF file (`box_shape = "polygon"`, section 1.6).*
 
 *Note: for greatest compatibility create the geometry using all millimeters.*
 
@@ -92,6 +92,24 @@ cellwallthickness_dense = 0.010
 transition = "abrupt"           # abrupt, linear or sigmoid: change from sparse to dense within a ring
 transition_width = 1.0          # fraction of the sparse part of a ring over which it changes (linear, sigmoid)
 
+# Shape of the growth rings (see wood_eccentric.toml): circles by default
+ring_ellipticity = 1.0          # ratio of the long to the short axis of the rings
+ring_ellipse_angle = 0.0        # direction of the long axis (radians)
+ring_eccentricity = 0.0         # rings (1 + this) times wider towards ring_eccentricity_angle, (1 - this) times opposite
+ring_eccentricity_angle = 0.0
+ring_waviness = 0.0             # amplitude of a wavy outline (fraction of the radius)
+ring_wave_order = 3             # crests around the circumference
+ring_wave_phase = 0.0           # angle (radians) of the first crest
+
+# Hardwood features (see hardwood_ring_porous.toml): vessels and rays, placed before the fibers
+vessel_fraction = 0.0           # area fraction of the vessels (0: no vessels, a softwood)
+vessel_size = 0.05              # width of the vessel cells
+vessel_arrangement = "diffuse"  # diffuse (vessels over all rings) or ring (ring-porous: earlywood only)
+vessel_zone = 0.5               # ring-porous: inner fraction of the earlywood that holds the vessels
+# ray_spacing = 0.3             # spacing of the rays around the circumference (left out: no rays)
+ray_width = 0.02                # width of the ray cells
+ray_cell_length = 0.1           # radial spacing of the ray cells
+
 # Clipping box
 boundaryFlag = true
 box_shape = "square"            # square, triangle, hexagon or polygon (see box_polygon)
@@ -105,6 +123,8 @@ theta_max = 0.05                # unit: radian
 z_min = 0
 z_max = 4.0                     # segment_length = (z_max - z_min) / nsegments (left out: box_size)
 long_connector_ratio = 0.02     # longitudinal joint length = ratio * segment_length
+stem_taper = 0.0                # top cross-section (1 + stem_taper) times the bottom one (see wood_spiral.toml)
+# grain_angle = [0.02, 0.06, 0.08, 0.05]  # spiral grain: fiber angle to the stem axis per ring (left out: none)
 
 # Material
 skeleton_density = 1.5e-9       # unit: tonne/mm3
@@ -122,6 +142,7 @@ inpFlag = true                  # input file for simulations
 inpType = "Abaqus"
 save_sites = false              # also save wood_cube_sites.npy and wood_cube_radii.npy, to reuse the cells later
 graphFlag = false               # also save wood_cube-graph.npz, the cell mesh as a graph (PyTorch Geometric layout)
+statsFlag = false               # also save wood_cube-cells.csv, -rings.csv, -walls.csv (statistics of the cells)
 ```
 
 A parameter that is left out takes its default value, which is its value in `wood_cube.toml`; a misspelled parameter name is an error. Flags take `true`/`false` (the `'on'`/`'off'` strings of earlier versions also work).
@@ -139,11 +160,12 @@ A parameter that is left out takes its default value, which is its value in `woo
 - `boundaryFlag` flag can be turned on/off for generating neat boundaries consisting of grains.
 - `box_shape` is the shape of cutting box: `square`, `triangle`, `hexagon`, or `polygon`.
 - `box_center`, and `box_size` are for describing the cutting box (square, triangle and hexagon).
-- `box_polygon` gives the vertices `[[x1, y1], [x2, y2], ...]` of the cutting box for `box_shape = "polygon"`: any simple polygon, convex or not (e.g. a dog-bone specimen, see [examples/dogbone.toml](./examples/dogbone.toml)), with its vertices in either direction around it. Without `z_max`, the specimen is as long as the polygon's largest width; pre-cracks need `precrack_nodes`. As for the triangle, the `.inp` file gets only the set of all nodes, no node sets for the sides of the box (those are written for `box_shape = "square"`, and for a hexagon whose `geoName` contains `hydrostatic_` or `uniaxial_`). Keep `boundaryFlag = true` for a non-convex polygon: without the walls along the boundary, a part narrower than about a cell (a sharp tip, say) can give loose pieces. With `merge_operation`, a merge that would move a wall out of the polygon (across a notch narrower than `merge_tol`, say) is skipped, and the corners never move, so polygon edges shorter than `merge_tol` stay as short walls: simplify a finely digitised outline first.
+- `box_polygon` gives the vertices `[[x1, y1], [x2, y2], ...]` of the cutting box for `box_shape = "polygon"`: any simple polygon, convex or not (e.g. a dog-bone specimen, see [examples/dogbone.toml](./examples/dogbone.toml)), with its vertices in either direction around it; or the name of an SVG or DXF file drawn with the outline (section 1.6), with `box_polygon_tolerance` (simplification, mm) and `box_polygon_scale`. Without `z_max`, the specimen is as long as the polygon's largest width; pre-cracks need `precrack_nodes`. As for the triangle, the `.inp` file gets only the set of all nodes, no node sets for the sides of the box (those are written for `box_shape = "square"`, and for a hexagon whose `geoName` contains `hydrostatic_` or `uniaxial_`). Keep `boundaryFlag = true` for a non-convex polygon: without the walls along the boundary, a part narrower than about a cell (a sharp tip, say) can give loose pieces. With `merge_operation`, a merge that would move a wall out of the polygon (across a notch narrower than `merge_tol`, say) is skipped, and the corners never move, so polygon edges shorter than `merge_tol` stay as short walls: simplify a finely digitised outline first.
 - `nsegments` is the number of segments consisting the prismatic cells during the z- (longitudinal) extrusion, with `segment_length = (z_max - z_min) / nsegments`.
 - `theta_min` and `theta_max` determine the twisting angles (unit: radian) of the 2D mesh around the `generation_center`, during the spiral z-extrusion.
 - `z_min` and `z_max` determine the boundaries of prismatic cells in z- (longitudinal) direction.
 - `long_connector_ratio` is the length of longitudinal joints, with `longitudinal joint length = ratio * segment_length`.
+- `stem_taper` and `grain_angle` taper the specimen and give it a spiral grain (section 1.5).
 - `fiber_length` and `fiber_length_cov` (new in v2.1.0) make the cells end inside the specimen and the grains sequences of fibers of various lengths: without `fiber_length`, every grain is cut into the same `nsegments` segments and all longitudinal joints lie on common planes, like knife cuts through the specimen. With it, every cell is a sequence of cells whose lengths follow a lognormal distribution of mean `fiber_length` (mm) and coefficient of variation `fiber_length_cov` (default 0.3), the first crossing the bottom face at a random point of its length; where a cell ends, the grains at its corners get a fiber end (a longitudinal joint per wing), so the fibers of the grains start and end at different heights (see [examples/wood_cube_fibers.toml](./examples/wood_cube_fibers.toml)). The fiber ends lie on a grid of `2*nsegments` beam elements along the specimen (each segment of the regular extrusion is 2 elements): choose `nsegments` so that an element is a fraction of `fiber_length`. On every grid line, every cell wall gets a transverse connector between the nodes of its two grains, two of half height where a fiber of either grain ends there, as at the segment interfaces of the regular extrusion. The fibers then have various numbers of elements: in `geoNameIGA.txt`, the header gives the largest numbers of control points and elements of a patch, and each patch's knot vector (of `n + 5` knots for `n` elements, `2n + 1` control points) its own; the report log has a `FIBERS` section with the numbers of cell ends and fibers and their lengths. The same `seed` gives the same cells and fibers.
 - `taper_length` and `taper_ratio` taper the cells to their ends: within `taper_length` (mm, default `0.15*fiber_length`) of an end, the corners of the cell draw in toward its center with a cosine profile, so that its cross-section shrinks to `taper_ratio` times its size (default 0.15; 1 means blunt ends) and the neighbouring cells fill the space, and the cell beginning above the end widens the same way. The walls (transverse connectors) of a tapering cell get shorter accordingly; corners on the sides of the clipping box stay on their sides.
 - `skeleton_density` is the density of the skeleton (substance) material, e.g. density of wood cell walls in the wood microstructure. 
@@ -153,6 +175,36 @@ A parameter that is left out takes its default value, which is its value in `woo
 - `inpFlag` flag can be turned on/off for generating input files for numerical simulations.
 - `inpType` indicates the software(s) that the mesh generation should generate input files for.
 - `graphFlag` flag can be turned on/off for saving the 2D cell mesh as a graph (`geoName-graph.npz`, see section 5.2).
+- `statsFlag` flag can be turned on/off for saving the statistics of the cells, walls and rings as CSV files (section 5.3).
+- `vessel_fraction`, `vessel_size`, `vessel_arrangement`, `vessel_zone`, `ray_spacing`, `ray_width` and `ray_cell_length` add the vessels and rays of a hardwood (section 1.3).
+- `ring_ellipticity`, `ring_ellipse_angle`, `ring_eccentricity`, `ring_eccentricity_angle`, `ring_waviness`, `ring_wave_order` and `ring_wave_phase` shape the growth rings (section 1.4).
+
+### 1.3. Hardwood features: vessels and rays
+A hardwood (with the `binary` growth rule) gets its vessels and rays before the fibers are packed around them, so that the fibers keep clear of them and the Voronoi cells of the vessel and ray sites come out with the asked sizes:
+- `vessel_fraction` is the fraction of the area that the vessels cover in the zone they are spread over; 0 (the default) places none. `vessel_size` is the width of the vessel cells (mm). With `vessel_arrangement = "diffuse"` the vessels are spread evenly over every growth ring (a diffuse-porous wood such as maple or birch); with `"ring"` they are in the inner fraction `vessel_zone` of the sparse (earlywood) part of every ring only, as the large earlywood vessels of a ring-porous wood such as oak or ash. The heart has no vessels.
+- `ray_spacing` places rays, radial files of cells, about that far apart around the circumference: rays start at the edge of the heart, and new rays start in between them wherever the spacing has grown to 1.5 times `ray_spacing`, so that the spacing stays between 0.75 and 1.5 times `ray_spacing` out to the outermost ring. The cells of a ray are `ray_cell_length` apart (radially, with a random jitter) and `ray_width` wide, and the fibers and vessels keep out of the corridor of a ray between its cells, so that every ray is a continuous file. Two limits of a Voronoi tessellation apply: where `ray_width` is smaller than the fibers around the ray, the ray cells come out about as wide as the fibers (the walls lie halfway to them); and a cell cannot be longer than about twice the distance to the cells beside it, so the ray cells stay roughly as long as they are wide however large `ray_cell_length` is (a larger value only spreads the ray cells out along the file). In a transverse section this is what a uniseriate ray looks like: a radial file of cells about one fiber wide.
+
+The cell type of every site is kept (`result.site_type`: 0 fiber, 1 vessel, 2 ray cell; `save_sites` also writes `geoName_types.npy`, which a `*_sites.npy` growth rule reads back), and the walls and vertices of the vessels and rays are labelled (`result.ridge_vessel`, `result.ridge_ray`, `result.vertex_vessel`, `result.vertex_ray`): the `.vtu` files carry the cell data `Vessel` and `Ray` next to `Ring` and `Dense`, the `.inp` file gets the element sets `VesselBeams`, `VesselTConns`, `VesselLConns` and `RayBeams`, `RayTConns`, `RayLConns` next to the ring sets (section 4.3), the graph file the node and edge features `vessel` and `ray`, and the report log a `HARDWOOD` section with the numbers of vessels, rays and ray cells placed. A wall between a vessel and a ray cell counts as a vessel wall. See [examples/hardwood_ring_porous.toml](./examples/hardwood_ring_porous.toml) and [examples/hardwood_diffuse.toml](./examples/hardwood_diffuse.toml); `fiber_length` (fibers of various lengths) works with them too.
+
+### 1.4. Shape of the growth rings: ellipses, an eccentric pith, wavy rings
+By default the ring boundaries are circles around `generation_center`, at the radii of `r_max`, `nrings` and the ring widths (with their random noise). Three parameters change their shape, which all the rings share, scaled from the generation center:
+- `ring_ellipticity` (at least 1) makes the rings ellipses, the long axis as long as the ring radius and `ring_ellipticity` times the short one, in the direction `ring_ellipse_angle` (radians from the x axis).
+- `ring_eccentricity` makes the rings `1 + ring_eccentricity` times wider towards `ring_eccentricity_angle` and `1 - ring_eccentricity` times wider opposite, so that the rings shift progressively off the pith, as in reaction wood (compression wood on the lower side of a leaning stem, or tension wood on its upper side).
+- `ring_waviness` gives the outline `ring_wave_order` waves around the circumference, of amplitude `ring_waviness` times the radius, the first crest at `ring_wave_phase`.
+
+The shape defines a ring coordinate (`result.ring_shape.rho(points)`, `MeshGenTools.RingShape`) that equals the ring radius on every ring boundary; the cells of the `binary` and `binary_lloyd` rules are placed in the bands of that coordinate (evenly over their area, the Lloyd perimeters and sub-rings following the shape), the vessels and rays of a hardwood follow it, and the wall thickness profile and the ring labels use it in place of the distance to the center. `result.ring_shape.boundary(result.radii[k])` gives the outline of a ring boundary for plotting, and the report log gets a `RING SHAPE` section when the rings are not circles. See [examples/wood_eccentric.toml](./examples/wood_eccentric.toml).
+
+### 1.5. Taper and spiral grain
+The extrusion rotates the 2D mesh rigidly around `generation_center` by the twist angle, from `theta_min` at `z_min` to `theta_max` at `z_max`. Two parameters add to it:
+- `stem_taper` scales the cross-section about `generation_center` linearly in z, so that the one at `z_max` is `1 + stem_taper` times the one at `z_min`: a conical section of a stem (`-0.1`: 10% narrower at the top).
+- `grain_angle` is the spiral grain: the angle (radians) of the fibers to the stem axis, in the tangential direction and in the sense of a positive twist. One angle holds for all the rings; a list gives one angle per growth ring, taken at the middle of each ring and interpolated linearly in between, with 0 at the pith (so the twist stays finite there) and the last angle kept beyond the last ring. A point at the distance r from the center then turns by `tan(grain_angle)*(z - z_min)/r` on top of the twist, which is the real spiral-grain pattern of a stem: the same fiber angle gives a smaller rotation further out, and the angle can change sign from the pith outwards as it does in many softwoods. With shaped rings (section 1.4) the angle follows the ring coordinate.
+
+Both work with `fiber_length` (fibers of various lengths). The grains then lean, so the connector cross-sections of the ParaView files follow the leaning grains (`MeshGenTools.ConnectorTangents`), and the report log lists `stem_taper` and `grain_angle`. `MeshGenTools.ExtrudeLayers` gives the vertex coordinates of every layer, `GrainAngle` the angle profile. See [examples/wood_spiral.toml](./examples/wood_spiral.toml).
+
+### 1.6. Clipping outline from an SVG or DXF file
+With `box_shape = "polygon"`, `box_polygon` can name a drawing instead of listing the vertices: an SVG file (`box_polygon = "specimen.svg"`, relative to the TOML file) or a DXF file. The outline is the shape enclosing the largest area in the drawing: for SVG, a path (its subpath of largest area; the commands M, L, H, V, C, S, Q, T, A and Z, absolute or relative, with curves flattened), a polygon, polyline, rect, circle or ellipse, with the transforms of the element and its groups applied and the y axis flipped so that the drawing is not mirrored; for DXF, a closed LWPOLYLINE or POLYLINE (bulges flattened), a closed loop of LINE and ARC entities, or a CIRCLE. Coordinates are converted to mm from the file's units (an SVG `width` with a unit and a `viewBox`, else px at 96 dpi; a DXF's `$INSUNITS`, else as drawn), multiplied by `box_polygon_scale`, and the outline is moved so that the center of its bounding box is at `box_center`.
+
+`box_polygon_tolerance` simplifies the outline with the Douglas-Peucker algorithm: the polygon keeps within that distance of the drawn one with as few vertices as that allows, which removes the many short edges of a digitised or curved outline. Set it to `merge_tol`, since the merge never shortens a polygon edge (section 1.2). `ringspy outline specimen.svg --tolerance 0.01` prints the vertices the file gives as a `box_polygon = [...]` line, to check or to paste into the TOML file; `Config.polygon_vertices()` returns them in Python and `ringspy.outline.read_outline(file, tolerance, scale, center)` reads any drawing. The report log names the file and the number of vertices. See [examples/dogbone_svg.toml](./examples/dogbone_svg.toml) with [examples/dogbone.svg](./examples/dogbone.svg), which gives the same mesh as `dogbone.toml`.
 
 ![growth_rule_binary](<./contents/growth_rule_binary.png>)
 ### 2.1. Run Mesh Generation
@@ -218,7 +270,7 @@ The following files should be generated in the `.\meshes\geoName` directory with
 - (Optional) Graph file
     - The 2D cell mesh as a graph, in the layout of PyTorch Geometric: `wood_cube-graph.npz` (`graphFlag = true`, see section 5.2)
 
-The growth ring of every cell is written to the files: the `.vtu` files carry the cell data `Ring` (0 for the heart, then 1, 2, ...) and `Dense` (1 in the heart and in the dense part of a ring, 0 in the sparse part), the `.inp` file has an element set per ring (section 4.3), and the report log lists the radii of the rings. A beam and the wing quads around it take the ring of their vertex; a cell wall (and its transverse connectors) takes the ring of the vertex whose thickness it has, its second vertex; a longitudinal connector takes the ring of the wall of its wing, whose width it has. So the ring labels of the connectors always go with their `Connector_width`.
+The growth ring of every cell is written to the files: the `.vtu` files carry the cell data `Ring` (0 for the heart, then 1, 2, ...) and `Dense` (1 in the heart and in the dense part of a ring, 0 in the sparse part), the `.inp` file has an element set per ring (section 4.3), and the report log lists the radii of the rings. A hardwood's files also carry `Vessel` and `Ray` (section 1.3). A beam and the wing quads around it take the ring of their vertex; a cell wall (and its transverse connectors) takes the ring of the vertex whose thickness it has, its second vertex; a longitudinal connector takes the ring of the wall of its wing, whose width it has. So the ring labels of the connectors always go with their `Connector_width`.
 
 
 ![Model2DPreview](<./contents/Model2DPreview.png>)
@@ -331,6 +383,15 @@ data = Data(x=torch.from_numpy(g["x"]).float(), edge_index=torch.from_numpy(g["e
             y=torch.tensor([float(g["porosity"])]))
 ```
 The same arrays are returned by `ringspy.graph_arrays(result)` for any `Result`, and held in `result.graph` when the flag is on.
+
+### 5.3 Statistics of the Cells, Walls and Rings
+Every `Result` holds the statistics of its clipped 2D cell mesh (`ringspy.stats`), the descriptors needed to compare a generated structure with a micrograph or to sweep parameters; `statsFlag = true` also writes them as CSV files next to the other outputs.
+- `result.cell_stats` (`geoName-cells.csv`), one row per cell site: its coordinates and type (fiber, vessel, ray), band, growth ring and dense flag, whether it is cut by the clipping box (`boundary`), the numbers of walls and of neighbouring cells, area, perimeter, wall area (half of every shared wall), solid fraction, equivalent diameter, aspect ratio and orientation (from the second moments of the cell polygon), radial elongation (1 for a cell elongated along the direction from the pith, as a ray cell) and the mean thickness of its walls. The cells are the Voronoi regions clipped by the box, rebuilt from the walls: the two sites nearest to the midpoint of a wall are the cells on its sides. A site whose region lies outside the box has no polygon (empty values).
+- `result.ring_stats` (`geoName-rings.csv`), one row per band of the growth rings (the heart, then the sparse and dense part of every ring): the numbers of cells (all, and the interior ones not cut by the box), the area of its cells and of their walls, the 2D porosity (`1 - wall area / area`), and the mean area, equivalent diameter, aspect ratio, number of neighbours and wall thickness of its interior cells.
+- `result.wall_stats` (`geoName-walls.csv`), one row per wall: its vertices, the cells on its sides, length, thickness, angle, ring, dense, vessel, ray and boundary flags.
+- `result.summary()`: the number of cells, the mean cell area, equivalent diameter, aspect ratio and number of neighbours (interior cells), the 2D porosity of all cells and of the sparse and the dense rings, and the mean wall length and thickness. `ringspy batch` writes these columns into its table for every run.
+
+The 2D porosity differs from the porosity of the report log, which comes from the volumes of the 3D connectors. Statistics of the cut cells along the box are kept in the tables (`boundary = 1`) but left out of the means.
 
 ### 6. Reconstruction from a 3D Image (new in v2.1.0)
 

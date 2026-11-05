@@ -23,7 +23,10 @@ if sys.version_info >= (3, 11):
 else:
     import tomli as tomllib
 
-# columns of the table after the run, its name, its seed and the swept parameters
+from .stats import SUMMARY_FIELDS
+
+# columns of the table after the run, its name, its seed and the swept parameters: attributes of the Result,
+# then the descriptors of its cells (Result.summary())
 DESCRIPTORS = ['nParticles', 'nvertex', 'nridge', 'nbeamElem', 'mass', 'bulk_volume', 'bulk_density', 'porosity']
 
 
@@ -90,7 +93,8 @@ def batch(config, seeds=None, sweep=None, jobs=1, **changes):
         if jobs > 1:
             executor.shutdown()
     with open(table, 'w', newline='') as f:
-        writer = csv.DictWriter(f, fieldnames=['run', 'geoName', 'seed'] + list(sweep) + DESCRIPTORS + ['output_dir', 'error'])
+        writer = csv.DictWriter(f, fieldnames=['run', 'geoName', 'seed'] + list(sweep) + DESCRIPTORS + SUMMARY_FIELDS
+                                + ['output_dir', 'error'])
         writer.writeheader()
         writer.writerows(rows)
     print('Batch table written to {}'.format(table))
@@ -114,6 +118,7 @@ def _row(i, params, swept, result, error):
     row.update({name: _cell(value) for name, value in swept.items()})
     if result is not None:
         row.update({name: getattr(result, name) for name in DESCRIPTORS})
+        row.update(result.summary())
         row['output_dir'] = str(result.output_dir)
     row['error'] = error.strip().splitlines()[-1] if error else ''
     return row

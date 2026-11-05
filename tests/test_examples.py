@@ -22,7 +22,8 @@ examples = pytest.mark.parametrize("toml", EXAMPLES, ids=[p.stem for p in EXAMPL
 
 def test_examples_found():
     assert {p.stem for p in EXAMPLES} >= {"wood_cube", "wood_cube_lloyd", "honeycomb_hex", "honeycomb_tri",
-                                          "saved_sites", "dogbone", "wood_gradual"}
+                                          "saved_sites", "dogbone", "wood_gradual", "hardwood_ring_porous",
+                                          "hardwood_diffuse", "wood_eccentric", "wood_spiral", "dogbone_svg"}
 
 
 @pytest.fixture(scope="module")
@@ -58,6 +59,8 @@ def test_example_writes_all_files(toml, generated):
         expected.append(config.geoName + ".inp")
     if config.graphFlag:
         expected.append(config.geoName + "-graph.npz")
+    if config.statsFlag:
+        expected.extend(config.geoName + suffix for suffix in ["-cells.csv", "-rings.csv", "-walls.csv"])
     assert sorted(p.name for p in out.iterdir()) == sorted(expected)
     assert sorted(p.name for p in result.files) == sorted(expected)
     for name in expected:

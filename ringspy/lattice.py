@@ -549,14 +549,15 @@ def element_bands(lattice, vertex_band, ridge_band, wing_ridge):
 
 
 def write_vtu_files(geoName, lattice, layer_points, all_ridges, nvertex, path='meshes', vtk_format='ascii',
-                    vertex_band=None, ridge_band=None):
+                    vertex_band=None, ridge_band=None, extra_labels=None):
     """
     The Paraview files geoName_vertices.vtu, geoName_beams.vtu, geoName_conns.vtu and
     geoName_conns_vol.vtu of a lattice, as VisualizationFiles writes them: the nodes (with the IGA
     collocation flag), the beams with the wings of the cell walls, the connectors as lines and
     cross-sections, and the connector volumes. With vertex_band and ridge_band (the ring bands of
     the vertices and ridges of the 2D mesh, see MeshGenTools.RingBands), every cell gets the cell
-    data 'Ring' and 'Dense' as VisualizationFiles writes them.
+    data 'Ring' and 'Dense' as VisualizationFiles writes them; extra_labels ({name: (values per vertex,
+    values per ridge)}) adds more integer cell data in the same way.
     """
     if vtk_format not in ['ascii', 'binary']:
         raise ValueError("vtk_format must be 'ascii' or 'binary', not {!r}".format(vtk_format))
@@ -603,28 +604,34 @@ def write_vtu_files(geoName, lattice, layer_points, all_ridges, nvertex, path='m
     hex_conn = hex_conn + npoints
     widths = np.tile(lattice.Meshdata[:, 11], 2)
 
-    # growth ring and sparse/dense labels of the cells of each file, in the order of the cells above
-    ring_vertices = ring_beams = ring_conns = []
-    if vertex_band is not None and ridge_band is not None:
-        vertex_band = np.asarray(vertex_band).reshape(-1)
-        ridge_band = np.asarray(ridge_band).reshape(-1)
-        extra_band = np.empty(nextra, dtype=int)  # the mid and quarter points take the ring of their ridge
-        extra_band[all_ridges[:, 2:6].reshape(-1) - nvertex] = np.repeat(ridge_band, 4)
-        point_band = np.concatenate((vertex_band[lattice.node_grain], np.tile(extra_band, nhalf)))
-        quad_band = np.concatenate([np.repeat(vertex_band[all_ridges[:, wing]], nelem) for wing in (0, 1)])
-        wings = np.repeat(np.arange(nvertex), np.bincount(np.asarray(all_ridges)[:, 0:2].reshape(-1), minlength=nvertex))
-        wing_ridge = np.zeros(len(wings), dtype=int)
+    # growth ring and sparse/dense labels (and extra labels) of the cells of each file, in the order of the cells
+    # above: the cells of a vertex (beams, wing quads, nodes) take the value of the vertex, the connectors (and the
+    # mid and quarter points) that of their ridge
+    def cell_values(vertex_values, ridge_values):
+        vertex_values = np.asarray(vertex_values).reshape(-1).astype(np.int32)
+        ridge_values = np.asarray(ridge_values).reshape(-1).astype(np.int32)
+        extra_values = np.empty(nextra, dtype=np.int32)  # the mid and quarter points take the value of their ridge
+        extra_values[all_ridges[:, 2:6].reshape(-1) - nvertex] = np.repeat(ridge_values, 4)
+        point = np.concatenate((vertex_values[lattice.node_grain], np.tile(extra_values, nhalf)))
+        quad = np.concatenate([np.repeat(vertex_values[all_ridges[:, wing]], nelem) for wing in (0, 1)])
         order = np.argsort(np.asarray(all_ridges)[:, 0:2].reshape(-1), kind='stable')
-        wing_ridge[:] = order // 2
-        conn_band = np.concatenate((ridge_band[np.concatenate(lattice.connector_t_ridge)],
-                                    ridge_band[wing_ridge[lattice.connector_l_wing]]))
-
-        def ring_data(band):
-            ring, dense = rpgen.RingLabels(band)
-            return [('Ring', ring.astype(np.int32)), ('Dense', dense.astype(np.int32))]
-        ring_vertices = ring_data(point_band)
-        ring_beams = ring_data(np.concatenate((vertex_band[lattice.node_grain[beam_vtk[:, 0]]], quad_band)))
-        ring_conns = ring_data(np.tile(conn_band, 2))
+        wing_ridge = order // 2  # ridge of each wing, wings sorted by vertex
+        conn = np.concatenate((ridge_values[np.concatenate(lattice.connector_t_ridge)],
+                               ridge_values[wing_ridge[lattice.connector_l_wing]]))
+        return point, np.concatenate((vertex_values[lattice.node_grain[beam_vtk[:, 0]]], quad)), np.tile(conn, 2)
+    label_arrays = []  # (name, values per vertex, values per ridge)
+    if vertex_band is not None and ridge_band is not None:
+        ring_v, dense_v = rpgen.RingLabels(np.asarray(vertex_band).reshape(-1))
+        ring_r, dense_r = rpgen.RingLabels(np.asarray(ridge_band).reshape(-1))
+        label_arrays += [('Ring', ring_v, ring_r), ('Dense', dense_v, dense_r)]
+    for name, (vertex_values, ridge_values) in (extra_labels or {}).items():
+        label_arrays.append((name, vertex_values, ridge_values))
+    ring_vertices, ring_beams, ring_conns = [], [], []
+    for name, vertex_values, ridge_values in label_arrays:
+        values_vertices, values_beams, values_conns = cell_values(vertex_values, ridge_values)
+        ring_vertices.append((name, values_vertices))
+        ring_beams.append((name, values_beams))
+        ring_conns.append((name, values_conns))
 
     files = [
         ('_vertices', [points], [np.arange(npoints).reshape(-1, 1)], np.ones(npoints, dtype=int),

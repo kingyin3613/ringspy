@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-Command line interface: ``ringspy run wood_cube.toml`` and ``ringspy batch wood_cube.toml --seeds 0-9``
+Command line interface: ``ringspy run wood_cube.toml``, ``ringspy batch wood_cube.toml --seeds 0-9`` and
+``ringspy outline shape.svg``
 """
 
 import argparse
@@ -53,7 +54,28 @@ def main(argv=None):
     batch.add_argument('--path', help='output folder, overrides the one in the file')
     batch.add_argument('--geoName', '--geo-name', dest='geoName', help='name of the batch, overrides the one in the file')
 
+    outline = commands.add_parser('outline', help='read a clipping outline from an SVG or DXF file and print it as '
+                                  'box_polygon vertices',
+                                  description='Read the clipping polygon of an SVG or DXF file (as box_polygon does), '
+                                  'optionally simplified, and print its size and its vertices as a TOML line.')
+    outline.add_argument('file', help='SVG or DXF file')
+    outline.add_argument('--tolerance', type=float, help='Douglas-Peucker simplification tolerance (mm), e.g. merge_tol')
+    outline.add_argument('--scale', type=float, default=1.0, help='factor on the coordinates (after the units -> mm)')
+    outline.add_argument('--center', type=float, nargs=2, metavar=('X', 'Y'), help='move the outline to this center')
+
     args = parser.parse_args(argv)
+
+    if args.command == 'outline':
+        from .outline import outline_toml, read_outline
+        try:
+            points = read_outline(args.file, tolerance=args.tolerance, scale=args.scale, center=args.center)
+        except (OSError, ValueError) as e:
+            parser.exit(2, 'ringspy: error: {}\n'.format(e))
+        lo, hi = points.min(axis=0), points.max(axis=0)
+        print('# {}: {:d} vertices, x from {:g} to {:g}, y from {:g} to {:g} (mm)'.format(
+            args.file, len(points), lo[0], hi[0], lo[1], hi[1]))
+        print(outline_toml(points))
+        return 0
 
     import matplotlib
     matplotlib.use('Agg')  # only files are written, no windows

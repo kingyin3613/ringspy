@@ -1,0 +1,57 @@
+# RingsPy example: ring-porous hardwood (oak-like) with large earlywood vessels and rays
+#
+#   ringspy run hardwood_ring_porous.toml
+#
+# The vessels and the rays are placed first, the fibers are packed around them (radial_growth_rule
+# "binary"). Lengths in mm. Parameters left out take their default values (those of wood_cube.toml).
+
+geoName = "hardwood_ring_porous"
+path = "meshes"
+seed = 2026
+
+# Fibers and growth rings
+radial_growth_rule = "binary"
+iter_max = 500
+r_min = 0
+r_max = 4
+nrings = 4
+generation_center = [0, 0]
+cellsize_sparse = 0.02
+cellsize_dense = 0.012
+cellwallthickness_sparse = 0.005
+cellwallthickness_dense = 0.008
+
+# Vessels: ring-porous, in the inner half of the earlywood of every ring, 25% of that zone's area
+vessel_fraction = 0.25          # area fraction of the vessels in the zone they are spread over (0: none)
+vessel_size = 0.15              # width of the vessel cells
+vessel_arrangement = "ring"     # ring (ring-porous) or diffuse
+vessel_zone = 0.5               # ring-porous: inner fraction of the earlywood that holds the vessels
+
+# Rays: radial files of cells, about ray_spacing apart around the circumference
+ray_spacing = 0.3
+ray_width = 0.02                # width of the ray cells (about the fiber size where it is smaller)
+ray_cell_length = 0.1           # radial spacing of the ray cells
+
+# Clipping box
+boundaryFlag = true
+box_shape = "square"
+box_center = [0, 0]
+box_size = 4.0
+
+# Longitudinal direction
+nsegments = 2
+theta_min = 0
+theta_max = 0.05
+z_min = 0
+z_max = 4.0
+
+merge_operation = true
+merge_tol = 0.01
+
+# Output files: the ParaView files carry "Vessel" and "Ray" next to "Ring" and "Dense", the Abaqus file the
+# element sets VesselBeams, VesselTConns, VesselLConns and RayBeams, RayTConns, RayLConns
+stlFlag = false
+inpFlag = true
+inpType = "Abaqus"
+graphFlag = false
+statsFlag = true                # also save the statistics of the cells, rings and walls as CSV files (section 5.3)

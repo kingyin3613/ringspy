@@ -26,6 +26,8 @@ POLYGON_SHAPES = ['polygon','Polygon','POLYGON','poly']   # any simple polygon, 
 ON_FLAGS = ['on','On','Y','y','Yes','yes']
 ABAQUS_TYPES = ['abaqus','Abaqus','ABQ','abq','ABAQUS','Abq']
 TRANSITIONS = ['abrupt','linear','sigmoid']   # change of cell size and wall thickness from a sparse ring to the dense ring
+VESSEL_ARRANGEMENTS = ['diffuse','ring']      # vessels spread over the rings, or in the earlywood only (ring-porous)
+CELL_TYPES = {'fiber': 0, 'vessel': 1, 'ray': 2}   # types of the cells (sites) of a hardwood
 
 
 def _is_on(flag):
@@ -181,6 +183,38 @@ class _CircleGrid:
         for key in ((i-1,j-1),(i-1,j),(i-1,j+1),(i,j-1),(i,j),(i,j+1),(i+1,j-1),(i+1,j),(i+1,j+1)):
             neighbours.extend(self.bins.get(key, ()))
         return check_overlap(neighbours, circC)
+
+class _SegmentIndex:
+    """
+    Line segments with a half-width (capsules) that new circles must keep clear of, e.g. the rays
+    of a hardwood between their consecutive cells: clear(circC) is True when the circle [x, y, w]
+    is at least half_width + w away from every segment. The segments are found through a KD-tree
+    of their midpoints.
+    """
+    def __init__(self, segments):
+        segments = np.asarray(segments,dtype=float).reshape(-1,5) # x0, y0, x1, y1, half_width
+        self.p0 = segments[:,0:2]
+        self.p1 = segments[:,2:4]
+        self.half_width = segments[:,4]
+        self.mid = (self.p0 + self.p1)/2
+        self.half_length = np.linalg.norm(self.p1 - self.p0,axis=1)/2
+        self.reach = float((self.half_length + self.half_width).max()) if len(segments) else 0.0
+        self.tree = cKDTree(self.mid) if len(segments) else None
+
+    def clear(self, circC):
+        if self.tree is None:
+            return True
+        near = self.tree.query_ball_point(circC[0:2],self.reach + circC[2])
+        if not near:
+            return True
+        near = np.asarray(near)
+        p = np.asarray(circC[0:2],dtype=float)
+        d = self.p1[near] - self.p0[near]
+        length2 = np.sum(d*d,axis=1)
+        t = np.clip(np.sum((p - self.p0[near])*d,axis=1)/np.where(length2 > 0,length2,1.0),0,1)
+        distance = np.linalg.norm(p - self.p0[near] - t[:,np.newaxis]*d,axis=1)
+        return bool(np.all(distance >= self.half_width[near] + circC[2]))
+
 
 def check_iscollinear(p1,p2,boundaries):
     """ Make sure the line segment x1-x2 is collinear with 
@@ -381,14 +415,120 @@ def find_centroid(vertices,omega):
     return np.array([[centroid_x, centroid_y]])
 
 
-def RingBands(points,radii,generation_center):
+class RingShape:
+    """
+    The shape of the growth rings: circles around the generation center by default, or ellipses,
+    rings wider on one side (an eccentric pith, as in reaction wood) and wavy rings. All the rings
+    share the shape, scaled from the generation center: the ring coordinate rho(point) equals the
+    ring radius (see RingRadii) on every ring boundary, so that the growth rings are the bands
+    radii[k] <= rho < radii[k+1], and the cells, the wall thickness profile and the ring labels
+    all work in rho. Points are mapped back with point(rho, theta).
+
+    ellipticity :: ratio of the long to the short axis of the rings (>= 1; 1: circles), the long
+        axis at the angle ellipse_angle (radians from the x axis) and as long as the ring radius
+    eccentricity, eccentricity_angle :: the rings are (1 + eccentricity) times their radius wide
+        in the direction eccentricity_angle and (1 - eccentricity) times in the opposite one,
+        shifting the rings off the pith progressively (0: concentric)
+    waviness, wave_order, wave_phase :: a wavy outline, wave_order crests around the circumference
+        of amplitude waviness (fraction of the radius), the first crest at the angle wave_phase
+
+    radius = rho * scale(theta), with scale(theta) = (1 + eccentricity*cos(theta - eccentricity_angle)
+    + waviness*cos(wave_order*theta - wave_phase)) / sqrt(cos(a)^2 + ellipticity^2*sin(a)^2),
+    a = theta - ellipse_angle.
+    """
+    def __init__(self,generation_center=(0.0,0.0),ellipticity=1.0,ellipse_angle=0.0,eccentricity=0.0,
+                 eccentricity_angle=0.0,waviness=0.0,wave_order=3,wave_phase=0.0):
+        if ellipticity < 1:
+            raise ValueError('ellipticity must be at least 1 (the ratio of the long to the short axis)')
+        if eccentricity < 0 or waviness < 0 or eccentricity + waviness >= 1:
+            raise ValueError('eccentricity and waviness must not be negative and must add up to less than 1')
+        if int(wave_order) != wave_order or wave_order < 1:
+            raise ValueError('wave_order must be a positive integer')
+        self.generation_center = (float(generation_center[0]),float(generation_center[1]))
+        self.ellipticity = float(ellipticity)
+        self.ellipse_angle = float(ellipse_angle)
+        self.eccentricity = float(eccentricity)
+        self.eccentricity_angle = float(eccentricity_angle)
+        self.waviness = float(waviness)
+        self.wave_order = int(wave_order)
+        self.wave_phase = float(wave_phase)
+        self.circular = self.ellipticity == 1.0 and self.eccentricity == 0.0 and self.waviness == 0.0
+        theta = np.linspace(0,2*np.pi,3601)
+        s = self.scale(theta)
+        self.scale_max = float(s.max())
+        self.scale_min = float(s.min())
+        speed = np.sqrt(s**2 + np.gradient(s,theta)**2) # of the curve rho = 1, in polar coordinates
+        self.unit_circumference = float(np.sum((speed[1:] + speed[:-1])/2*np.diff(theta))) # trapezoid rule
+
+    def __repr__(self):
+        return ('RingShape(generation_center={}, ellipticity={}, ellipse_angle={}, eccentricity={}, eccentricity_angle={}, '
+                'waviness={}, wave_order={}, wave_phase={})'.format(self.generation_center,self.ellipticity,self.ellipse_angle,
+                self.eccentricity,self.eccentricity_angle,self.waviness,self.wave_order,self.wave_phase))
+
+    def centered(self,generation_center):
+        """The same shape around another generation center"""
+        return RingShape(generation_center,self.ellipticity,self.ellipse_angle,self.eccentricity,self.eccentricity_angle,
+                         self.waviness,self.wave_order,self.wave_phase)
+
+    def scale(self,theta):
+        """radius / rho in the direction theta (radians from the x axis; a number or an array)"""
+        theta = np.asarray(theta,dtype=float)
+        if self.circular:
+            return np.ones(theta.shape)
+        a = theta - self.ellipse_angle
+        ellipse = 1/np.sqrt(np.cos(a)**2 + (self.ellipticity*np.sin(a))**2)
+        return ellipse*(1 + self.eccentricity*np.cos(theta - self.eccentricity_angle)
+                        + self.waviness*np.cos(self.wave_order*theta - self.wave_phase))
+
+    def rho(self,points):
+        """Ring coordinate of 2D points (shape (..., 2)): their distance to the generation center for circles"""
+        points = np.asarray(points,dtype=float)
+        d = points - self.generation_center
+        r = np.linalg.norm(d,axis=-1)
+        if self.circular:
+            return r
+        return r/self.scale(np.arctan2(d[...,1],d[...,0]))
+
+    def point(self,rho,theta):
+        """Coordinates (x, y) of the point at the ring coordinate rho in the direction theta"""
+        rho = np.asarray(rho,dtype=float)
+        theta = np.asarray(theta,dtype=float)
+        r = rho*self.scale(theta)
+        return self.generation_center[0] + r*np.cos(theta), self.generation_center[1] + r*np.sin(theta)
+
+    def circumference(self,rho):
+        """Length of the ring boundary at the ring coordinate rho (2*pi*rho for circles)"""
+        return 2*math.pi*rho if self.circular else rho*self.unit_circumference
+
+    def boundary(self,rho,npoints=360):
+        """The ring boundary at rho as a closed polygon (npoints + 1 points, the last equal to the first)"""
+        theta = np.linspace(0,2*np.pi,npoints + 1)
+        return np.column_stack(self.point(rho,theta))
+
+    def inside_band(self,circC,rho_min,rho_max):
+        """Whether a circle [x, y, w] lies within the band rho_min <= rho <= rho_max, w inside its edges
+        (the same as check_isinside_boundcircle for circles)"""
+        x, y, w = circC[0], circC[1], circC[2]
+        if self.circular:
+            return check_isinside_boundcircle(circC,self.generation_center,rho_min,rho_max)
+        theta = math.atan2(y - self.generation_center[1],x - self.generation_center[0])
+        margin = w/float(self.scale(theta))
+        rho = float(self.rho([x,y]))
+        return rho > rho_min + margin and rho < rho_max - margin
+
+
+def RingBands(points,radii,generation_center,shape=None):
     """
     Band of the growth rings in which each 2D point lies, from its distance to the generation
-    center: 0 for the heart, 2k-1 for the sparse part and 2k for the dense part of growth
-    ring k (k = 1 ... nrings), and 2*nrings+1 beyond the outermost ring radius.
+    center (its ring coordinate, see RingShape, when the rings are not circles): 0 for the heart,
+    2k-1 for the sparse part and 2k for the dense part of growth ring k (k = 1 ... nrings), and
+    2*nrings+1 beyond the outermost ring radius.
     RingLabels() turns the bands into growth ring numbers and sparse/dense flags.
     """
-    distance = np.linalg.norm(np.asarray(points,dtype=float) - generation_center, axis=-1)
+    if shape is not None and not shape.circular:
+        distance = shape.rho(points)
+    else:
+        distance = np.linalg.norm(np.asarray(points,dtype=float) - generation_center, axis=-1)
     return np.searchsorted(radii,distance,side='right') - 1 # the same as bisect.bisect(radii,distance) - 1
 
 
@@ -481,9 +621,23 @@ def RingProfile(radii,value_sparse,value_dense,transition='abrupt',transition_wi
     return _RingProfile(radii,value_sparse,value_dense,transition,transition_width)
 
 
+def RingRadii(width_heart,width_sparse,width_dense,nrings,rng=None):
+    """
+    Radii of the growth rings: 0, the heart, then the sparse and dense part of every ring, each
+    width multiplied by a normal random factor (mean 1, standard deviation 0.25) drawn from rng
+    (None: the global NumPy random state, an int: a seed, or a np.random.Generator).
+    """
+    rng = _rng(rng)
+    width = np.concatenate(([width_heart],np.tile([width_sparse,width_dense],nrings)))
+    noise = rng.normal(1,0.25,len(width))
+    width = np.multiply(width,noise)
+    return np.concatenate(([0],np.cumsum(width)))
+
+
 def CellPlacement_Binary(generation_center,r_max,r_min,nrings,width_heart,
                          width_sparse,width_dense,cellsize_sparse,cellsize_dense,\
-                         iter_max,print_interval,rng=None,transition='abrupt',transition_width=1.0):
+                         iter_max,print_interval,rng=None,transition='abrupt',transition_width=1.0,\
+                         radii=None,preplaced=None,shape=None,preplaced_segments=None):
     """
     packing cells by randomly placing new cells in the generation rings
 
@@ -491,14 +645,23 @@ def CellPlacement_Binary(generation_center,r_max,r_min,nrings,width_heart,
     cellsize_sparse, cellsize_dense :: numbers, or lists with one value per growth ring
     transition, transition_width :: change of the cell size from the sparse to the dense
         part of a ring, see RingProfile()
+    radii :: the ring radii to use (default: drawn from rng, see RingRadii)
+    preplaced :: cells placed beforehand, a list of [x, y, size] circles (e.g. the vessels and rays
+        of a hardwood, see CellPlacement_Hardwood): they come first in the returned sites, and the
+        new cells keep clear of them
+    shape :: the shape of the rings (RingShape; default: circles around generation_center): the
+        cells are placed in the bands of its ring coordinate, evenly over their area
+    preplaced_segments :: segments [x0, y0, x1, y1, half_width] the new cells keep clear of (at
+        half_width + their size), e.g. the rays between their consecutive cells
     """
     rng = _rng(rng)
+    shaped = shape is not None and not shape.circular
+    segments = _SegmentIndex(preplaced_segments) if preplaced_segments else None
 
     # generate radii for rings
-    width = np.concatenate(([width_heart],np.tile([width_sparse,width_dense],nrings)))
-    noise = rng.normal(1,0.25,len(width))
-    width = np.multiply(width,noise)
-    radii = np.concatenate(([0],np.cumsum(width)))
+    if radii is None:
+        radii = RingRadii(width_heart,width_sparse,width_dense,nrings,rng)
+    radii = np.asarray(radii,dtype=float)
 
     # cell size at any distance from the generation center, and in every ring
     cellsize = RingProfile(radii,cellsize_sparse,cellsize_dense,transition,transition_width)
@@ -506,16 +669,25 @@ def CellPlacement_Binary(generation_center,r_max,r_min,nrings,width_heart,
     
     # Place circular cells in each ring (can be parallelized in the future)
     # circles: list = list()
-    circles = []
-    grid = _CircleGrid(max(band_cellsize)) # placed circles, for fast overlap checks
+    circles = [] if preplaced is None else [list(map(float,circC)) for circC in preplaced]
+    grid = _CircleGrid(max(band_cellsize + [circC[2] for circC in circles])) # placed circles, for fast overlap checks
+    for circC in circles:
+        grid.add(circC)
     for ibin in range(0,nrings*2+1):
         iter = 0 
         while iter < iter_max:
             r = (radii[ibin+1]-radii[ibin])*math.sqrt(rng.random()) + radii[ibin]  # randomly generate a point in the domain
             t = rng.random()*2*math.pi 
             
-            x = r*math.cos(t) + generation_center[0]
-            y = r*math.sin(t) + generation_center[1]
+            if shaped: # r is the ring coordinate: the point in the direction t, kept evenly spread over the area
+                s = float(shape.scale(t))
+                if rng.random() > (s/shape.scale_max)**2: # not a try: the band gets its iter_max tries at the cells
+                    continue
+                x = r*s*math.cos(t) + generation_center[0]
+                y = r*s*math.sin(t) + generation_center[1]
+            else:
+                x = r*math.cos(t) + generation_center[0]
+                y = r*math.sin(t) + generation_center[1]
     
             if transition == 'abrupt': # even bands: dense cells, odd bands: sparse cells
                 w = band_cellsize[ibin]
@@ -524,7 +696,9 @@ def CellPlacement_Binary(generation_center,r_max,r_min,nrings,width_heart,
     
             circC = [x, y, w]
             
-            if grid.check_overlap(circC) and check_isinside_boundcircle(circC,generation_center,radii[ibin],radii[ibin+1]):
+            inside = shape.inside_band(circC,radii[ibin],radii[ibin+1]) if shaped else \
+                check_isinside_boundcircle(circC,generation_center,radii[ibin],radii[ibin+1])
+            if grid.check_overlap(circC) and inside and (segments is None or segments.clear(circC)):
                 circles.append(circC)
                 grid.add(circC)
                 
@@ -540,18 +714,210 @@ def CellPlacement_Binary(generation_center,r_max,r_min,nrings,width_heart,
 
     # out-of-boundary detection for Voronoi vertices
     outofbound = []
-    for i in range(0,sites.shape[0]):
-        if( ((sites[i,0]-generation_center[0])**2+(sites[i,1]-generation_center[1])**2) > (1.2*r_max)**2 ):
-            outofbound.append(i)
+    if shaped:
+        outofbound = np.flatnonzero(shape.rho(sites[:,0:2]) > 1.2*r_max).tolist()
+    else:
+        for i in range(0,sites.shape[0]):
+            if( ((sites[i,0]-generation_center[0])**2+(sites[i,1]-generation_center[1])**2) > (1.2*r_max)**2 ):
+                outofbound.append(i)
     sites = np.delete(sites,outofbound,0)
 
     return sites, radii
 
 
+def PlaceRays(generation_center,radii,ray_spacing,ray_width,ray_cell_length,cellsize,rng=None,shape=None):
+    """
+    The ray cells of a hardwood: radial files of cells, from the edge of the heart to the outermost
+    ring, about ray_spacing apart around the circumference. Rays start at the heart, and new rays
+    start in between them wherever the spacing has grown to 1.5*ray_spacing, so the spacing stays
+    between 0.75 and 1.5 times ray_spacing. The cells of a ray are ray_cell_length long (radially,
+    with a random jitter of +-10%) and ray_width wide: the sites keep the fibers next to them
+    (cellsize: the cell size profile, see RingProfile) at half that width.
+
+    Returns the sites as [x, y, size] circles (size: the half-distance kept to the fibers), the
+    number of rays, and the segments [x0, y0, x1, y1, size] between the consecutive cells of every
+    ray, which the fibers keep clear of too (so that no fiber slips in between the cells of a ray).
+    With a RingShape (shape), the rays follow its directions and the radii are its ring coordinate.
+    """
+    rng = _rng(rng)
+    radii = np.asarray(radii,dtype=float)
+    r_start, r_end = radii[1], radii[-1]
+    if ray_spacing <= 0 or ray_width <= 0 or ray_cell_length <= 0:
+        raise ValueError('ray_spacing, ray_width and ray_cell_length must be positive')
+    shaped = shape is not None and not shape.circular
+    unit_circumference = shape.unit_circumference if shaped else 2*math.pi # of the ring boundary at rho = 1
+    # the rays: start radius and angle of each, new ones halfway between the old ones as the circumference grows
+    nrays = max(3,int(round(unit_circumference*r_start/ray_spacing)))
+    offset = rng.random()*2*math.pi/nrays
+    rays = [(r_start,offset + 2*math.pi*i/nrays) for i in range(nrays)]
+    angles = sorted(angle for _, angle in rays)
+    r = r_start
+    while True:
+        r_split = 1.5*ray_spacing*len(angles)/unit_circumference # the spacing between the rays reaches 1.5*ray_spacing here
+        if r_split >= r_end or r_split <= r:
+            break
+        new = [(angles[i] + angles[(i+1) % len(angles)] + (2*math.pi if i == len(angles)-1 else 0))/2 for i in range(len(angles))]
+        rays.extend((r_split,angle % (2*math.pi)) for angle in new)
+        angles = sorted(angle for _, angle in rays)
+        r = r_split
+    # the cells of every ray, from its start to the outermost ring
+    circles = []
+    segments = []
+    for r0, angle in rays:
+        s = float(shape.scale(angle)) if shaped else 1.0 # radius per unit of ring coordinate along this ray
+        rr = r0 + ray_cell_length/2/s
+        previous = None
+        while rr < r_end - ray_cell_length/4/s:
+            x = rr*s*math.cos(angle) + generation_center[0]
+            y = rr*s*math.sin(angle) + generation_center[1]
+            local = float(cellsize(rr))
+            w = max(ray_width - local,ray_width/2) # the wall halfway to a fiber: the cell ray_width wide
+            circles.append([x,y,w])
+            if previous is not None:
+                segments.append([previous[0],previous[1],x,y,min(previous[2],w)])
+            previous = (x,y,w)
+            rr += ray_cell_length*(1 + 0.2*(rng.random() - 0.5))/s
+    return circles, len(rays), segments
+
+
+def PlaceVessels(generation_center,radii,vessel_size,vessel_fraction,vessel_arrangement,vessel_zone,cellsize,grid,\
+                 rng=None,iter_max=500,shape=None,segments=None):
+    """
+    The vessels of a hardwood: cells about vessel_size wide, covering the fraction vessel_fraction of
+    the area they are spread over: all the growth rings (vessel_arrangement 'diffuse', a diffuse-porous
+    wood such as maple or birch) or the inner fraction vessel_zone of the sparse (earlywood) part of
+    every ring ('ring', a ring-porous wood such as oak or ash). The heart has no vessels. The sites
+    keep the fibers next to them (cellsize: the cell size profile, see RingProfile) at half the vessel
+    size, and are placed at random, iter_max tries per vessel at most, clear of the circles already
+    in grid (a _CircleGrid, e.g. the rays), to which they are added.
+
+    Returns the sites as [x, y, size] circles (size: the half-distance kept to the fibers). With a
+    RingShape (shape), the zones are bands of its ring coordinate. segments: the rays' segments
+    (see PlaceRays), which the vessels keep clear of.
+    """
+    rng = _rng(rng)
+    radii = np.asarray(radii,dtype=float)
+    shaped = shape is not None and not shape.circular
+    segment_index = _SegmentIndex(segments) if segments else None
+    if vessel_arrangement not in VESSEL_ARRANGEMENTS:
+        raise ValueError("vessel_arrangement must be one of {}, not {!r}".format(', '.join(VESSEL_ARRANGEMENTS),vessel_arrangement))
+    if not 0 <= vessel_fraction < 1 or vessel_size <= 0 or not 0 < vessel_zone <= 1:
+        raise ValueError('vessel_fraction must be between 0 and 1, vessel_size positive and vessel_zone between 0 and 1')
+    circles = []
+    if vessel_fraction == 0:
+        return circles
+    nbands = len(radii) - 1
+    for band in range(1,nbands):
+        r_lo, r_hi = radii[band], radii[band+1]
+        if vessel_arrangement == 'ring':
+            if band % 2 == 0: # the dense (latewood) part: no vessels
+                continue
+            r_hi = r_lo + vessel_zone*(r_hi - r_lo)
+        if r_hi <= r_lo:
+            continue
+        area_factor = shape.unit_circumference/(2*math.pi) if shaped else 1.0 # the zone's area relative to circular rings
+        nvessels = int(round(area_factor*vessel_fraction*(r_hi**2 - r_lo**2)/(vessel_size/2)**2)) # area fraction of the zone
+        placed = 0
+        tries = 0
+        while placed < nvessels and tries < iter_max*max(nvessels,1):
+            r = math.sqrt(rng.random()*(r_hi**2 - r_lo**2) + r_lo**2) # uniform over the zone
+            t = rng.random()*2*math.pi
+            if shaped: # r is the ring coordinate: the point in the direction t, kept evenly spread over the area
+                s = float(shape.scale(t))
+                if rng.random() > (s/shape.scale_max)**2: # not a try
+                    continue
+            tries += 1
+            if shaped:
+                x = r*s*math.cos(t) + generation_center[0]
+                y = r*s*math.sin(t) + generation_center[1]
+            else:
+                x = r*math.cos(t) + generation_center[0]
+                y = r*math.sin(t) + generation_center[1]
+            w = max(vessel_size - float(cellsize(r,band)),vessel_size/2) # the wall halfway to a fiber: the cell vessel_size wide
+            circC = [x,y,w]
+            inside = shape.inside_band(circC,r_lo - w/2,r_hi + w/2) if shaped else \
+                check_isinside_boundcircle(circC,generation_center,r_lo - w/2,r_hi + w/2)
+            if grid.check_overlap(circC) and inside and (segment_index is None or segment_index.clear(circC)):
+                circles.append(circC)
+                grid.add(circC)
+                placed += 1
+    return circles
+
+
+def CellPlacement_Hardwood(generation_center,r_max,r_min,nrings,width_heart,width_sparse,width_dense,\
+                           cellsize_sparse,cellsize_dense,iter_max,print_interval,rng=None,\
+                           transition='abrupt',transition_width=1.0,vessel_fraction=0.0,vessel_size=0.05,\
+                           vessel_arrangement='diffuse',vessel_zone=0.5,ray_spacing=None,ray_width=0.015,\
+                           ray_cell_length=0.1,shape=None):
+    """
+    The cells of a hardwood: the rays (PlaceRays, when ray_spacing is given) and the vessels
+    (PlaceVessels, when vessel_fraction > 0) are placed first, then the fibers are packed around them
+    with the binary radial growth pattern (CellPlacement_Binary, with the same ring radii as it would
+    draw from rng on its own).
+
+    Returns the sites (one row (x, y, size) per cell, the rays and vessels first), the ring radii,
+    the type of every site (CELL_TYPES: 0 fiber, 1 vessel, 2 ray) and a dict of counts (nvessels,
+    nrays, nray_cells). shape: the shape of the rings (RingShape), see CellPlacement_Binary.
+    """
+    rng = _rng(rng)
+    radii = RingRadii(width_heart,width_sparse,width_dense,nrings,rng)
+    cellsize = RingProfile(radii,cellsize_sparse,cellsize_dense,transition,transition_width)
+    preplaced, types = [], []
+    nrays = 0
+    segments = []
+    if ray_spacing is not None:
+        rays, nrays, segments = PlaceRays(generation_center,radii,ray_spacing,ray_width,ray_cell_length,cellsize,rng,shape=shape)
+        preplaced.extend(rays)
+        types.extend([CELL_TYPES['ray']]*len(rays))
+    grid = _CircleGrid(max([float(w) for w in cellsize.values] + [circC[2] for circC in preplaced] + [vessel_size]))
+    for circC in preplaced:
+        grid.add(circC)
+    vessels = PlaceVessels(generation_center,radii,vessel_size,vessel_fraction,vessel_arrangement,vessel_zone,cellsize,grid,
+                           rng,iter_max,shape=shape,segments=segments)
+    preplaced.extend(vessels)
+    types.extend([CELL_TYPES['vessel']]*len(vessels))
+    sites, radii = CellPlacement_Binary(generation_center,r_max,r_min,nrings,width_heart,width_sparse,width_dense,
+                                        cellsize_sparse,cellsize_dense,iter_max,print_interval,rng=rng,
+                                        transition=transition,transition_width=transition_width,radii=radii,
+                                        preplaced=preplaced,shape=shape,preplaced_segments=segments)
+    site_type = np.zeros(len(sites),dtype=int)
+    site_type[0:len(types)] = types
+    info = {'nvessels': len(vessels), 'nrays': nrays, 'nray_cells': len(preplaced) - len(vessels)}
+    return sites, radii, site_type, info
+
+
+def CellTypeLabels(sites,site_type,all_pts_2D,all_ridges,nridge,npt_per_layer):
+    """
+    Which walls and vertices of the clipped 2D mesh belong to vessels and rays: the two cells of a
+    wall (ridge) are the two sites nearest to its midpoint, and a vertex belongs to a vessel or a
+    ray when one of its walls does.
+
+    Returns ridge_vessel, ridge_ray (bool arrays, one per ridge) and vertex_vessel, vertex_ray (one
+    per vertex); all False without vessels and rays.
+    """
+    site_type = np.asarray(site_type).reshape(-1)
+    all_ridges = np.asarray(all_ridges)
+    nridge_total = all_ridges.shape[0]
+    ridge_vessel = np.zeros(nridge,dtype=bool)
+    ridge_ray = np.zeros(nridge,dtype=bool)
+    if len(site_type) == len(sites) and np.any(site_type != CELL_TYPES['fiber']):
+        midpoints = np.asarray(all_pts_2D)[all_ridges[0:nridge,2]]
+        _, nearest = cKDTree(np.asarray(sites)[:,0:2]).query(midpoints,k=2)
+        types = site_type[nearest]
+        ridge_vessel = np.any(types == CELL_TYPES['vessel'],axis=1)
+        ridge_ray = np.any(types == CELL_TYPES['ray'],axis=1) & ~ridge_vessel
+    vertex_vessel = np.zeros(npt_per_layer,dtype=bool)
+    vertex_ray = np.zeros(npt_per_layer,dtype=bool)
+    for wing in (0,1):
+        np.logical_or.at(vertex_vessel,all_ridges[0:nridge,wing],ridge_vessel)
+        np.logical_or.at(vertex_ray,all_ridges[0:nridge,wing],ridge_ray)
+    return ridge_vessel, ridge_ray, vertex_vessel, vertex_ray
+
+
 def CellPlacement_Binary_Lloyd(geoName,path,generation_center,r_max,r_min,\
                                nrings,width_heart,width_sparse,width_dense,\
                                cellsize_sparse,cellsize_dense,iter_max,\
-                               print_interval,omega=1.0,rng=None,transition='abrupt',transition_width=1.0):
+                               print_interval,omega=1.0,rng=None,transition='abrupt',transition_width=1.0,shape=None):
     """
     packing cells by firstly placing new cells and then performing Lloyd's relaxation in the generation rings
 
@@ -560,8 +926,25 @@ def CellPlacement_Binary_Lloyd(geoName,path,generation_center,r_max,r_min,\
     transition, transition_width :: change of the cell size from the sparse to the dense
         part of a ring, see RingProfile(). With a gradual transition, the sub-rings of cells
         in the sparse part of a ring get closer, and hold more cells, towards the dense part.
+    shape :: the shape of the rings (RingShape; default: circles): the perimeters and sub-rings of
+        cells follow it, with their spacing kept along its (longer or shorter) circumference
     """
     rng = _rng(rng)
+    shaped = shape is not None and not shape.circular
+    shape0 = shape.centered((0.0,0.0)) if shaped else None # the sites are generated around the origin
+    if shaped: # angles at equal arc lengths along the shaped rings (the arc length is proportional to rho)
+        theta_fine = np.linspace(0,2*np.pi,3601)
+        speed = shape0.scale(theta_fine)
+        speed = np.sqrt(speed**2 + np.gradient(speed,theta_fine)**2)
+        arc = np.concatenate(([0.0],np.cumsum((speed[1:] + speed[:-1])/2*np.diff(theta_fine))))
+    def ring_points(rho,npoint):
+        if shaped:
+            t = np.interp(np.arange(npoint)*arc[-1]/max(npoint,1),arc,theta_fine)
+            return np.c_[shape0.point(rho,t)]
+        t = np.linspace(0, 2*np.pi, npoint, endpoint=False)
+        return np.c_[rho * np.cos(t), rho * np.sin(t)]
+    def circumference(rho):
+        return shape0.circumference(rho) if shaped else 2*np.pi*rho
     # generate radii for rings
     radii = np.concatenate(([width_heart],np.tile([width_sparse,width_dense],nrings)))
     noise = rng.normal(1,0.25,len(radii))
@@ -575,12 +958,8 @@ def CellPlacement_Binary_Lloyd(geoName,path,generation_center,r_max,r_min,\
 
     # generate perimeter points for heart region
     PerimeterPoints = []
-    npoint = int(np.ceil(2*np.pi*radii[1]/(2*cellsize_dense)))
-    t = np.linspace(0, 2*np.pi, npoint, endpoint=False)
-    x = radii[1] * np.cos(t)
-    y = radii[1] * np.sin(t)
-    w = cellsize_dense*np.ones(x.shape)
-    PerimeterPoints.append(np.c_[x, y])
+    npoint = int(np.ceil(circumference(radii[1])/(2*cellsize_dense)))
+    PerimeterPoints.append(ring_points(radii[1],npoint))
     PerimeterPointsSites = np.concatenate(PerimeterPoints, axis=0)
     
     #generate internal points for heart region
@@ -610,13 +989,9 @@ def CellPlacement_Binary_Lloyd(geoName,path,generation_center,r_max,r_min,\
         gradual = transition != 'abrupt' and (i % 2) == 1 # the cell size changes within a sparse band
 
         # cells on the outer perimeter of the band: with a gradual transition, the (dense) cell size there
-        OuterPerimeter_npoint = int(np.ceil(2*np.pi*OuterPerimeter_radii/(2*float(cellsize_profile(OuterPerimeter_radii,i)))))
+        OuterPerimeter_npoint = int(np.ceil(circumference(OuterPerimeter_radii)/(2*float(cellsize_profile(OuterPerimeter_radii,i)))))
         
-        t = np.linspace(0, 2*np.pi, OuterPerimeter_npoint, endpoint=False)
-        x = OuterPerimeter_radii * np.cos(t)
-        y = OuterPerimeter_radii * np.sin(t)
-        w = cellsize*np.ones(x.shape)
-        OuterPerimeterPoints.append(np.c_[x, y])
+        OuterPerimeterPoints.append(ring_points(OuterPerimeter_radii,OuterPerimeter_npoint))
         OuterPerimeterPointsSites = np.concatenate(OuterPerimeterPoints, axis=0)
         
         # generate internal points
@@ -633,15 +1008,12 @@ def CellPlacement_Binary_Lloyd(geoName,path,generation_center,r_max,r_min,\
             subradii = np.interp(np.arange(nsubrings)*u[-1]/max(nsubrings,1), u, rr)
         subcellsize = cellsize_profile(subradii,i) # cell size of each sub-ring
         
-        subnpoints =np.ceil(2*np.pi*subradii/(2*subcellsize)).astype(int)
+        subnpoints =np.ceil(circumference(subradii)/(2*subcellsize)).astype(int)
         
         circles = [np.zeros((0,2))] # no sub-rings (nsubrings = 0) if the ring is narrower than one cell
         
         for subr, subnpoint in zip(subradii, subnpoints):
-            t = np.linspace(0, 2*np.pi, subnpoint, endpoint=False)
-            x = subr * np.cos(t)
-            y = subr * np.sin(t)
-            circles.append(np.c_[x, y])
+            circles.append(ring_points(subr,subnpoint))
             
         inside_cells = np.concatenate(circles, axis=0)
         
@@ -1762,7 +2134,7 @@ def RidgeMidQuarterPts(voronoi_vertices,nvertex,nvertices_in,voronoi_ridges,\
 def VertexandRidgeinfo(all_pts_2D,all_ridges,npt_per_layer,npt_per_layer_normal,\
                        npt_per_layer_vtk,nridge,geoName,radii,generation_center,\
                        cellwallthickness_sparse,cellwallthickness_dense,path='meshes',\
-                       transition='abrupt',transition_width=1.0,ridge_widths=None):
+                       transition='abrupt',transition_width=1.0,ridge_widths=None,shape=None):
     
     """Generate the vertex and ridge info 
        Vertex info includes: coordinates, ridge indices, indices of another vertex for each ridge, ridge lengths, ridge angles, ridge width
@@ -1772,7 +2144,8 @@ def VertexandRidgeinfo(all_pts_2D,all_ridges,npt_per_layer,npt_per_layer_normal,
        transition, transition_width :: change of the thickness from the sparse to the dense part of a
            ring, see RingProfile(); 'abrupt' is the step change of RingsPy <= 1.3
        ridge_widths :: wall thickness of each ridge (array of nridge values), e.g. measured in a 3D image.
-           Default: the thickness of the growth ring the vertex lies in, the same for all wings of a vertex."""
+           Default: the thickness of the growth ring the vertex lies in, the same for all wings of a vertex.
+       shape :: the shape of the rings (RingShape; default: circles): the thickness follows its ring coordinate"""
 
     
     # Calculate lengths of all Voronoi ridges
@@ -1788,7 +2161,10 @@ def VertexandRidgeinfo(all_pts_2D,all_ridges,npt_per_layer,npt_per_layer_normal,
     vertex_cellwallthickness_2D = np.zeros(npt_per_layer)
     if ridge_widths is None:
         thickness = RingProfile(radii,cellwallthickness_sparse,cellwallthickness_dense,transition,transition_width)
-        vertex_distance2logcenter = np.linalg.norm(all_pts_2D - generation_center, axis=1) # calc distance between vertex and logcenter
+        if shape is not None and not shape.circular:
+            vertex_distance2logcenter = shape.rho(all_pts_2D) # ring coordinate of every vertex
+        else:
+            vertex_distance2logcenter = np.linalg.norm(all_pts_2D - generation_center, axis=1) # calc distance between vertex and logcenter
         vertex_cellwallthickness_2D = np.array(thickness(vertex_distance2logcenter[0:npt_per_layer]),dtype=float)
     else:
         ridge_widths = np.asarray(ridge_widths,dtype=float).reshape(-1)
@@ -2128,6 +2504,97 @@ def insert_precracks(all_pts_2D,all_ridges,nridge,npt_per_layer,\
     return precracked_elem, nconnector_t_precrack, nconnector_l_precrack
         
         
+def GrainAngle(radii,grain_angle):
+    """
+    The spiral grain angle as a function of the ring coordinate (the distance to the pith for
+    circular rings): alpha(rho), the inclination (radians) of the fibers to the stem axis, in
+    the sense of a positive twist theta_max. grain_angle is one angle for all the growth rings,
+    or a list with one angle per ring, taken at the middle of each ring and interpolated
+    linearly in between; the angle is 0 at the pith and rises linearly through the heart to the
+    first ring, and stays constant beyond the middle of the last ring.
+    """
+    radii = np.asarray(radii,dtype=float)
+    nrings = max((len(radii) - 2)//2,1)
+    angles = np.asarray(grain_angle,dtype=float).reshape(-1)
+    if len(angles) == 1:
+        angles = np.full(nrings,angles[0])
+    if len(angles) != nrings:
+        raise ValueError('grain_angle must be one angle or one per growth ring ({:d}), not {:d} angles'.format(nrings,len(angles)))
+    if np.any(np.abs(angles) >= math.pi/2):
+        raise ValueError('grain angles must be between -pi/2 and pi/2 (radians)')
+    mid = (radii[1:-1:2] + radii[3::2])/2 if len(radii) >= 4 else radii[1:2] # middle of every growth ring
+    knots = np.concatenate(([0.0],mid[:nrings]))
+    values = np.concatenate(([0.0],angles))
+    def alpha(rho):
+        return np.interp(np.asarray(rho,dtype=float),knots,values)
+    alpha.knots = knots
+    alpha.values = values
+    return alpha
+
+
+def ExtrudeLayers(points,theta,z,generation_center,z_range=None,stem_taper=0.0,grain_angle=None,radii=None,shape=None):
+    """
+    In-plane coordinates of 2D points in every layer of the extrusion, shape (len(z), len(points), 2):
+    the points rotated around generation_center by the twist angle theta of each layer (as
+    _rotate_layers), plus a taper and a spiral grain:
+
+    stem_taper :: the cross-section at the top (z_range[1]) is (1 + stem_taper) times the one at the
+        bottom (z_range[0]), scaled about generation_center linearly in z: a conical specimen
+    grain_angle :: the spiral grain angle(s), see GrainAngle(radii, grain_angle): a point at the
+        distance r from the center turns by tan(alpha(rho))*(z - z_range[0])/r more than the twist
+        theta, so the fibers lean by alpha to the stem axis in the tangential direction; rho is
+        the ring coordinate of the point (shape, see RingShape; its distance to the center for
+        circular rings) and radii are the ring radii
+
+    Without a taper and a grain angle, the layers are exactly those of _rotate_layers.
+    """
+    points = np.asarray(points,dtype=float)
+    theta = np.asarray(theta,dtype=float)
+    z = np.asarray(z,dtype=float)
+    if stem_taper == 0 and grain_angle is None:
+        return _rotate_layers(points,theta,z,generation_center)[:,:,0:2]
+    if z_range is None:
+        z_range = (float(z.min()),float(z.max()))
+    z_min, z_max = z_range
+    d = points - np.asarray(generation_center,dtype=float)
+    r = np.linalg.norm(d,axis=1)
+    if grain_angle is not None:
+        if radii is None:
+            raise ValueError('grain_angle needs the ring radii')
+        alpha = GrainAngle(radii,grain_angle)
+        rho = shape.rho(points) if (shape is not None and not shape.circular) else r
+        twist_rate = np.tan(alpha(rho))/np.maximum(r,1e-12) # extra rotation per unit height, finite at the pith
+    else:
+        twist_rate = np.zeros(len(points))
+    layers = np.empty((len(z),len(points),2))
+    for i in range(len(z)):
+        angle = theta[i] + twist_rate*(z[i] - z_min)
+        scale = 1.0 + stem_taper*(z[i] - z_min)/(z_max - z_min) if z_max > z_min else 1.0
+        cos, sin = np.cos(angle), np.sin(angle)
+        layers[i,:,0] = generation_center[0] + scale*(cos*d[:,0] + sin*d[:,1])
+        layers[i,:,1] = generation_center[1] + scale*(-sin*d[:,0] + cos*d[:,1])
+    return layers
+
+
+def ConnectorTangents(IGAvertices,connectivity,npt_per_layer,nctrlpt_per_beam):
+    """
+    Unit tangents (along the grains) of the transverse connectors with the given 1-based node
+    pairs: the mean of the directions of the two grains at their nodes (between the neighbouring
+    control points of the same segment), for VisualizationFiles(connector_t_tangents=...) when the
+    grains lean (spiral grain, a taper, fibers followed through an image).
+    """
+    nodes = np.asarray(connectivity,dtype=int) - 1
+    layer = nodes // npt_per_layer
+    grain = nodes % npt_per_layer
+    first = (layer // nctrlpt_per_beam)*nctrlpt_per_beam
+    lo = np.maximum(layer - 1,first)
+    hi = np.minimum(layer + 1,first + nctrlpt_per_beam - 1)
+    t = (IGAvertices[hi*npt_per_layer + grain] - IGAvertices[lo*npt_per_layer + grain]).sum(axis=1)
+    norm = np.linalg.norm(t,axis=1,keepdims=True)
+    norm[norm == 0] = 1.0
+    return t/norm
+
+
 def _rotate_layers(points,theta,z,origin):
     """
     2D points rotated around origin by each angle in theta, with z coordinates z:
@@ -2302,12 +2769,15 @@ def VisualizationFiles(geoName,NURBS_degree,nlayers,npt_per_layer_vtk,all_pts_2D
                        nconnector_t,nconnector_l,nctrlpt_per_beam,ConnMeshData,\
                        conn_l_tangents,all_vertices_2D,max_wings,\
                        flattened_all_vertices_2D,path='meshes',vtk_format='ascii',\
-                       layer_points=None,connector_t_tangents=None,vertex_band=None,ridge_band=None):
+                       layer_points=None,connector_t_tangents=None,vertex_band=None,ridge_band=None,extra_labels=None):
     """
     Write the Paraview files geoName_vertices.vtu, geoName_beams.vtu, geoName_conns.vtu
     and geoName_conns_vol.vtu. vtk_format = 'ascii' (default) writes text files,
     'binary' writes the data arrays as raw binary appended data (faster to write and
     read, about 3 times smaller).
+
+    extra_labels :: more integer cell data, {name: (values per vertex, values per ridge)}, written
+        after Ring and Dense in the same way (e.g. 'Vessel' and 'Ray' of a hardwood, see CellTypeLabels).
 
     layer_points :: in-plane coordinates of all points (vertices, ridge mid and quarter points)
         of every layer, shape (nlayers, npt_per_layer_vtk, 2), see LayerPoints. Default: the
@@ -2464,23 +2934,35 @@ def VisualizationFiles(geoName,NURBS_degree,nlayers,npt_per_layer_vtk,all_pts_2D
     VTKcell_types_conns_vol = np.concatenate((12*np.ones(nconnector_t),12*np.ones(nconnector_l),12*np.ones(nconnector_t),12*np.ones(nconnector_l))).astype(int)
     Quad_width_vtk = np.tile(Quad_width,(2))
 
-    # Growth ring and sparse/dense labels of the cells of each file, in the order of the cells above
-    def ring_data(band):
-        ring, dense = RingLabels(band)
-        return [('Ring',ring.astype(np.int32)),('Dense',dense.astype(np.int32))]
-    if labels:
-        point_band = np.empty(npt_per_layer_vtk,dtype=int) # vertices, then the mid and quarter points of the ridges
-        point_band[0:nvertex] = vertex_band
-        point_band[all_ridges[0:nridge,2:6]] = ridge_band[:,np.newaxis]
-        quad_band = vertex_band[all_ridges[0:nridge,0:2].T.reshape(-1)] # wing quads: [segment and interval, wing, ridge]
+    # Growth ring and sparse/dense labels (and extra labels) of the cells of each file, in the order of the cells above:
+    # the cells of a vertex (beams, wing quads, points) take the value of the vertex, the connectors (and the mid and
+    # quarter points) that of their ridge
+    def cell_values(vertex_values,ridge_values):
+        vertex_values = np.asarray(vertex_values).reshape(-1).astype(np.int32)
+        ridge_values = np.asarray(ridge_values).reshape(-1).astype(np.int32)
+        point = np.empty(npt_per_layer_vtk,dtype=np.int32) # vertices, then the mid and quarter points of the ridges
+        point[0:nvertex] = vertex_values
+        point[all_ridges[0:nridge,2:6]] = ridge_values[:,np.newaxis]
+        quad = vertex_values[all_ridges[0:nridge,0:2].T.reshape(-1)] # wing quads: [segment and interval, wing, ridge]
         wing_ridge = np.asarray(flattened_all_vertices_2D[0,:],dtype=int) # ridge of each wing, wings sorted by vertex
-        conns_band = np.concatenate((np.tile(ridge_band,nsegments*nconnector_t_per_beam),ridge_band[np.tile(wing_ridge,nsegments-1)]))
-        ring_data_vertices = ring_data(np.tile(point_band,nlayers))
-        ring_data_beams = ring_data(np.concatenate((np.tile(vertex_band[0:ngrain],nsegments*ninterval_per_beam_vtk),
-                                                    np.tile(quad_band,nsegments*ninterval_per_beam_vtk))))
-        ring_data_conns = ring_data(np.tile(conns_band,2))
-    else:
-        ring_data_vertices = ring_data_beams = ring_data_conns = []
+        conns = np.concatenate((np.tile(ridge_values,nsegments*nconnector_t_per_beam),ridge_values[np.tile(wing_ridge,nsegments-1)]))
+        return (np.tile(point,nlayers),
+                np.concatenate((np.tile(vertex_values[0:ngrain],nsegments*ninterval_per_beam_vtk),
+                                np.tile(quad,nsegments*ninterval_per_beam_vtk))),
+                np.tile(conns,2))
+    label_arrays = [] # (name, values per vertex, values per ridge)
+    if labels:
+        ring_v, dense_v = RingLabels(vertex_band)
+        ring_r, dense_r = RingLabels(ridge_band)
+        label_arrays += [('Ring',ring_v,ring_r),('Dense',dense_v,dense_r)]
+    for name, (vertex_values, ridge_values) in (extra_labels or {}).items():
+        label_arrays.append((name,vertex_values,ridge_values))
+    ring_data_vertices, ring_data_beams, ring_data_conns = [], [], []
+    for name, vertex_values, ridge_values in label_arrays:
+        values_vertices, values_beams, values_conns = cell_values(vertex_values,ridge_values)
+        ring_data_vertices.append((name,values_vertices))
+        ring_data_beams.append((name,values_beams))
+        ring_data_conns.append((name,values_conns))
 
     files = [ # file name, point arrays, connectivity arrays (one row per cell), cell types, point data, cell data
         ('_vertices',[VTKvertices],[vertex_connectivity_vtk.reshape(-1,1)],VTKcell_types_vertices,
@@ -2626,7 +3108,7 @@ def AbaqusFile(geoName,NURBS_degree,npatch,IGAvertices,beam_connectivity,\
                cellwallthickness_sparse,cellwallthickness_dense,\
                merge_operation,merge_tol,\
                precrackFlag='off',precrack_elem=None,path='meshes',connector_t_ridge=None,\
-               vertex_band=None,ridge_band=None,wing_ridge=None,element_bands=None):
+               vertex_band=None,ridge_band=None,wing_ridge=None,element_bands=None,extra_labels=None,element_labels=None):
     
     """Write the Abaqus input file (geoName.inp) with beam (B32) and connector (T3D2) elements
 
@@ -2642,6 +3124,10 @@ def AbaqusFile(geoName,NURBS_degree,npatch,IGAvertices,beam_connectivity,\
     section and material. A beam takes the ring of its vertex, a connector the ring of the ridge
     whose thickness it has (the transverse connector its own ridge, the longitudinal connector the
     ridge of its wing, as in ConnectorMeshFile).
+    extra_labels, element_labels :: more element sets, {name: (values per vertex, values per ridge)} or
+        {name: {'Beams': ..., 'TConns': ..., 'LConns': ...}} (values per element): the sets <name>Beams,
+        <name>TConns and <name>LConns of the elements whose value is non-zero (e.g. the vessels and
+        rays of a hardwood, see CellTypeLabels).
     element_bands :: the ring bands of the beam elements, the transverse connectors (bot, reg, top in
         a row) and the longitudinal connectors themselves, as a dict {'Beams': ..., 'TConns': ...,
         'LConns': ...}, for lattices whose elements do not repeat the 2D mesh (fibers of various
@@ -2771,38 +3257,41 @@ def AbaqusFile(geoName,NURBS_degree,npatch,IGAvertices,beam_connectivity,\
     count += nelem_connector_l
 
     # Element sets of the growth rings: the beams, transverse and longitudinal connectors of every ring
+    ntconn = nelem_connector_t_bot + nelem_connector_t_reg + nelem_connector_t_top
+    def per_element(values):
+        """Values of the beams, transverse and longitudinal connectors (in the order of the element ids above)
+        from values given per element ({'Beams', 'TConns', 'LConns'}), or per vertex and per ridge"""
+        if isinstance(values,dict): # the value of every element given (irregular lattices)
+            beams = np.asarray(values['Beams']).reshape(-1)
+            tconns = np.asarray(values['TConns']).reshape(-1)
+            lconns = np.asarray(values['LConns']).reshape(-1)
+            if len(beams) != nelem or len(tconns) != ntconn or len(lconns) != nelem_connector_l:
+                raise ValueError('the element values do not match the numbers of beams and connectors')
+            return {'Beams': beams, 'TConns': tconns, 'LConns': lconns}
+        vertex_values, ridge_values = values
+        vertex_values = np.asarray(vertex_values).reshape(-1)
+        ridge_values = np.asarray(ridge_values).reshape(-1)
+        wings = np.asarray(wing_ridge,dtype=int).reshape(-1)
+        ngrain = len(vertex_values)
+        nridge = len(ridge_values)
+        if nelem % npatch or npatch % ngrain or nelem_connector_t_bot % nridge or nelem_connector_l % max(len(wings),1):
+            raise ValueError('the vertex and ridge values and wing_ridge do not match the numbers of beams and connectors')
+        return {'Beams': vertex_values[(np.arange(nelem)//(nelem//npatch)) % ngrain], # beams of a patch in a row, patches by segment then grain
+                'TConns': np.concatenate([ridge_values[np.arange(connectivity.shape[0]) % nridge] for connectivity in
+                                          [connector_t_bot_connectivity,connector_t_reg_connectivity,connector_t_top_connectivity]]),
+                'LConns': ridge_values[np.tile(wings,nelem_connector_l//max(len(wings),1))]} # one per wing and layer
+    ids = {'Beams': np.arange(1,nelem+1),
+           'TConns': np.arange(nelem+1,nelem+1+ntconn),
+           'LConns': np.arange(nelem+1+ntconn,nelem+1+ntconn+nelem_connector_l)}
+    def write_elset(name,members):
+        if len(members) == 0: # Abaqus does not accept empty sets
+            return
+        meshinpfile.write('*Elset, elset={:s}\n'.format(name))
+        meshinpfile.write(_format_rows(members[:len(members)//16*16].reshape(-1,16),', '.join(['%d']*16)+'\n'))
+        if len(members) % 16:
+            meshinpfile.write(', '.join(map(str,members[len(members)//16*16:].tolist()))+'\n')
     if element_bands is not None or (vertex_band is not None and ridge_band is not None and wing_ridge is not None):
-        if element_bands is not None: # the band of every element given (irregular lattices)
-            beam_band = np.asarray(element_bands['Beams']).reshape(-1)
-            tconn_band = np.asarray(element_bands['TConns']).reshape(-1)
-            lconn_band = np.asarray(element_bands['LConns']).reshape(-1)
-            ntconn = nelem_connector_t_bot + nelem_connector_t_reg + nelem_connector_t_top
-            if len(beam_band) != nelem or len(tconn_band) != ntconn or len(lconn_band) != nelem_connector_l:
-                raise ValueError('element_bands do not match the numbers of beams and connectors')
-        else:
-            vertex_band = np.asarray(vertex_band).reshape(-1)
-            ridge_band = np.asarray(ridge_band).reshape(-1)
-            wing_ridge = np.asarray(wing_ridge,dtype=int).reshape(-1)
-            ngrain = len(vertex_band)
-            nridge = len(ridge_band)
-            if nelem % npatch or npatch % ngrain or nelem_connector_t_bot % nridge or nelem_connector_l % max(len(wing_ridge),1):
-                raise ValueError('vertex_band, ridge_band and wing_ridge do not match the numbers of beams and connectors')
-            # band of every element, in the order of the element ids above
-            beam_band = vertex_band[(np.arange(nelem)//(nelem//npatch)) % ngrain] # beams of a patch in a row, patches by segment then grain
-            tconn_band = np.concatenate([ridge_band[np.arange(connectivity.shape[0]) % nridge] for connectivity in
-                                         [connector_t_bot_connectivity,connector_t_reg_connectivity,connector_t_top_connectivity]])
-            lconn_band = ridge_band[np.tile(wing_ridge,nelem_connector_l//max(len(wing_ridge),1))] # one per wing and layer
-        ids = {'Beams': np.arange(1,nelem+1),
-               'TConns': np.arange(nelem+1,nelem+1+len(tconn_band)),
-               'LConns': np.arange(nelem+1+len(tconn_band),nelem+1+len(tconn_band)+len(lconn_band))}
-        bands = {'Beams': beam_band, 'TConns': tconn_band, 'LConns': lconn_band}
-        def write_elset(name,members):
-            if len(members) == 0: # Abaqus does not accept empty sets
-                return
-            meshinpfile.write('*Elset, elset={:s}\n'.format(name))
-            meshinpfile.write(_format_rows(members[:len(members)//16*16].reshape(-1,16),', '.join(['%d']*16)+'\n'))
-            if len(members) % 16:
-                meshinpfile.write(', '.join(map(str,members[len(members)//16*16:].tolist()))+'\n')
+        bands = per_element(element_bands if element_bands is not None else (vertex_band,ridge_band))
         meshinpfile.write('** Element sets of the growth rings (Ring0: the heart) and of the sparse/dense rings\n')
         all_rings = np.unique(np.concatenate([RingLabels(band)[0] for band in bands.values()]))
         for k in all_rings.tolist():
@@ -2811,6 +3300,14 @@ def AbaqusFile(geoName,NURBS_degree,npatch,IGAvertices,beam_connectivity,\
         for label, dense in [('Sparse',False),('Dense',True)]:
             for kind in ['Beams','TConns','LConns']:
                 write_elset(label+kind,ids[kind][RingLabels(bands[kind])[1] == dense])
+    # Element sets of other labels (e.g. the vessels and rays of a hardwood): the elements whose value is non-zero
+    labels = dict(extra_labels or {})
+    labels.update(element_labels or {})
+    for name, values in labels.items():
+        values = per_element(values)
+        meshinpfile.write('** Element sets of the {:s} cells\n'.format(name.lower()))
+        for kind in ['Beams','TConns','LConns']:
+            write_elset(name+kind,ids[kind][np.asarray(values[kind]) != 0])
             
     area_connector_t = height_connector_t*cellwallthickness_dense # sectional area of transverse connectors [mm^2]
     meshinpfile.write('** Section: Section-1\n')
@@ -3202,7 +3699,7 @@ def AbaqusFile(geoName,NURBS_degree,npatch,IGAvertices,beam_connectivity,\
     meshinpfile.write('*End Assembly\n')
 
 
-def ReadSavedSites(sites_path, radial_growth_rule):
+def ReadSavedSites(sites_path, radial_growth_rule, with_types=False):
     """Search in the current directory and all directories above it 
     for a file of a particular name.
 
@@ -3210,6 +3707,8 @@ def ReadSavedSites(sites_path, radial_growth_rule):
     ---------
     sites_path :: pathlib obj, the path of saved file.
     radial_growth_rule :: string, the filename to look for.
+    with_types :: also return the type of every site (CELL_TYPES), from the matching types file
+        (name with '_sites' -> '_types') if it exists next to the sites file, else all fibers.
 
     Returns
     -------
@@ -3223,6 +3722,7 @@ def ReadSavedSites(sites_path, radial_growth_rule):
 
     sitesfile = radial_growth_rule
     radiifile = radial_growth_rule.strip().replace("_sites", '_radii')
+    typesfile = radial_growth_rule.strip().replace("_sites", '_types')
     sites_path = Path(sites_path).resolve()
 
     while True:
@@ -3231,7 +3731,18 @@ def ReadSavedSites(sites_path, radial_growth_rule):
         if sites_attempt.exists() and radii_attempt.exists():
             print('Sites info from file: {:s} has been loaded.'.format(str(sites_attempt)))
             print('Radii info from file: {:s} has been loaded.'.format(str(radii_attempt)))
-            return np.load(sites_attempt), np.load(radii_attempt)
+            sites, radii = np.load(sites_attempt), np.load(radii_attempt)
+            if not with_types:
+                return sites, radii
+            types_attempt = sites_path / typesfile
+            if typesfile != sitesfile and types_attempt.exists():
+                print('Cell types from file: {:s} have been loaded.'.format(str(types_attempt)))
+                site_type = np.asarray(np.load(types_attempt),dtype=int).reshape(-1)
+                if len(site_type) != len(sites):
+                    raise ValueError('{} holds {:d} cell types for {:d} sites'.format(types_attempt,len(site_type),len(sites)))
+            else:
+                site_type = np.zeros(len(sites),dtype=int)
+            return sites, radii, site_type
         if sites_path == sites_path.parent: # reached the root (e.g. / or C:\)
             break
         sites_path = sites_path.parent
@@ -3336,7 +3847,8 @@ def LogFile(geoName,iter_max,r_min,r_max,nrings,width_heart,width_sparse,width_d
         nParticles,nbeamElem,skeleton_density,mass,volume,density,porosity,\
         stlFlag,inpFlag,inpType,radial_growth_rule,\
         startTime,placementTime,voronoiTime,RebuildvorTime,BeamTime,FileTime,path='meshes',seed=None,box_polygon=None,\
-        transition=None,transition_width=None,radii=None,graphFlag=False,fibers=None):
+        transition=None,transition_width=None,radii=None,graphFlag=False,fibers=None,hardwood=None,ring_shape=None,\
+        extrusion=None,statsFlag=False,box_polygon_file=None):
 
     """Generate the log file (geoName.log file) for the generation procedure.
 
@@ -3395,6 +3907,11 @@ def LogFile(geoName,iter_max,r_min,r_max,nrings,width_heart,width_sparse,width_d
         logfile.write('transition_width:                        ' + str(transition_width) + '\n')
     if radii is not None:
         logfile.write('ring radii:                              ' + str([float(r) for r in radii]) + '\n')
+    if ring_shape is not None and not ring_shape.circular:
+        logfile.write('\n')
+        logfile.write('RING SHAPE:\n')
+        for key in ['ellipticity','ellipse_angle','eccentricity','eccentricity_angle','waviness','wave_order','wave_phase']:
+            logfile.write('{:<41s}'.format('ring_' + key + ':') + str(getattr(ring_shape,key)) + '\n')
 
     if _is_on(merge_operation): 
         logfile.write('merge_tol:                               ' + str(merge_tol) + '\n')
@@ -3404,7 +3921,9 @@ def LogFile(geoName,iter_max,r_min,r_max,nrings,width_heart,width_sparse,width_d
     logfile.write('box_shape:                               ' + str(box_shape) + '\n')
     logfile.write('box_center:                              ' + str(box_center) + '\n')
     logfile.write('box_size:                                ' + str(box_size) + '\n')
-    if box_polygon is not None:
+    if box_polygon_file is not None:
+        logfile.write('box_polygon:                             ' + str(box_polygon_file) + ' ({:d} vertices)\n'.format(len(box_polygon)))
+    elif box_polygon is not None:
         logfile.write('box_polygon:                             ' + str([[float(x), float(y)] for x, y in box_polygon]) + '\n')
     logfile.write('precrackFlag:                            ' + _flag_text(precrackFlag) + '\n')
     if _is_on(precrackFlag):
@@ -3419,12 +3938,20 @@ def LogFile(geoName,iter_max,r_min,r_max,nrings,width_heart,width_sparse,width_d
     logfile.write('theta_min:                               ' + str(theta_min) + '\n')
     logfile.write('theta_max:                               ' + str(theta_max) + '\n')
     logfile.write('long_connector_ratio:                    ' + str(long_connector_ratio) + '\n')
+    if extrusion is not None: # taper and spiral grain (see ExtrudeLayers)
+        for key, value in extrusion.items():
+            logfile.write('{:<41s}'.format(key + ':') + str(value) + '\n')
     logfile.write('NURBS_degree:                            ' + str(NURBS_degree) + '\n')
     logfile.write('nctrlpt_per_beam:                        ' + str(nctrlpt_per_beam) + '\n')
     if fibers is not None:
         logfile.write('\n')
         logfile.write('FIBERS:\n')
         for key, value in fibers.items():
+            logfile.write('{:<41s}'.format(key + ':') + str(value) + '\n')
+    if hardwood is not None:
+        logfile.write('\n')
+        logfile.write('HARDWOOD:\n')
+        for key, value in hardwood.items():
             logfile.write('{:<41s}'.format(key + ':') + str(value) + '\n')
     logfile.write('\n')
     logfile.write('GENERATION:\n')  
@@ -3475,6 +4002,10 @@ def LogFile(geoName,iter_max,r_min,r_max,nrings,width_heart,width_sparse,width_d
     if _is_on(graphFlag):
         logfile.write('Graph File:                              ' + prefix \
             + '-graph.npz\n')
+    if _is_on(statsFlag):
+        logfile.write('Cell Statistics File:                    ' + prefix + '-cells.csv\n')
+        logfile.write('Ring Statistics File:                    ' + prefix + '-rings.csv\n')
+        logfile.write('Wall Statistics File:                    ' + prefix + '-walls.csv\n')
     logfile.write('Log File:                                ' + prefix \
         + '-report.log\n')
     logfile.close()

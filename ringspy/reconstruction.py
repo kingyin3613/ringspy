@@ -982,16 +982,7 @@ def connector_tangents(IGAvertices, connectivity, npt_per_layer, nctrlpt_per_bea
     """Unit tangents (along the grains) of the transverse connectors with the given 1-based node
     pairs: the mean of the directions of the two grains at their nodes (between the neighbouring
     control points of the same segment)"""
-    nodes = np.asarray(connectivity, dtype=int) - 1
-    layer = nodes // npt_per_layer
-    grain = nodes % npt_per_layer
-    first = (layer // nctrlpt_per_beam)*nctrlpt_per_beam
-    lo = np.maximum(layer - 1, first)
-    hi = np.minimum(layer + 1, first + nctrlpt_per_beam - 1)
-    t = (IGAvertices[hi*npt_per_layer + grain] - IGAvertices[lo*npt_per_layer + grain]).sum(axis=1)
-    norm = np.linalg.norm(t, axis=1, keepdims=True)
-    norm[norm == 0] = 1.0
-    return t/norm
+    return rpgen.ConnectorTangents(IGAvertices, connectivity, npt_per_layer, nctrlpt_per_beam)
 
 
 # =============================================================================

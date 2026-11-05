@@ -15,7 +15,9 @@ from pathlib import Path
 from typing import List, Optional, Tuple, Union, get_args, get_origin
 
 from .MeshGenTools import (ABAQUS_TYPES, HEXAGON_SHAPES, POLYGON_SHAPES, SQUARE_SHAPES, TRANSITIONS, TRIANGLE_SHAPES,
-                           polygon_vertices)
+                           VESSEL_ARRANGEMENTS, polygon_vertices)
+
+OUTLINE_SUFFIXES = ['.svg', '.dxf']
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -65,13 +67,39 @@ class Config:
                                              # from the sparse part of a ring to its dense part
     transition_width: float = 1.0            # fraction of the sparse part over which they change (linear, sigmoid)
 
+    # shape of the growth rings (all rings share it, scaled from the generation center): circles by default
+    ring_ellipticity: float = 1.0            # ratio of the long to the short axis of the rings (1: circles)
+    ring_ellipse_angle: float = 0.0          # direction of the long axis (radians from the x axis)
+    ring_eccentricity: float = 0.0           # the rings are (1 + this) times wider towards ring_eccentricity_angle and
+                                             # (1 - this) times opposite, as in reaction wood (0: concentric rings)
+    ring_eccentricity_angle: float = 0.0     # direction (radians) of the wide side
+    ring_waviness: float = 0.0               # amplitude of a wavy ring outline (fraction of the radius, 0: none)
+    ring_wave_order: int = 3                 # number of crests of the waves around the circumference
+    ring_wave_phase: float = 0.0             # angle (radians) of the first crest
+
+    # hardwood features: vessels and rays (radial_growth_rule 'binary'; the fibers are packed around them)
+    vessel_fraction: float = 0.0             # area fraction of the vessels (0: no vessels, a softwood)
+    vessel_size: float = 0.05                # width of the vessel cells (mm)
+    vessel_arrangement: str = 'diffuse'      # diffuse (vessels over all the rings, like maple) or ring
+                                             # (ring-porous, like oak: vessels in the earlywood only)
+    vessel_zone: float = 0.5                 # ring-porous: inner fraction of the sparse (earlywood) part of a ring
+                                             # that holds the vessels
+    ray_spacing: Optional[float] = None      # spacing of the rays (radial files of cells) around the circumference (mm);
+                                             # None: no rays
+    ray_width: float = 0.02                  # width of the ray cells (mm, across the ray)
+    ray_cell_length: float = 0.1             # radial spacing of the ray cells (mm)
+
     # clipping box
     boundaryFlag: bool = True
     box_shape: str = 'square'                # square, triangle, hexagon or polygon
     box_center: Tuple[float, float] = (0, 0)
     box_size: float = 4.0
-    box_polygon: Optional[List[Tuple[float, float]]] = None  # vertices [[x, y], ...] of the polygon for
-                                             # box_shape 'polygon' (any simple polygon, also non-convex)
+    box_polygon: Optional[Union[str, List[Tuple[float, float]]]] = None  # vertices [[x, y], ...] of the polygon for
+                                             # box_shape 'polygon' (any simple polygon, also non-convex), or the name
+                                             # of an SVG or DXF file drawn with it (relative to the TOML file's folder)
+    box_polygon_tolerance: Optional[float] = None  # outline file: Douglas-Peucker simplification tolerance (mm);
+                                             # None: no simplification (use merge_tol, so no edge is shorter than it)
+    box_polygon_scale: float = 1.0           # outline file: factor on the coordinates (after the file's units -> mm)
 
     # longitudinal direction
     nsegments: int = 2
@@ -80,6 +108,11 @@ class Config:
     z_min: float = 0
     z_max: Optional[float] = None            # default box_size (polygon: z_min + its largest width)
     long_connector_ratio: float = 0.02
+    stem_taper: float = 0.0                  # the cross-section at z_max is (1 + stem_taper) times the one at z_min,
+                                             # scaled about generation_center (a conical specimen; 0: prismatic)
+    grain_angle: Union[None, float, List[float]] = None  # spiral grain: the angle (radians) of the fibers to the stem
+                                             # axis, one for all rings or one per growth ring (0 at the pith, linear
+                                             # in between), on top of the twist theta_min..theta_max; None: none
     fiber_length: Optional[float] = None     # mean length (mm) of the fibers of a grain, which then end at different
                                              # heights (longitudinal connectors not on common planes);
                                              # None: all grains cut into the same nsegments segments
@@ -103,6 +136,8 @@ class Config:
     inpFlag: bool = True
     inpType: str = 'Abaqus'
     save_sites: bool = False                 # also save geoName_sites.npy and geoName_radii.npy
+    statsFlag: bool = False                  # also save geoName-cells.csv, -rings.csv and -walls.csv: the statistics
+                                             # of the cells (area, neighbours, shape), rings (2D porosity) and walls
     graphFlag: bool = False                  # also save geoName-graph.npz, the cell mesh as a graph (nodes: vertices,
                                              # edges: cell walls) in the layout of PyTorch Geometric
 
@@ -114,13 +149,29 @@ class Config:
                              .format(', '.join(GROWTH_RULES), self.radial_growth_rule))
         if self.box_shape not in BOX_SHAPES:
             raise ValueError("box_shape must be square, triangle, hexagon or polygon, not {!r}".format(self.box_shape))
+        if self.box_polygon_tolerance is not None and self.box_polygon_tolerance <= 0:
+            raise ValueError("box_polygon_tolerance must be positive (or left out)")
+        if self.box_polygon_scale <= 0:
+            raise ValueError("box_polygon_scale must be positive")
         if self.box_shape in POLYGON_SHAPES:
             if self.box_polygon is None:
-                raise ValueError("box_shape 'polygon' needs box_polygon, the vertices [[x, y], ...] of the polygon")
-            try:
-                polygon_vertices(self.box_polygon)
-            except ValueError as e:
-                raise ValueError("box_polygon: {}".format(e)) from None
+                raise ValueError("box_shape 'polygon' needs box_polygon, the vertices [[x, y], ...] of the polygon "
+                                 "or the name of an SVG or DXF file")
+            if isinstance(self.box_polygon, str):
+                if Path(self.box_polygon).suffix.lower() not in OUTLINE_SUFFIXES:
+                    raise ValueError("box_polygon must be a list of vertices or the name of an .svg or .dxf file, not {!r}"
+                                     .format(self.box_polygon))
+                if not Path(self.box_polygon).is_file():
+                    raise ValueError("box_polygon: the outline file {!r} does not exist".format(self.box_polygon))
+                try:
+                    self.polygon_vertices()
+                except ValueError as e:
+                    raise ValueError("box_polygon {!r}: {}".format(self.box_polygon, e)) from None
+            else:
+                try:
+                    polygon_vertices(self.box_polygon)
+                except ValueError as e:
+                    raise ValueError("box_polygon: {}".format(e)) from None
             if self.precrackFlag and self.precrack_nodes is None:
                 raise ValueError("with box_shape 'polygon', give the precracks as precrack_nodes")
         elif self.box_polygon is not None:
@@ -147,8 +198,40 @@ class Config:
             raise ValueError("transition must be one of {}, not {!r}".format(', '.join(TRANSITIONS), self.transition))
         if not 0 < self.transition_width <= 1:
             raise ValueError("transition_width must be between 0 (excluded) and 1, not {!r}".format(self.transition_width))
+        if not 0 <= self.vessel_fraction < 1:
+            raise ValueError("vessel_fraction must be between 0 and 1 (excluded), not {!r}".format(self.vessel_fraction))
+        if self.vessel_size <= 0:
+            raise ValueError("vessel_size must be positive")
+        if self.vessel_arrangement not in VESSEL_ARRANGEMENTS:
+            raise ValueError("vessel_arrangement must be one of {}, not {!r}".format(', '.join(VESSEL_ARRANGEMENTS),
+                                                                                    self.vessel_arrangement))
+        if not 0 < self.vessel_zone <= 1:
+            raise ValueError("vessel_zone must be between 0 (excluded) and 1, not {!r}".format(self.vessel_zone))
+        for name in ['ray_spacing', 'ray_width', 'ray_cell_length']:
+            value = getattr(self, name)
+            if value is not None and value <= 0:
+                raise ValueError("{} must be positive".format(name))
+        if self.ring_ellipticity < 1:
+            raise ValueError("ring_ellipticity must be at least 1 (the ratio of the long to the short axis), not {!r}"
+                             .format(self.ring_ellipticity))
+        if self.ring_eccentricity < 0 or self.ring_waviness < 0 or self.ring_eccentricity + self.ring_waviness >= 1:
+            raise ValueError("ring_eccentricity and ring_waviness must not be negative and must add up to less than 1")
+        if self.ring_wave_order < 1:
+            raise ValueError("ring_wave_order must be at least 1")
+        if (self.vessel_fraction > 0 or self.ray_spacing is not None) and self.radial_growth_rule != 'binary':
+            raise ValueError("vessels (vessel_fraction) and rays (ray_spacing) are placed by the 'binary' growth rule only, "
+                             "not {!r}".format(self.radial_growth_rule))
         if self.fiber_length is not None and self.fiber_length <= 0:
             raise ValueError("fiber_length must be positive (or left out)")
+        if self.stem_taper <= -1:
+            raise ValueError("stem_taper must be larger than -1 (the top cross-section is 1 + stem_taper times the bottom one)")
+        if self.grain_angle is not None:
+            angles = self.grain_angle if isinstance(self.grain_angle, list) else [self.grain_angle]
+            if isinstance(self.grain_angle, list) and len(angles) != self.nrings:
+                raise ValueError("grain_angle must be one angle or a list with one angle per growth ring ({} values), not {!r}"
+                                 .format(self.nrings, self.grain_angle))
+            if any(abs(a) >= 1.5707963 for a in angles):
+                raise ValueError("grain_angle must be between -pi/2 and pi/2 (radians), not {!r}".format(self.grain_angle))
         if self.fiber_length_cov < 0:
             raise ValueError("fiber_length_cov must not be negative")
         if self.taper_length is not None and self.taper_length <= 0:
@@ -156,14 +239,35 @@ class Config:
         if not 0 <= self.taper_ratio <= 1:
             raise ValueError("taper_ratio must be between 0 and 1")
 
+    def polygon_vertices(self):
+        """The vertices of the clipping polygon as a list: those given, or read from the outline file (SVG or
+        DXF) named by box_polygon, simplified with box_polygon_tolerance, scaled by box_polygon_scale and centred
+        on box_center (see ringspy.outline.read_outline); None without a polygon"""
+        if self.box_polygon is None:
+            return None
+        if isinstance(self.box_polygon, str):
+            from .outline import read_outline
+            return read_outline(self.box_polygon, tolerance=self.box_polygon_tolerance, scale=self.box_polygon_scale,
+                                center=self.box_center).tolist()
+        return [list(v) for v in self.box_polygon]
+
+    def ring_shape(self):
+        """The shape of the growth rings (MeshGenTools.RingShape) around generation_center"""
+        from .MeshGenTools import RingShape
+        return RingShape(self.generation_center, self.ring_ellipticity, self.ring_ellipse_angle, self.ring_eccentricity,
+                         self.ring_eccentricity_angle, self.ring_waviness, self.ring_wave_order, self.ring_wave_phase)
+
     def resolved(self):
         """Copy with the parameters left at None (ring widths, z_max) replaced by their default values"""
         fractions = {'width_heart': 0.3, 'width_sparse': 0.7, 'width_dense': 0.3}
         values = {name: frac*(self.r_max - self.r_min)/self.nrings  # same expression as the template scripts
                   for name, frac in fractions.items() if getattr(self, name) is None}
+        if isinstance(self.box_polygon, str): # the outline file read once: the pipeline sees the vertices
+            values['box_polygon'] = self.polygon_vertices()
+        polygon = values.get('box_polygon', self.box_polygon)
         if self.z_max is None:
             if self.box_shape in POLYGON_SHAPES:
-                extent = [max(v[i] for v in self.box_polygon) - min(v[i] for v in self.box_polygon) for i in (0, 1)]
+                extent = [max(v[i] for v in polygon) - min(v[i] for v in polygon) for i in (0, 1)]
                 values['z_max'] = self.z_min + max(extent)
             else:
                 values['z_max'] = self.box_size
@@ -199,6 +303,9 @@ class Config:
         sites_dir = params.get('sites_dir', '.')
         if isinstance(sites_dir, str):
             params['sites_dir'] = str(file.parent / sites_dir)  # unchanged if sites_dir is absolute
+        polygon = params.get('box_polygon')
+        if isinstance(polygon, str) and not Path(polygon).is_absolute():
+            params['box_polygon'] = str(file.parent / polygon)  # an outline file next to the TOML file
         try:
             return cls.from_dict(params)
         except (TypeError, ValueError) as e:

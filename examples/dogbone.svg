@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- RingsPy example: the dog-bone tensile specimen of dogbone.toml, drawn in mm (width/height in mm with a matching
+     viewBox); the SVG y axis points down, so the drawing's y is the negative of the specimen's -->
+<svg xmlns="http://www.w3.org/2000/svg" width="4mm" height="2mm" viewBox="-1.4 -1 4 2">
+  <path d="M -1.2 0.8 L -0.5 0.8 L -0.1 0.4 L 1.3 0.4 L 1.7 0.8 L 2.4 0.8 L 2.4 -0.8 L 1.7 -0.8 L 1.3 -0.4 L -0.1 -0.4 L -0.5 -0.8 L -1.2 -0.8 Z" fill="none" stroke="black" stroke-width="0.02"/>
+</svg>
