@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import List, Optional, Tuple, Union, get_args, get_origin
 
 from .MeshGenTools import (ABAQUS_TYPES, HEXAGON_SHAPES, POLYGON_SHAPES, SQUARE_SHAPES, TRANSITIONS, TRIANGLE_SHAPES,
-                           polygon_vertices)
+                           VESSEL_ARRANGEMENTS, polygon_vertices)
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -64,6 +64,18 @@ class Config:
     transition: str = 'abrupt'               # abrupt, linear or sigmoid: change of the cell size and wall thickness
                                              # from the sparse part of a ring to its dense part
     transition_width: float = 1.0            # fraction of the sparse part over which they change (linear, sigmoid)
+
+    # hardwood features: vessels and rays (radial_growth_rule 'binary'; the fibers are packed around them)
+    vessel_fraction: float = 0.0             # area fraction of the vessels (0: no vessels, a softwood)
+    vessel_size: float = 0.05                # width of the vessel cells (mm)
+    vessel_arrangement: str = 'diffuse'      # diffuse (vessels over all the rings, like maple) or ring
+                                             # (ring-porous, like oak: vessels in the earlywood only)
+    vessel_zone: float = 0.5                 # ring-porous: inner fraction of the sparse (earlywood) part of a ring
+                                             # that holds the vessels
+    ray_spacing: Optional[float] = None      # spacing of the rays (radial files of cells) around the circumference (mm);
+                                             # None: no rays
+    ray_width: float = 0.02                  # width of the ray cells (mm, across the ray)
+    ray_cell_length: float = 0.08            # radial length of the ray cells (mm)
 
     # clipping box
     boundaryFlag: bool = True
@@ -147,6 +159,22 @@ class Config:
             raise ValueError("transition must be one of {}, not {!r}".format(', '.join(TRANSITIONS), self.transition))
         if not 0 < self.transition_width <= 1:
             raise ValueError("transition_width must be between 0 (excluded) and 1, not {!r}".format(self.transition_width))
+        if not 0 <= self.vessel_fraction < 1:
+            raise ValueError("vessel_fraction must be between 0 and 1 (excluded), not {!r}".format(self.vessel_fraction))
+        if self.vessel_size <= 0:
+            raise ValueError("vessel_size must be positive")
+        if self.vessel_arrangement not in VESSEL_ARRANGEMENTS:
+            raise ValueError("vessel_arrangement must be one of {}, not {!r}".format(', '.join(VESSEL_ARRANGEMENTS),
+                                                                                    self.vessel_arrangement))
+        if not 0 < self.vessel_zone <= 1:
+            raise ValueError("vessel_zone must be between 0 (excluded) and 1, not {!r}".format(self.vessel_zone))
+        for name in ['ray_spacing', 'ray_width', 'ray_cell_length']:
+            value = getattr(self, name)
+            if value is not None and value <= 0:
+                raise ValueError("{} must be positive".format(name))
+        if (self.vessel_fraction > 0 or self.ray_spacing is not None) and self.radial_growth_rule != 'binary':
+            raise ValueError("vessels (vessel_fraction) and rays (ray_spacing) are placed by the 'binary' growth rule only, "
+                             "not {!r}".format(self.radial_growth_rule))
         if self.fiber_length is not None and self.fiber_length <= 0:
             raise ValueError("fiber_length must be positive (or left out)")
         if self.fiber_length_cov < 0:

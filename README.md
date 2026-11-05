@@ -57,7 +57,7 @@ Since v2.1.0, the same lattice can also be reconstructed from a 3D image of a re
 The first step to generate a cellular geometry is selecting geometry and appropriate parameters. 
 
 ### 1.1. Geometry
-An input file in [TOML](https://toml.io) format, for example [`wood_cube.toml`](https://github.com/kingyin3613/ringspy/tree/main/examples/wood_cube.toml) in the [examples](https://github.com/kingyin3613/ringspy/tree/main/examples/) directory, holds the parameters for the generation of a cubic wood specimen. The other examples there are a wood specimen with more regular cells (`wood_cube_lloyd.toml`), a softwood with a gradual earlywood-latewood transition and rings that differ (`wood_gradual.toml`), honeycombs clipped by a hexagon or a triangle (`honeycomb_hex.toml`, `honeycomb_tri.toml`), a dog-bone tensile specimen clipped by a polygon (`dogbone.toml`), and a mesh of previously saved cells (`saved_sites.toml`). Copy the one closest to the wanted geometry and edit it.
+An input file in [TOML](https://toml.io) format, for example [`wood_cube.toml`](https://github.com/kingyin3613/ringspy/tree/main/examples/wood_cube.toml) in the [examples](https://github.com/kingyin3613/ringspy/tree/main/examples/) directory, holds the parameters for the generation of a cubic wood specimen. The other examples there are a wood specimen with more regular cells (`wood_cube_lloyd.toml`), a softwood with a gradual earlywood-latewood transition and rings that differ (`wood_gradual.toml`), a ring-porous and a diffuse-porous hardwood with vessels and rays (`hardwood_ring_porous.toml`, `hardwood_diffuse.toml`), honeycombs clipped by a hexagon or a triangle (`honeycomb_hex.toml`, `honeycomb_tri.toml`), a dog-bone tensile specimen clipped by a polygon (`dogbone.toml`), and a mesh of previously saved cells (`saved_sites.toml`). Copy the one closest to the wanted geometry and edit it.
 
 *Note: The Mesh Generation Tool accepts the pre-defined boundary geometries triangle, square and hexagon, and any simple polygon given by its vertices (`box_shape = "polygon"`); importing of CAD and/or other 3D model files will be implemented in subsequent versions.*
 
@@ -91,6 +91,15 @@ cellwallthickness_sparse = 0.006
 cellwallthickness_dense = 0.010
 transition = "abrupt"           # abrupt, linear or sigmoid: change from sparse to dense within a ring
 transition_width = 1.0          # fraction of the sparse part of a ring over which it changes (linear, sigmoid)
+
+# Hardwood features (see hardwood_ring_porous.toml): vessels and rays, placed before the fibers
+vessel_fraction = 0.0           # area fraction of the vessels (0: no vessels, a softwood)
+vessel_size = 0.05              # width of the vessel cells
+vessel_arrangement = "diffuse"  # diffuse (vessels over all rings) or ring (ring-porous: earlywood only)
+vessel_zone = 0.5               # ring-porous: inner fraction of the earlywood that holds the vessels
+# ray_spacing = 0.3             # spacing of the rays around the circumference (left out: no rays)
+ray_width = 0.02                # width of the ray cells
+ray_cell_length = 0.08          # radial length of the ray cells
 
 # Clipping box
 boundaryFlag = true
@@ -153,6 +162,14 @@ A parameter that is left out takes its default value, which is its value in `woo
 - `inpFlag` flag can be turned on/off for generating input files for numerical simulations.
 - `inpType` indicates the software(s) that the mesh generation should generate input files for.
 - `graphFlag` flag can be turned on/off for saving the 2D cell mesh as a graph (`geoName-graph.npz`, see section 5.2).
+- `vessel_fraction`, `vessel_size`, `vessel_arrangement`, `vessel_zone`, `ray_spacing`, `ray_width` and `ray_cell_length` add the vessels and rays of a hardwood (section 1.3).
+
+### 1.3. Hardwood features: vessels and rays
+A hardwood (with the `binary` growth rule) gets its vessels and rays before the fibers are packed around them, so that the fibers keep clear of them and the Voronoi cells of the vessel and ray sites come out with the asked sizes:
+- `vessel_fraction` is the fraction of the area that the vessels cover in the zone they are spread over; 0 (the default) places none. `vessel_size` is the width of the vessel cells (mm). With `vessel_arrangement = "diffuse"` the vessels are spread evenly over every growth ring (a diffuse-porous wood such as maple or birch); with `"ring"` they are in the inner fraction `vessel_zone` of the sparse (earlywood) part of every ring only, as the large earlywood vessels of a ring-porous wood such as oak or ash. The heart has no vessels.
+- `ray_spacing` places rays, radial files of cells, about that far apart around the circumference: rays start at the edge of the heart, and new rays start in between them wherever the spacing has grown to 1.5 times `ray_spacing`, so that the spacing stays between 0.75 and 1.5 times `ray_spacing` out to the outermost ring. The ray cells are `ray_cell_length` long (radially, with a random jitter) and `ray_width` wide; where `ray_width` is smaller than the fibers around the ray, the ray cells come out about as wide as the fibers, so choose `ray_cell_length` a few times the fiber size for visibly elongated ray cells.
+
+The cell type of every site is kept (`result.site_type`: 0 fiber, 1 vessel, 2 ray cell; `save_sites` also writes `geoName_types.npy`, which a `*_sites.npy` growth rule reads back), and the walls and vertices of the vessels and rays are labelled (`result.ridge_vessel`, `result.ridge_ray`, `result.vertex_vessel`, `result.vertex_ray`): the `.vtu` files carry the cell data `Vessel` and `Ray` next to `Ring` and `Dense`, the `.inp` file gets the element sets `VesselBeams`, `VesselTConns`, `VesselLConns` and `RayBeams`, `RayTConns`, `RayLConns` next to the ring sets (section 4.3), the graph file the node and edge features `vessel` and `ray`, and the report log a `HARDWOOD` section with the numbers of vessels, rays and ray cells placed. A wall between a vessel and a ray cell counts as a vessel wall. See [examples/hardwood_ring_porous.toml](./examples/hardwood_ring_porous.toml) and [examples/hardwood_diffuse.toml](./examples/hardwood_diffuse.toml); `fiber_length` (fibers of various lengths) works with them too.
 
 ![growth_rule_binary](<./contents/growth_rule_binary.png>)
 ### 2.1. Run Mesh Generation
@@ -218,7 +235,7 @@ The following files should be generated in the `.\meshes\geoName` directory with
 - (Optional) Graph file
     - The 2D cell mesh as a graph, in the layout of PyTorch Geometric: `wood_cube-graph.npz` (`graphFlag = true`, see section 5.2)
 
-The growth ring of every cell is written to the files: the `.vtu` files carry the cell data `Ring` (0 for the heart, then 1, 2, ...) and `Dense` (1 in the heart and in the dense part of a ring, 0 in the sparse part), the `.inp` file has an element set per ring (section 4.3), and the report log lists the radii of the rings. A beam and the wing quads around it take the ring of their vertex; a cell wall (and its transverse connectors) takes the ring of the vertex whose thickness it has, its second vertex; a longitudinal connector takes the ring of the wall of its wing, whose width it has. So the ring labels of the connectors always go with their `Connector_width`.
+The growth ring of every cell is written to the files: the `.vtu` files carry the cell data `Ring` (0 for the heart, then 1, 2, ...) and `Dense` (1 in the heart and in the dense part of a ring, 0 in the sparse part), the `.inp` file has an element set per ring (section 4.3), and the report log lists the radii of the rings. A hardwood's files also carry `Vessel` and `Ray` (section 1.3). A beam and the wing quads around it take the ring of their vertex; a cell wall (and its transverse connectors) takes the ring of the vertex whose thickness it has, its second vertex; a longitudinal connector takes the ring of the wall of its wing, whose width it has. So the ring labels of the connectors always go with their `Connector_width`.
 
 
 ![Model2DPreview](<./contents/Model2DPreview.png>)

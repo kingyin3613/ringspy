@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+Hardwood features: vessels, ring-porous or diffuse-porous, and rays.
+
+### New
+- Vessels and rays, placed before the fibers of the `binary` growth rule, which are packed around them (`MeshGenTools.CellPlacement_Hardwood`, `PlaceVessels`, `PlaceRays`). `vessel_fraction` (area fraction, 0: none) and `vessel_size` (width of the vessel cells) add vessels spread evenly over the rings (`vessel_arrangement = "diffuse"`, like maple) or in the inner fraction `vessel_zone` of the earlywood of every ring (`"ring"`, ring-porous like oak); the heart has none. `ray_spacing` adds rays, radial files of cells `ray_cell_length` long and `ray_width` wide, about `ray_spacing` apart around the circumference (new rays start as the circumference grows, keeping the spacing between 0.75 and 1.5 times `ray_spacing`). Examples `hardwood_ring_porous.toml` and `hardwood_diffuse.toml`.
+- The type of every cell site (0 fiber, 1 vessel, 2 ray, `MeshGenTools.CELL_TYPES`) and the walls and vertices of the vessels and rays (`MeshGenTools.CellTypeLabels`) are kept in the `Result` (`site_type`, `ridge_vessel`, `ridge_ray`, `vertex_vessel`, `vertex_ray`) and written to the files: the cell data `Vessel` and `Ray` of the `.vtu` files, the element sets `VesselBeams`/`VesselTConns`/`VesselLConns` and `RayBeams`/`RayTConns`/`RayLConns` of the `.inp` file, the node and edge features `vessel` and `ray` of the graph file (two new columns of `x` and `edge_attr`, zero for a softwood), and a `HARDWOOD` section of the report log. `save_sites` also writes `geoName_types.npy`, which a `*_sites.npy` growth rule reads back (`ReadSavedSites(..., with_types=True)`).
+- `pipeline.place_cells(config, rng, with_types=True)` also returns the cell types and the numbers of vessels, rays and ray cells. `CellPlacement_Binary` takes the ring radii (`radii=`, see the new `RingRadii`) and cells placed beforehand (`preplaced=`). `VisualizationFiles`, `lattice.write_vtu_files` and `AbaqusFile` take more labels (`extra_labels=`, `element_labels=`), `LogFile` a `hardwood=` section.
+
+### Changed
+- All files of a softwood are unchanged (checked byte for byte for all examples), apart from the two new feature columns of the graph file.
+
 ## v2.1.0
 
 Reconstruction of the lattice from a 3D image: `ringspy reconstruct` builds the grains and connectors of a specimen from a CT scan (or any stack of cross-sections) of its cells, following the fibers where they lean, wobble and twist.

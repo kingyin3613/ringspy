@@ -1,0 +1,52 @@
+# RingsPy example: diffuse-porous hardwood (maple-like) with vessels spread over the rings, and rays
+#
+#   ringspy run hardwood_diffuse.toml
+#
+# As hardwood_ring_porous.toml, with the vessels spread evenly over every ring (vessel_arrangement
+# "diffuse") and a smaller earlywood-latewood contrast. Lengths in mm.
+
+geoName = "hardwood_diffuse"
+path = "meshes"
+seed = 2026
+
+# Fibers and growth rings
+radial_growth_rule = "binary"
+iter_max = 500
+r_min = 0
+r_max = 4
+nrings = 4
+generation_center = [0, 0]
+cellsize_sparse = 0.015
+cellsize_dense = 0.012
+cellwallthickness_sparse = 0.006
+cellwallthickness_dense = 0.008
+
+# Vessels: diffuse-porous, 12% of the area of every ring
+vessel_fraction = 0.12
+vessel_size = 0.08
+vessel_arrangement = "diffuse"
+
+# Rays
+ray_spacing = 0.25
+ray_width = 0.02
+ray_cell_length = 0.06
+
+# Clipping box
+boundaryFlag = true
+box_shape = "square"
+box_center = [0, 0]
+box_size = 4.0
+
+# Longitudinal direction
+nsegments = 2
+theta_min = 0
+theta_max = 0.05
+z_min = 0
+z_max = 4.0
+
+merge_operation = true
+merge_tol = 0.01
+
+stlFlag = false
+inpFlag = true
+inpType = "Abaqus"
