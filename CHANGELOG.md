@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v2.2.0
 
 Hardwood features: vessels, ring-porous or diffuse-porous, and rays. Growth rings that are ellipses, wider on one side (an eccentric pith, as in reaction wood) or wavy. A taper of the specimen and a spiral grain that changes from the pith outwards. Statistics of the cells, walls and rings. Clipping outlines read from SVG and DXF drawings. STL files without VTK. A quick 2D preview.
 
@@ -16,7 +16,7 @@ Hardwood features: vessels, ring-porous or diffuse-porous, and rays. Growth ring
 - `pipeline.place_cells(config, rng, with_types=True)` also returns the cell types and the numbers of vessels, rays and ray cells. `CellPlacement_Binary` takes the ring radii (`radii=`, see the new `RingRadii`) and cells placed beforehand (`preplaced=`). `VisualizationFiles`, `lattice.write_vtu_files` and `AbaqusFile` take more labels (`extra_labels=`, `element_labels=`), `LogFile` a `hardwood=` section.
 
 ### Changed
-- All files of a softwood are unchanged (checked byte for byte for all examples), apart from the two new feature columns of the graph file.
+- All files of a softwood are unchanged (checked byte for byte for all examples), apart from the two new feature columns of the graph file and the STL files, which hold the same triangles written by NumPy instead of VTK.
 
 ## v2.1.0
 
