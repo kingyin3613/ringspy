@@ -61,5 +61,13 @@ def assert_same_files(dir_a, dir_b, ignore_ring_labels=False):
             assert not labels_a and labels_b == name.endswith((".vtu", ".inp", "-report.log")), name
         if name.endswith("-report.log"):
             assert without_timing(data_a.decode()) == without_timing(data_b.decode()), name
+        elif name.endswith(".stl") and data_a != data_b:
+            # the same triangles: an STL made from the ASCII .vtu file (9 significant digits) differs in the last
+            # bits of its float32 vertices from one made from the exact coordinates
+            import numpy as np
+            record = np.dtype([("normal", "<f4", 3), ("vertices", "<f4", (3, 3)), ("attribute", "<u2")])
+            ta, tb = np.frombuffer(data_a[84:], dtype=record), np.frombuffer(data_b[84:], dtype=record)
+            assert len(ta) == len(tb), name
+            np.testing.assert_allclose(ta["vertices"], tb["vertices"], rtol=1e-6, atol=1e-6, err_msg=name)
         else:
             assert data_a == data_b, name

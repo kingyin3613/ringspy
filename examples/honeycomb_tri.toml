@@ -54,7 +54,7 @@ precrack_widths = 0.1
 # precrack_nodes = [[x1, y1, x2, y2], ...]  (left out: a horizontal line from near the left edge of the box)
 
 # Output files
-stlFlag = true                  # 3D model (needs vtk: pip install "ringspy[vtk]")
+stlFlag = true                  # 3D model (binary STL of the connector volumes)
 inpFlag = true                  # input file for simulations
 inpType = "Abaqus"
 save_sites = false              # also save honeycomb_tri_sites.npy and honeycomb_tri_radii.npy, to reuse the cells later

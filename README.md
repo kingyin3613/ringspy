@@ -12,13 +12,13 @@
 RingsPy is a Voronoi diagrams-based geometric generation tool that generates 3D meshes and models of prismatic cellular solids with radial growth rules.
 
 ## Dependencies and Installation
-RingsPy needs Python 3.10 or newer and depends on mainstream Python libraries ``numpy``, ``scipy`` and ``matplotlib``. It optionally depends on library ``hexalattice``, if a regular hexagonal lattice (e.g. honeycomb) is wanted, and on ``vtk``, if the 3D model (STL) files are also wanted.
+RingsPy needs Python 3.10 or newer and depends on mainstream Python libraries ``numpy``, ``scipy`` and ``matplotlib``. It optionally depends on library ``hexalattice``, if a regular hexagonal lattice (e.g. honeycomb) is wanted, and on ``tifffile``, to read `.tif` stacks for the reconstruction. The 3D model (STL) files need nothing more (``vtk`` is no longer used).
 ### 1. pip install
 To install RingsPy with all optional features, one may use `pip`:
 ```bash
 pip install "ringspy[all]"
 ``` 
-`pip install ringspy` installs the core package only; add the extras `[vtk]` (STL export), `[hex]` (`regular_hexagonal` growth rule) or `[image]` (`.tif` stacks for `ringspy reconstruct`) as needed. One may also use:
+`pip install ringspy` installs the core package only; add the extras `[hex]` (`regular_hexagonal` growth rule) or `[image]` (`.tif` stacks for the reconstruction) as needed. One may also use:
 ```bash
 pip install "ringspy[all] @ git+https://github.com/kingyin3613/ringspy.git"
 ``` 
@@ -137,7 +137,7 @@ precrackFlag = false
 precrack_widths = 0.1
 
 # Output files
-stlFlag = true                  # 3D model (needs vtk: pip install "ringspy[vtk]")
+stlFlag = true                  # 3D model (binary STL of the connector volumes)
 inpFlag = true                  # input file for simulations
 inpType = "Abaqus"
 save_sites = false              # also save wood_cube_sites.npy and wood_cube_radii.npy, to reuse the cells later
@@ -171,7 +171,7 @@ A parameter that is left out takes its default value, which is its value in `woo
 - `skeleton_density` is the density of the skeleton (substance) material, e.g. density of wood cell walls in the wood microstructure. 
 - `merge_operation` flag can be turned on/off for the merging operation, when flag is on, cell ridges that are shorter than the threshold `merge_tol` in the 2D mesh will be deleted, and their vertices will be merged respectively, the mesh will be reconstructed. This is designed for eliminating small cell ridges/walls which fall out of the resolution range of the 3D printing and for avoiding having elements with too small stable time increments in numerical simulations. 
 - `precrackFlag` flag is for inserting pre-cracks, for the notched specimens. `precrack_nodes = [[x1, y1, x2, y2], ...]` gives the line segments of the cracks; when it is left out, a horizontal crack of length `0.1*box_size` through `box_center`, starting `0.12*box_size` from the left side of the box, is inserted. `precrack_widths` is the width of the cracks.
-- `stlFlag` flag can be turned on/off for generating 3D STL files.
+- `stlFlag` flag can be turned on/off for generating 3D STL files: the outer surface of the connector volumes (the faces shared by the two halves of a connector left out), as triangles with outward normals, written with NumPy alone (`MeshGenTools.HexahedraSurface`, `WriteStl`; `StlModelFile` also reads a `geoName_conns_vol.vtu` file written by RingsPy, ASCII or binary, through `ReadVtuCells`).
 - `inpFlag` flag can be turned on/off for generating input files for numerical simulations.
 - `inpType` indicates the software(s) that the mesh generation should generate input files for.
 - `graphFlag` flag can be turned on/off for saving the 2D cell mesh as a graph (`geoName-graph.npz`, see section 5.2).

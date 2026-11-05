@@ -289,7 +289,7 @@ def _generate(c):
 
     # ==================================================================
     # Generate Paraview visulization files
-    rpgen.VisualizationFiles(geoName, NURBS_DEGREE, nlayers, npt_per_layer_vtk, all_pts_2D,
+    volumes = rpgen.VisualizationFiles(geoName, NURBS_DEGREE, nlayers, npt_per_layer_vtk, all_pts_2D,
                              segment_length, theta, z_coord, c.nsegments, nridge,
                              voronoi_ridges, c.generation_center, all_ridges, nvertex, nconnector_t,
                              nconnector_l, nctrlpt_per_beam, ConnMeshData, conn_l_tangents,
@@ -306,7 +306,7 @@ def _generate(c):
     # ==================================================================
     # Generate 3D model files
     if c.stlFlag:
-        rpgen.StlModelFile(geoName, path=path)
+        rpgen.StlModelFile(geoName, path=path, **volumes)
 
     # ==================================================================
     # Generate input files for numerical simulations (Config checks that inpType is Abaqus)
@@ -477,11 +477,11 @@ def _generate_fibers(c, rng, output_dir, fig, sites, radii, nParticles, x_min, x
                         polygon=box_corners if c.box_shape in rpgen.POLYGON_SHAPES else None)
     rplat.write_iga_file(geoName, lat, path=path)
     wing_ridge = flattened_all_vertices_2D[0, :].astype(int)
-    rplat.write_vtu_files(geoName, lat, layer_points, all_ridges, nvertex, path=path, vertex_band=vertex_band,
-                          ridge_band=ridge_band, extra_labels=extra_labels)
+    volumes = rplat.write_vtu_files(geoName, lat, layer_points, all_ridges, nvertex, path=path, vertex_band=vertex_band,
+                                    ridge_band=ridge_band, extra_labels=extra_labels)
     fig.savefig(Path(output_dir, geoName + '.png'))
     if c.stlFlag:
-        rpgen.StlModelFile(geoName, path=path)
+        rpgen.StlModelFile(geoName, path=path, **volumes)
     if c.inpFlag:
         rpgen.AbaqusFile(geoName, NURBS_DEGREE, lat.npatch, lat.nodes, lat.beam_connectivity,
                          lat.connector_t_bot, lat.connector_t_reg, lat.connector_t_top, lat.connector_l, nbeamElem,

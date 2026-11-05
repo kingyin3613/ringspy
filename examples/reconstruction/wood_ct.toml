@@ -49,7 +49,7 @@ fiber_ends = "image"            # where the fibers of the grains end: image (whe
 skeleton_density = 1.5e-9       # unit: tonne/mm3
 
 # Output files
-stlFlag = true                  # 3D model (needs vtk: pip install "ringspy[vtk]")
+stlFlag = true                  # 3D model (binary STL of the connector volumes)
 inpFlag = true                  # input file for simulations
 inpType = "Abaqus"
 vtk_format = "ascii"            # ascii or binary .vtu files (binary: smaller, faster)
