@@ -2459,6 +2459,97 @@ def insert_precracks(all_pts_2D,all_ridges,nridge,npt_per_layer,\
     return precracked_elem, nconnector_t_precrack, nconnector_l_precrack
         
         
+def GrainAngle(radii,grain_angle):
+    """
+    The spiral grain angle as a function of the ring coordinate (the distance to the pith for
+    circular rings): alpha(rho), the inclination (radians) of the fibers to the stem axis, in
+    the sense of a positive twist theta_max. grain_angle is one angle for all the growth rings,
+    or a list with one angle per ring, taken at the middle of each ring and interpolated
+    linearly in between; the angle is 0 at the pith and rises linearly through the heart to the
+    first ring, and stays constant beyond the middle of the last ring.
+    """
+    radii = np.asarray(radii,dtype=float)
+    nrings = max((len(radii) - 2)//2,1)
+    angles = np.asarray(grain_angle,dtype=float).reshape(-1)
+    if len(angles) == 1:
+        angles = np.full(nrings,angles[0])
+    if len(angles) != nrings:
+        raise ValueError('grain_angle must be one angle or one per growth ring ({:d}), not {:d} angles'.format(nrings,len(angles)))
+    if np.any(np.abs(angles) >= math.pi/2):
+        raise ValueError('grain angles must be between -pi/2 and pi/2 (radians)')
+    mid = (radii[1:-1:2] + radii[3::2])/2 if len(radii) >= 4 else radii[1:2] # middle of every growth ring
+    knots = np.concatenate(([0.0],mid[:nrings]))
+    values = np.concatenate(([0.0],angles))
+    def alpha(rho):
+        return np.interp(np.asarray(rho,dtype=float),knots,values)
+    alpha.knots = knots
+    alpha.values = values
+    return alpha
+
+
+def ExtrudeLayers(points,theta,z,generation_center,z_range=None,stem_taper=0.0,grain_angle=None,radii=None,shape=None):
+    """
+    In-plane coordinates of 2D points in every layer of the extrusion, shape (len(z), len(points), 2):
+    the points rotated around generation_center by the twist angle theta of each layer (as
+    _rotate_layers), plus a taper and a spiral grain:
+
+    stem_taper :: the cross-section at the top (z_range[1]) is (1 + stem_taper) times the one at the
+        bottom (z_range[0]), scaled about generation_center linearly in z: a conical specimen
+    grain_angle :: the spiral grain angle(s), see GrainAngle(radii, grain_angle): a point at the
+        distance r from the center turns by tan(alpha(rho))*(z - z_range[0])/r more than the twist
+        theta, so the fibers lean by alpha to the stem axis in the tangential direction; rho is
+        the ring coordinate of the point (shape, see RingShape; its distance to the center for
+        circular rings) and radii are the ring radii
+
+    Without a taper and a grain angle, the layers are exactly those of _rotate_layers.
+    """
+    points = np.asarray(points,dtype=float)
+    theta = np.asarray(theta,dtype=float)
+    z = np.asarray(z,dtype=float)
+    if stem_taper == 0 and grain_angle is None:
+        return _rotate_layers(points,theta,z,generation_center)[:,:,0:2]
+    if z_range is None:
+        z_range = (float(z.min()),float(z.max()))
+    z_min, z_max = z_range
+    d = points - np.asarray(generation_center,dtype=float)
+    r = np.linalg.norm(d,axis=1)
+    if grain_angle is not None:
+        if radii is None:
+            raise ValueError('grain_angle needs the ring radii')
+        alpha = GrainAngle(radii,grain_angle)
+        rho = shape.rho(points) if (shape is not None and not shape.circular) else r
+        twist_rate = np.tan(alpha(rho))/np.maximum(r,1e-12) # extra rotation per unit height, finite at the pith
+    else:
+        twist_rate = np.zeros(len(points))
+    layers = np.empty((len(z),len(points),2))
+    for i in range(len(z)):
+        angle = theta[i] + twist_rate*(z[i] - z_min)
+        scale = 1.0 + stem_taper*(z[i] - z_min)/(z_max - z_min) if z_max > z_min else 1.0
+        cos, sin = np.cos(angle), np.sin(angle)
+        layers[i,:,0] = generation_center[0] + scale*(cos*d[:,0] + sin*d[:,1])
+        layers[i,:,1] = generation_center[1] + scale*(-sin*d[:,0] + cos*d[:,1])
+    return layers
+
+
+def ConnectorTangents(IGAvertices,connectivity,npt_per_layer,nctrlpt_per_beam):
+    """
+    Unit tangents (along the grains) of the transverse connectors with the given 1-based node
+    pairs: the mean of the directions of the two grains at their nodes (between the neighbouring
+    control points of the same segment), for VisualizationFiles(connector_t_tangents=...) when the
+    grains lean (spiral grain, a taper, fibers followed through an image).
+    """
+    nodes = np.asarray(connectivity,dtype=int) - 1
+    layer = nodes // npt_per_layer
+    grain = nodes % npt_per_layer
+    first = (layer // nctrlpt_per_beam)*nctrlpt_per_beam
+    lo = np.maximum(layer - 1,first)
+    hi = np.minimum(layer + 1,first + nctrlpt_per_beam - 1)
+    t = (IGAvertices[hi*npt_per_layer + grain] - IGAvertices[lo*npt_per_layer + grain]).sum(axis=1)
+    norm = np.linalg.norm(t,axis=1,keepdims=True)
+    norm[norm == 0] = 1.0
+    return t/norm
+
+
 def _rotate_layers(points,theta,z,origin):
     """
     2D points rotated around origin by each angle in theta, with z coordinates z:
@@ -3711,7 +3802,8 @@ def LogFile(geoName,iter_max,r_min,r_max,nrings,width_heart,width_sparse,width_d
         nParticles,nbeamElem,skeleton_density,mass,volume,density,porosity,\
         stlFlag,inpFlag,inpType,radial_growth_rule,\
         startTime,placementTime,voronoiTime,RebuildvorTime,BeamTime,FileTime,path='meshes',seed=None,box_polygon=None,\
-        transition=None,transition_width=None,radii=None,graphFlag=False,fibers=None,hardwood=None,ring_shape=None):
+        transition=None,transition_width=None,radii=None,graphFlag=False,fibers=None,hardwood=None,ring_shape=None,\
+        extrusion=None):
 
     """Generate the log file (geoName.log file) for the generation procedure.
 
@@ -3799,6 +3891,9 @@ def LogFile(geoName,iter_max,r_min,r_max,nrings,width_heart,width_sparse,width_d
     logfile.write('theta_min:                               ' + str(theta_min) + '\n')
     logfile.write('theta_max:                               ' + str(theta_max) + '\n')
     logfile.write('long_connector_ratio:                    ' + str(long_connector_ratio) + '\n')
+    if extrusion is not None: # taper and spiral grain (see ExtrudeLayers)
+        for key, value in extrusion.items():
+            logfile.write('{:<41s}'.format(key + ':') + str(value) + '\n')
     logfile.write('NURBS_degree:                            ' + str(NURBS_degree) + '\n')
     logfile.write('nctrlpt_per_beam:                        ' + str(nctrlpt_per_beam) + '\n')
     if fibers is not None:

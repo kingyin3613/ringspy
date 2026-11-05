@@ -102,6 +102,11 @@ class Config:
     z_min: float = 0
     z_max: Optional[float] = None            # default box_size (polygon: z_min + its largest width)
     long_connector_ratio: float = 0.02
+    stem_taper: float = 0.0                  # the cross-section at z_max is (1 + stem_taper) times the one at z_min,
+                                             # scaled about generation_center (a conical specimen; 0: prismatic)
+    grain_angle: Union[None, float, List[float]] = None  # spiral grain: the angle (radians) of the fibers to the stem
+                                             # axis, one for all rings or one per growth ring (0 at the pith, linear
+                                             # in between), on top of the twist theta_min..theta_max; None: none
     fiber_length: Optional[float] = None     # mean length (mm) of the fibers of a grain, which then end at different
                                              # heights (longitudinal connectors not on common planes);
                                              # None: all grains cut into the same nsegments segments
@@ -194,6 +199,15 @@ class Config:
                              "not {!r}".format(self.radial_growth_rule))
         if self.fiber_length is not None and self.fiber_length <= 0:
             raise ValueError("fiber_length must be positive (or left out)")
+        if self.stem_taper <= -1:
+            raise ValueError("stem_taper must be larger than -1 (the top cross-section is 1 + stem_taper times the bottom one)")
+        if self.grain_angle is not None:
+            angles = self.grain_angle if isinstance(self.grain_angle, list) else [self.grain_angle]
+            if isinstance(self.grain_angle, list) and len(angles) != self.nrings:
+                raise ValueError("grain_angle must be one angle or a list with one angle per growth ring ({} values), not {!r}"
+                                 .format(self.nrings, self.grain_angle))
+            if any(abs(a) >= 1.5707963 for a in angles):
+                raise ValueError("grain_angle must be between -pi/2 and pi/2 (radians), not {!r}".format(self.grain_angle))
         if self.fiber_length_cov < 0:
             raise ValueError("fiber_length_cov must not be negative")
         if self.taper_length is not None and self.taper_length <= 0:

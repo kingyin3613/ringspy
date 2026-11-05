@@ -210,7 +210,17 @@ def _generate(c):
                                 hardwood_log)
 
     # ==================================================================
-    # Extrude in the parallel-to-grain (longitudinal) direction
+    # Extrude in the parallel-to-grain (longitudinal) direction: a rigid twist by theta, or, with a taper or a
+    # spiral grain, the vertices of every layer from ExtrudeLayers (the layers are then given to the writers)
+    extruded = c.stem_taper != 0 or c.grain_angle is not None
+    layer_vertices = layer_points = None
+    if extruded:
+        theta_layers, z_layers, nlayers_, _ = rpgen.LayerHeights(NURBS_DEGREE, c.nsegments, c.theta_min, c.theta_max,
+                                                                 c.z_min, c.z_max, c.long_connector_ratio)
+        layer_vertices = rpgen.ExtrudeLayers(voronoi_vertices[0:npt_per_layer], theta_layers[0:nlayers_],
+                                             z_layers[0:nlayers_], c.generation_center, (c.z_min, c.z_max),
+                                             c.stem_taper, c.grain_angle, radii, shape)
+        layer_points = rpgen.LayerPoints(layer_vertices, all_ridges, npt_per_layer_vtk)
     [IGAvertices, vertex_connectivity, beam_connectivity_original, nbeam_total,
      beam_connectivity, nbeamElem, nctrlpt_per_beam, nlayers, segment_length, connector_t_connectivity,
      connector_t_bot_connectivity, connector_t_top_connectivity,
@@ -220,7 +230,9 @@ def _generate(c):
         rpgen.GenerateBeamElement(NURBS_DEGREE, c.nsegments, c.theta_min, c.theta_max, c.z_min, c.z_max,
                                   c.long_connector_ratio, npt_per_layer, voronoi_vertices,
                                   nvertex, voronoi_ridges, nridge, c.generation_center,
-                                  all_vertices_2D, max_wings, flattened_all_vertices_2D, all_ridges)
+                                  all_vertices_2D, max_wings, flattened_all_vertices_2D, all_ridges,
+                                  layer_vertices=layer_vertices)
+    extrusion_log = {'stem_taper': c.stem_taper, 'grain_angle': c.grain_angle} if extruded else None
 
     BeamTime = time.time()
     print('{:d} beam elements generated in {:.3f} seconds'.format(nbeamElem, (BeamTime - RebuildvorTime)))
@@ -247,7 +259,8 @@ def _generate(c):
                                 connector_t_reg_connectivity, connector_t_top_connectivity,
                                 connector_l_connectivity, all_vertices_2D,
                                 max_wings, flattened_all_vertices_2D, c.nsegments, segment_length,
-                                nctrlpt_per_beam, theta, nridge, connector_l_vertex_dict, path=path)
+                                nctrlpt_per_beam, theta, nridge, connector_l_vertex_dict, path=path,
+                                layer_vertices=layer_vertices)
 
     # ==================================================================
     # Calculate model properties
@@ -269,7 +282,12 @@ def _generate(c):
                              voronoi_ridges, c.generation_center, all_ridges, nvertex, nconnector_t,
                              nconnector_l, nctrlpt_per_beam, ConnMeshData, conn_l_tangents,
                              all_vertices_2D, max_wings, flattened_all_vertices_2D, path=path,
-                             vertex_band=vertex_band, ridge_band=ridge_band, extra_labels=extra_labels)
+                             vertex_band=vertex_band, ridge_band=ridge_band, extra_labels=extra_labels,
+                             layer_points=layer_points,
+                             connector_t_tangents=rpgen.ConnectorTangents(
+                                 IGAvertices, np.vstack((connector_t_bot_connectivity, connector_t_reg_connectivity,
+                                                         connector_t_top_connectivity)), npt_per_layer, nctrlpt_per_beam)
+                             if extruded else None)
 
     fig.savefig(Path(output_dir, geoName + '.png'))
 
@@ -326,7 +344,7 @@ def _generate(c):
                   startTime, placementTime, voronoiTime, RebuildvorTime, BeamTime, FileTime,
                   path=path, seed=c.seed, box_polygon=c.box_polygon,
                   transition=c.transition, transition_width=c.transition_width, radii=radii, graphFlag=c.graphFlag,
-                  hardwood=hardwood_log, ring_shape=shape)
+                  hardwood=hardwood_log, ring_shape=shape, extrusion=extrusion_log)
 
     result.files = sorted(output_dir.iterdir())
     return result
@@ -404,8 +422,12 @@ def _generate_fibers(c, rng, output_dir, fig, sites, radii, nParticles, x_min, x
     cells = sorted(set().union(*vertex_cells))
     cell_ends = rplat.cell_end_heights(cells, c.z_min, c.z_max, c.fiber_length, c.fiber_length_cov, rng=rng)
     fiber_ends = rplat.grain_ends_from_cells(vertex_cells, cell_ends, c.z_min, h, nelem)
-    # the vertices on every half-layer: twisted, and drawn in toward the cells tapering to their ends
-    vertex_layers = rpgen._rotate_layers(all_pts_2D[:nvertex], theta_half, z_half, c.generation_center)[:, :, 0:2]
+    # the vertices on every half-layer: twisted (and tapered, with a spiral grain), and drawn in toward the cells
+    # tapering to their ends
+    vertex_layers = rpgen.ExtrudeLayers(all_pts_2D[:nvertex], theta_half, z_half, c.generation_center,
+                                        (c.z_min, c.z_max), c.stem_taper, c.grain_angle, radii, cell_labels['ring_shape'])
+    extrusion_log = {'stem_taper': c.stem_taper, 'grain_angle': c.grain_angle} \
+        if (c.stem_taper != 0 or c.grain_angle is not None) else None
     vertex_layers = rplat.taper_vertices(vertex_layers, z_half, vertex_cells, cell_ends, c.taper_length, c.taper_ratio,
                                          kind=kind, boundaries=boundaries)
     layer_points = rpgen.LayerPoints(vertex_layers, all_ridges, npt_per_layer_vtk)
@@ -482,7 +504,7 @@ def _generate_fibers(c, rng, output_dir, fig, sites, radii, nParticles, x_min, x
                   startTime, placementTime, voronoiTime, RebuildvorTime, BeamTime, FileTime,
                   path=path, seed=c.seed, box_polygon=c.box_polygon,
                   transition=c.transition, transition_width=c.transition_width, radii=radii, graphFlag=c.graphFlag,
-                  fibers=fibers, hardwood=hardwood_log, ring_shape=cell_labels['ring_shape'])
+                  fibers=fibers, hardwood=hardwood_log, ring_shape=cell_labels['ring_shape'], extrusion=extrusion_log)
     result.files = sorted(output_dir.iterdir())
     return result
 

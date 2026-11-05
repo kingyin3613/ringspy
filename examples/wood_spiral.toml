@@ -1,0 +1,45 @@
+# RingsPy example: a tapered stem section with spiral grain that changes from the pith outwards
+#
+#   ringspy run wood_spiral.toml
+#
+# Lengths in mm, angles in radians. Parameters left out take their default values (those of wood_cube.toml).
+
+geoName = "wood_spiral"
+path = "meshes"
+seed = 2023
+
+# Cell placement and growth rings
+radial_growth_rule = "binary"
+iter_max = 500
+r_min = 0
+r_max = 4
+nrings = 4
+generation_center = [0, 0]
+cellsize_sparse = 0.02
+cellsize_dense = 0.01
+cellwallthickness_sparse = 0.006
+cellwallthickness_dense = 0.010
+
+# Clipping box
+boundaryFlag = true
+box_shape = "square"
+box_center = [0, 0]
+box_size = 4.0
+
+# Longitudinal direction: a conical section with spiral grain
+nsegments = 4                   # more segments for a smoother twist
+theta_min = 0                   # rigid twist of the whole cross-section (as before) ...
+theta_max = 0.0
+z_min = 0
+z_max = 4.0
+stem_taper = -0.1               # the top cross-section is 0.9 times the bottom one (scaled about generation_center)
+grain_angle = [0.02, 0.06, 0.08, 0.05]  # ... plus the spiral grain: fiber angle to the stem axis per growth ring
+                                # (0 at the pith, interpolated between the rings)
+long_connector_ratio = 0.02
+
+merge_operation = true
+merge_tol = 0.01
+
+stlFlag = false
+inpFlag = true
+inpType = "Abaqus"
