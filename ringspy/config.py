@@ -65,6 +65,16 @@ class Config:
                                              # from the sparse part of a ring to its dense part
     transition_width: float = 1.0            # fraction of the sparse part over which they change (linear, sigmoid)
 
+    # shape of the growth rings (all rings share it, scaled from the generation center): circles by default
+    ring_ellipticity: float = 1.0            # ratio of the long to the short axis of the rings (1: circles)
+    ring_ellipse_angle: float = 0.0          # direction of the long axis (radians from the x axis)
+    ring_eccentricity: float = 0.0           # the rings are (1 + this) times wider towards ring_eccentricity_angle and
+                                             # (1 - this) times opposite, as in reaction wood (0: concentric rings)
+    ring_eccentricity_angle: float = 0.0     # direction (radians) of the wide side
+    ring_waviness: float = 0.0               # amplitude of a wavy ring outline (fraction of the radius, 0: none)
+    ring_wave_order: int = 3                 # number of crests of the waves around the circumference
+    ring_wave_phase: float = 0.0             # angle (radians) of the first crest
+
     # hardwood features: vessels and rays (radial_growth_rule 'binary'; the fibers are packed around them)
     vessel_fraction: float = 0.0             # area fraction of the vessels (0: no vessels, a softwood)
     vessel_size: float = 0.05                # width of the vessel cells (mm)
@@ -172,6 +182,13 @@ class Config:
             value = getattr(self, name)
             if value is not None and value <= 0:
                 raise ValueError("{} must be positive".format(name))
+        if self.ring_ellipticity < 1:
+            raise ValueError("ring_ellipticity must be at least 1 (the ratio of the long to the short axis), not {!r}"
+                             .format(self.ring_ellipticity))
+        if self.ring_eccentricity < 0 or self.ring_waviness < 0 or self.ring_eccentricity + self.ring_waviness >= 1:
+            raise ValueError("ring_eccentricity and ring_waviness must not be negative and must add up to less than 1")
+        if self.ring_wave_order < 1:
+            raise ValueError("ring_wave_order must be at least 1")
         if (self.vessel_fraction > 0 or self.ray_spacing is not None) and self.radial_growth_rule != 'binary':
             raise ValueError("vessels (vessel_fraction) and rays (ray_spacing) are placed by the 'binary' growth rule only, "
                              "not {!r}".format(self.radial_growth_rule))
@@ -183,6 +200,12 @@ class Config:
             raise ValueError("taper_length must be positive (or left out)")
         if not 0 <= self.taper_ratio <= 1:
             raise ValueError("taper_ratio must be between 0 and 1")
+
+    def ring_shape(self):
+        """The shape of the growth rings (MeshGenTools.RingShape) around generation_center"""
+        from .MeshGenTools import RingShape
+        return RingShape(self.generation_center, self.ring_ellipticity, self.ring_ellipse_angle, self.ring_eccentricity,
+                         self.ring_eccentricity_angle, self.ring_waviness, self.ring_wave_order, self.ring_wave_phase)
 
     def resolved(self):
         """Copy with the parameters left at None (ring widths, z_max) replaced by their default values"""

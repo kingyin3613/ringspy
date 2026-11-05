@@ -114,7 +114,7 @@ def _resolve_geometry(geometry, rng):
     x_min, x_max, y_min, y_max, *_ = rpgen.Clipping_Box(c.box_shape, c.box_center, c.box_size, c.boundaryFlag,
                                                         polygon=c.box_polygon)
     # the wall thickness rule of VertexandRidgeinfo, applied to the cells: the thickness of the growth rings
-    distance = np.linalg.norm(sites[:, 0:2] - np.asarray(c.generation_center, dtype=float), axis=1)
+    distance = c.ring_shape().rho(sites[:, 0:2])  # the ring coordinate: the distance to the center for circular rings
     profile = rpgen.RingProfile(radii, c.cellwallthickness_sparse, c.cellwallthickness_dense, c.transition,
                                 c.transition_width)
     thickness = np.array(profile(distance), dtype=float).reshape(-1)

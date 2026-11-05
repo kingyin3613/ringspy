@@ -23,7 +23,7 @@ examples = pytest.mark.parametrize("toml", EXAMPLES, ids=[p.stem for p in EXAMPL
 def test_examples_found():
     assert {p.stem for p in EXAMPLES} >= {"wood_cube", "wood_cube_lloyd", "honeycomb_hex", "honeycomb_tri",
                                           "saved_sites", "dogbone", "wood_gradual", "hardwood_ring_porous",
-                                          "hardwood_diffuse"}
+                                          "hardwood_diffuse", "wood_eccentric"}
 
 
 @pytest.fixture(scope="module")

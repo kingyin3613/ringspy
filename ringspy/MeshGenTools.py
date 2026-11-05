@@ -383,14 +383,120 @@ def find_centroid(vertices,omega):
     return np.array([[centroid_x, centroid_y]])
 
 
-def RingBands(points,radii,generation_center):
+class RingShape:
+    """
+    The shape of the growth rings: circles around the generation center by default, or ellipses,
+    rings wider on one side (an eccentric pith, as in reaction wood) and wavy rings. All the rings
+    share the shape, scaled from the generation center: the ring coordinate rho(point) equals the
+    ring radius (see RingRadii) on every ring boundary, so that the growth rings are the bands
+    radii[k] <= rho < radii[k+1], and the cells, the wall thickness profile and the ring labels
+    all work in rho. Points are mapped back with point(rho, theta).
+
+    ellipticity :: ratio of the long to the short axis of the rings (>= 1; 1: circles), the long
+        axis at the angle ellipse_angle (radians from the x axis) and as long as the ring radius
+    eccentricity, eccentricity_angle :: the rings are (1 + eccentricity) times their radius wide
+        in the direction eccentricity_angle and (1 - eccentricity) times in the opposite one,
+        shifting the rings off the pith progressively (0: concentric)
+    waviness, wave_order, wave_phase :: a wavy outline, wave_order crests around the circumference
+        of amplitude waviness (fraction of the radius), the first crest at the angle wave_phase
+
+    radius = rho * scale(theta), with scale(theta) = (1 + eccentricity*cos(theta - eccentricity_angle)
+    + waviness*cos(wave_order*theta - wave_phase)) / sqrt(cos(a)^2 + ellipticity^2*sin(a)^2),
+    a = theta - ellipse_angle.
+    """
+    def __init__(self,generation_center=(0.0,0.0),ellipticity=1.0,ellipse_angle=0.0,eccentricity=0.0,
+                 eccentricity_angle=0.0,waviness=0.0,wave_order=3,wave_phase=0.0):
+        if ellipticity < 1:
+            raise ValueError('ellipticity must be at least 1 (the ratio of the long to the short axis)')
+        if eccentricity < 0 or waviness < 0 or eccentricity + waviness >= 1:
+            raise ValueError('eccentricity and waviness must not be negative and must add up to less than 1')
+        if int(wave_order) != wave_order or wave_order < 1:
+            raise ValueError('wave_order must be a positive integer')
+        self.generation_center = (float(generation_center[0]),float(generation_center[1]))
+        self.ellipticity = float(ellipticity)
+        self.ellipse_angle = float(ellipse_angle)
+        self.eccentricity = float(eccentricity)
+        self.eccentricity_angle = float(eccentricity_angle)
+        self.waviness = float(waviness)
+        self.wave_order = int(wave_order)
+        self.wave_phase = float(wave_phase)
+        self.circular = self.ellipticity == 1.0 and self.eccentricity == 0.0 and self.waviness == 0.0
+        theta = np.linspace(0,2*np.pi,3601)
+        s = self.scale(theta)
+        self.scale_max = float(s.max())
+        self.scale_min = float(s.min())
+        speed = np.sqrt(s**2 + np.gradient(s,theta)**2) # of the curve rho = 1, in polar coordinates
+        self.unit_circumference = float(np.sum((speed[1:] + speed[:-1])/2*np.diff(theta))) # trapezoid rule
+
+    def __repr__(self):
+        return ('RingShape(generation_center={}, ellipticity={}, ellipse_angle={}, eccentricity={}, eccentricity_angle={}, '
+                'waviness={}, wave_order={}, wave_phase={})'.format(self.generation_center,self.ellipticity,self.ellipse_angle,
+                self.eccentricity,self.eccentricity_angle,self.waviness,self.wave_order,self.wave_phase))
+
+    def centered(self,generation_center):
+        """The same shape around another generation center"""
+        return RingShape(generation_center,self.ellipticity,self.ellipse_angle,self.eccentricity,self.eccentricity_angle,
+                         self.waviness,self.wave_order,self.wave_phase)
+
+    def scale(self,theta):
+        """radius / rho in the direction theta (radians from the x axis; a number or an array)"""
+        theta = np.asarray(theta,dtype=float)
+        if self.circular:
+            return np.ones(theta.shape)
+        a = theta - self.ellipse_angle
+        ellipse = 1/np.sqrt(np.cos(a)**2 + (self.ellipticity*np.sin(a))**2)
+        return ellipse*(1 + self.eccentricity*np.cos(theta - self.eccentricity_angle)
+                        + self.waviness*np.cos(self.wave_order*theta - self.wave_phase))
+
+    def rho(self,points):
+        """Ring coordinate of 2D points (shape (..., 2)): their distance to the generation center for circles"""
+        points = np.asarray(points,dtype=float)
+        d = points - self.generation_center
+        r = np.linalg.norm(d,axis=-1)
+        if self.circular:
+            return r
+        return r/self.scale(np.arctan2(d[...,1],d[...,0]))
+
+    def point(self,rho,theta):
+        """Coordinates (x, y) of the point at the ring coordinate rho in the direction theta"""
+        rho = np.asarray(rho,dtype=float)
+        theta = np.asarray(theta,dtype=float)
+        r = rho*self.scale(theta)
+        return self.generation_center[0] + r*np.cos(theta), self.generation_center[1] + r*np.sin(theta)
+
+    def circumference(self,rho):
+        """Length of the ring boundary at the ring coordinate rho (2*pi*rho for circles)"""
+        return 2*math.pi*rho if self.circular else rho*self.unit_circumference
+
+    def boundary(self,rho,npoints=360):
+        """The ring boundary at rho as a closed polygon (npoints + 1 points, the last equal to the first)"""
+        theta = np.linspace(0,2*np.pi,npoints + 1)
+        return np.column_stack(self.point(rho,theta))
+
+    def inside_band(self,circC,rho_min,rho_max):
+        """Whether a circle [x, y, w] lies within the band rho_min <= rho <= rho_max, w inside its edges
+        (the same as check_isinside_boundcircle for circles)"""
+        x, y, w = circC[0], circC[1], circC[2]
+        if self.circular:
+            return check_isinside_boundcircle(circC,self.generation_center,rho_min,rho_max)
+        theta = math.atan2(y - self.generation_center[1],x - self.generation_center[0])
+        margin = w/float(self.scale(theta))
+        rho = float(self.rho([x,y]))
+        return rho > rho_min + margin and rho < rho_max - margin
+
+
+def RingBands(points,radii,generation_center,shape=None):
     """
     Band of the growth rings in which each 2D point lies, from its distance to the generation
-    center: 0 for the heart, 2k-1 for the sparse part and 2k for the dense part of growth
-    ring k (k = 1 ... nrings), and 2*nrings+1 beyond the outermost ring radius.
+    center (its ring coordinate, see RingShape, when the rings are not circles): 0 for the heart,
+    2k-1 for the sparse part and 2k for the dense part of growth ring k (k = 1 ... nrings), and
+    2*nrings+1 beyond the outermost ring radius.
     RingLabels() turns the bands into growth ring numbers and sparse/dense flags.
     """
-    distance = np.linalg.norm(np.asarray(points,dtype=float) - generation_center, axis=-1)
+    if shape is not None and not shape.circular:
+        distance = shape.rho(points)
+    else:
+        distance = np.linalg.norm(np.asarray(points,dtype=float) - generation_center, axis=-1)
     return np.searchsorted(radii,distance,side='right') - 1 # the same as bisect.bisect(radii,distance) - 1
 
 
@@ -499,7 +605,7 @@ def RingRadii(width_heart,width_sparse,width_dense,nrings,rng=None):
 def CellPlacement_Binary(generation_center,r_max,r_min,nrings,width_heart,
                          width_sparse,width_dense,cellsize_sparse,cellsize_dense,\
                          iter_max,print_interval,rng=None,transition='abrupt',transition_width=1.0,\
-                         radii=None,preplaced=None):
+                         radii=None,preplaced=None,shape=None):
     """
     packing cells by randomly placing new cells in the generation rings
 
@@ -511,8 +617,11 @@ def CellPlacement_Binary(generation_center,r_max,r_min,nrings,width_heart,
     preplaced :: cells placed beforehand, a list of [x, y, size] circles (e.g. the vessels and rays
         of a hardwood, see CellPlacement_Hardwood): they come first in the returned sites, and the
         new cells keep clear of them
+    shape :: the shape of the rings (RingShape; default: circles around generation_center): the
+        cells are placed in the bands of its ring coordinate, evenly over their area
     """
     rng = _rng(rng)
+    shaped = shape is not None and not shape.circular
 
     # generate radii for rings
     if radii is None:
@@ -535,8 +644,15 @@ def CellPlacement_Binary(generation_center,r_max,r_min,nrings,width_heart,
             r = (radii[ibin+1]-radii[ibin])*math.sqrt(rng.random()) + radii[ibin]  # randomly generate a point in the domain
             t = rng.random()*2*math.pi 
             
-            x = r*math.cos(t) + generation_center[0]
-            y = r*math.sin(t) + generation_center[1]
+            if shaped: # r is the ring coordinate: the point in the direction t, kept evenly spread over the area
+                s = float(shape.scale(t))
+                if rng.random() > (s/shape.scale_max)**2: # not a try: the band gets its iter_max tries at the cells
+                    continue
+                x = r*s*math.cos(t) + generation_center[0]
+                y = r*s*math.sin(t) + generation_center[1]
+            else:
+                x = r*math.cos(t) + generation_center[0]
+                y = r*math.sin(t) + generation_center[1]
     
             if transition == 'abrupt': # even bands: dense cells, odd bands: sparse cells
                 w = band_cellsize[ibin]
@@ -545,7 +661,9 @@ def CellPlacement_Binary(generation_center,r_max,r_min,nrings,width_heart,
     
             circC = [x, y, w]
             
-            if grid.check_overlap(circC) and check_isinside_boundcircle(circC,generation_center,radii[ibin],radii[ibin+1]):
+            inside = shape.inside_band(circC,radii[ibin],radii[ibin+1]) if shaped else \
+                check_isinside_boundcircle(circC,generation_center,radii[ibin],radii[ibin+1])
+            if grid.check_overlap(circC) and inside:
                 circles.append(circC)
                 grid.add(circC)
                 
@@ -561,15 +679,18 @@ def CellPlacement_Binary(generation_center,r_max,r_min,nrings,width_heart,
 
     # out-of-boundary detection for Voronoi vertices
     outofbound = []
-    for i in range(0,sites.shape[0]):
-        if( ((sites[i,0]-generation_center[0])**2+(sites[i,1]-generation_center[1])**2) > (1.2*r_max)**2 ):
-            outofbound.append(i)
+    if shaped:
+        outofbound = np.flatnonzero(shape.rho(sites[:,0:2]) > 1.2*r_max).tolist()
+    else:
+        for i in range(0,sites.shape[0]):
+            if( ((sites[i,0]-generation_center[0])**2+(sites[i,1]-generation_center[1])**2) > (1.2*r_max)**2 ):
+                outofbound.append(i)
     sites = np.delete(sites,outofbound,0)
 
     return sites, radii
 
 
-def PlaceRays(generation_center,radii,ray_spacing,ray_width,ray_cell_length,cellsize,rng=None):
+def PlaceRays(generation_center,radii,ray_spacing,ray_width,ray_cell_length,cellsize,rng=None,shape=None):
     """
     The ray cells of a hardwood: radial files of cells, from the edge of the heart to the outermost
     ring, about ray_spacing apart around the circumference. Rays start at the heart, and new rays
@@ -579,21 +700,24 @@ def PlaceRays(generation_center,radii,ray_spacing,ray_width,ray_cell_length,cell
     (cellsize: the cell size profile, see RingProfile) at half that width.
 
     Returns the sites as [x, y, size] circles (size: the half-distance kept to the fibers), and the
-    number of rays.
+    number of rays. With a RingShape (shape), the rays follow its directions and the radii are its
+    ring coordinate.
     """
     rng = _rng(rng)
     radii = np.asarray(radii,dtype=float)
     r_start, r_end = radii[1], radii[-1]
     if ray_spacing <= 0 or ray_width <= 0 or ray_cell_length <= 0:
         raise ValueError('ray_spacing, ray_width and ray_cell_length must be positive')
+    shaped = shape is not None and not shape.circular
+    unit_circumference = shape.unit_circumference if shaped else 2*math.pi # of the ring boundary at rho = 1
     # the rays: start radius and angle of each, new ones halfway between the old ones as the circumference grows
-    nrays = max(3,int(round(2*math.pi*r_start/ray_spacing)))
+    nrays = max(3,int(round(unit_circumference*r_start/ray_spacing)))
     offset = rng.random()*2*math.pi/nrays
     rays = [(r_start,offset + 2*math.pi*i/nrays) for i in range(nrays)]
     angles = sorted(angle for _, angle in rays)
     r = r_start
     while True:
-        r_split = 1.5*ray_spacing*len(angles)/(2*math.pi) # the spacing between the rays reaches 1.5*ray_spacing here
+        r_split = 1.5*ray_spacing*len(angles)/unit_circumference # the spacing between the rays reaches 1.5*ray_spacing here
         if r_split >= r_end or r_split <= r:
             break
         new = [(angles[i] + angles[(i+1) % len(angles)] + (2*math.pi if i == len(angles)-1 else 0))/2 for i in range(len(angles))]
@@ -603,18 +727,19 @@ def PlaceRays(generation_center,radii,ray_spacing,ray_width,ray_cell_length,cell
     # the cells of every ray, from its start to the outermost ring
     circles = []
     for r0, angle in rays:
-        rr = r0 + ray_cell_length/2
-        while rr < r_end - ray_cell_length/4:
-            x = rr*math.cos(angle) + generation_center[0]
-            y = rr*math.sin(angle) + generation_center[1]
+        s = float(shape.scale(angle)) if shaped else 1.0 # radius per unit of ring coordinate along this ray
+        rr = r0 + ray_cell_length/2/s
+        while rr < r_end - ray_cell_length/4/s:
+            x = rr*s*math.cos(angle) + generation_center[0]
+            y = rr*s*math.sin(angle) + generation_center[1]
             local = float(cellsize(rr))
             circles.append([x,y,max(ray_width - local,ray_width/2)]) # the wall halfway to a fiber: the cell ray_width wide
-            rr += ray_cell_length*(1 + 0.2*(rng.random() - 0.5))
+            rr += ray_cell_length*(1 + 0.2*(rng.random() - 0.5))/s
     return circles, len(rays)
 
 
 def PlaceVessels(generation_center,radii,vessel_size,vessel_fraction,vessel_arrangement,vessel_zone,cellsize,grid,\
-                 rng=None,iter_max=500):
+                 rng=None,iter_max=500,shape=None):
     """
     The vessels of a hardwood: cells about vessel_size wide, covering the fraction vessel_fraction of
     the area they are spread over: all the growth rings (vessel_arrangement 'diffuse', a diffuse-porous
@@ -624,10 +749,12 @@ def PlaceVessels(generation_center,radii,vessel_size,vessel_fraction,vessel_arra
     size, and are placed at random, iter_max tries per vessel at most, clear of the circles already
     in grid (a _CircleGrid, e.g. the rays), to which they are added.
 
-    Returns the sites as [x, y, size] circles (size: the half-distance kept to the fibers).
+    Returns the sites as [x, y, size] circles (size: the half-distance kept to the fibers). With a
+    RingShape (shape), the zones are bands of its ring coordinate.
     """
     rng = _rng(rng)
     radii = np.asarray(radii,dtype=float)
+    shaped = shape is not None and not shape.circular
     if vessel_arrangement not in VESSEL_ARRANGEMENTS:
         raise ValueError("vessel_arrangement must be one of {}, not {!r}".format(', '.join(VESSEL_ARRANGEMENTS),vessel_arrangement))
     if not 0 <= vessel_fraction < 1 or vessel_size <= 0 or not 0 < vessel_zone <= 1:
@@ -644,18 +771,29 @@ def PlaceVessels(generation_center,radii,vessel_size,vessel_fraction,vessel_arra
             r_hi = r_lo + vessel_zone*(r_hi - r_lo)
         if r_hi <= r_lo:
             continue
-        nvessels = int(round(vessel_fraction*(r_hi**2 - r_lo**2)/(vessel_size/2)**2)) # area fraction of the zone
+        area_factor = shape.unit_circumference/(2*math.pi) if shaped else 1.0 # the zone's area relative to circular rings
+        nvessels = int(round(area_factor*vessel_fraction*(r_hi**2 - r_lo**2)/(vessel_size/2)**2)) # area fraction of the zone
         placed = 0
         tries = 0
         while placed < nvessels and tries < iter_max*max(nvessels,1):
-            tries += 1
             r = math.sqrt(rng.random()*(r_hi**2 - r_lo**2) + r_lo**2) # uniform over the zone
             t = rng.random()*2*math.pi
-            x = r*math.cos(t) + generation_center[0]
-            y = r*math.sin(t) + generation_center[1]
+            if shaped: # r is the ring coordinate: the point in the direction t, kept evenly spread over the area
+                s = float(shape.scale(t))
+                if rng.random() > (s/shape.scale_max)**2: # not a try
+                    continue
+            tries += 1
+            if shaped:
+                x = r*s*math.cos(t) + generation_center[0]
+                y = r*s*math.sin(t) + generation_center[1]
+            else:
+                x = r*math.cos(t) + generation_center[0]
+                y = r*math.sin(t) + generation_center[1]
             w = max(vessel_size - float(cellsize(r,band)),vessel_size/2) # the wall halfway to a fiber: the cell vessel_size wide
             circC = [x,y,w]
-            if grid.check_overlap(circC) and check_isinside_boundcircle(circC,generation_center,r_lo - w/2,r_hi + w/2):
+            inside = shape.inside_band(circC,r_lo - w/2,r_hi + w/2) if shaped else \
+                check_isinside_boundcircle(circC,generation_center,r_lo - w/2,r_hi + w/2)
+            if grid.check_overlap(circC) and inside:
                 circles.append(circC)
                 grid.add(circC)
                 placed += 1
@@ -666,7 +804,7 @@ def CellPlacement_Hardwood(generation_center,r_max,r_min,nrings,width_heart,widt
                            cellsize_sparse,cellsize_dense,iter_max,print_interval,rng=None,\
                            transition='abrupt',transition_width=1.0,vessel_fraction=0.0,vessel_size=0.05,\
                            vessel_arrangement='diffuse',vessel_zone=0.5,ray_spacing=None,ray_width=0.015,\
-                           ray_cell_length=0.08):
+                           ray_cell_length=0.08,shape=None):
     """
     The cells of a hardwood: the rays (PlaceRays, when ray_spacing is given) and the vessels
     (PlaceVessels, when vessel_fraction > 0) are placed first, then the fibers are packed around them
@@ -675,7 +813,7 @@ def CellPlacement_Hardwood(generation_center,r_max,r_min,nrings,width_heart,widt
 
     Returns the sites (one row (x, y, size) per cell, the rays and vessels first), the ring radii,
     the type of every site (CELL_TYPES: 0 fiber, 1 vessel, 2 ray) and a dict of counts (nvessels,
-    nrays, nray_cells).
+    nrays, nray_cells). shape: the shape of the rings (RingShape), see CellPlacement_Binary.
     """
     rng = _rng(rng)
     radii = RingRadii(width_heart,width_sparse,width_dense,nrings,rng)
@@ -683,20 +821,20 @@ def CellPlacement_Hardwood(generation_center,r_max,r_min,nrings,width_heart,widt
     preplaced, types = [], []
     nrays = 0
     if ray_spacing is not None:
-        rays, nrays = PlaceRays(generation_center,radii,ray_spacing,ray_width,ray_cell_length,cellsize,rng)
+        rays, nrays = PlaceRays(generation_center,radii,ray_spacing,ray_width,ray_cell_length,cellsize,rng,shape=shape)
         preplaced.extend(rays)
         types.extend([CELL_TYPES['ray']]*len(rays))
     grid = _CircleGrid(max([float(w) for w in cellsize.values] + [circC[2] for circC in preplaced] + [vessel_size]))
     for circC in preplaced:
         grid.add(circC)
     vessels = PlaceVessels(generation_center,radii,vessel_size,vessel_fraction,vessel_arrangement,vessel_zone,cellsize,grid,
-                           rng,iter_max)
+                           rng,iter_max,shape=shape)
     preplaced.extend(vessels)
     types.extend([CELL_TYPES['vessel']]*len(vessels))
     sites, radii = CellPlacement_Binary(generation_center,r_max,r_min,nrings,width_heart,width_sparse,width_dense,
                                         cellsize_sparse,cellsize_dense,iter_max,print_interval,rng=rng,
                                         transition=transition,transition_width=transition_width,radii=radii,
-                                        preplaced=preplaced)
+                                        preplaced=preplaced,shape=shape)
     site_type = np.zeros(len(sites),dtype=int)
     site_type[0:len(types)] = types
     info = {'nvessels': len(vessels), 'nrays': nrays, 'nray_cells': len(preplaced) - len(vessels)}
@@ -734,7 +872,7 @@ def CellTypeLabels(sites,site_type,all_pts_2D,all_ridges,nridge,npt_per_layer):
 def CellPlacement_Binary_Lloyd(geoName,path,generation_center,r_max,r_min,\
                                nrings,width_heart,width_sparse,width_dense,\
                                cellsize_sparse,cellsize_dense,iter_max,\
-                               print_interval,omega=1.0,rng=None,transition='abrupt',transition_width=1.0):
+                               print_interval,omega=1.0,rng=None,transition='abrupt',transition_width=1.0,shape=None):
     """
     packing cells by firstly placing new cells and then performing Lloyd's relaxation in the generation rings
 
@@ -743,8 +881,25 @@ def CellPlacement_Binary_Lloyd(geoName,path,generation_center,r_max,r_min,\
     transition, transition_width :: change of the cell size from the sparse to the dense
         part of a ring, see RingProfile(). With a gradual transition, the sub-rings of cells
         in the sparse part of a ring get closer, and hold more cells, towards the dense part.
+    shape :: the shape of the rings (RingShape; default: circles): the perimeters and sub-rings of
+        cells follow it, with their spacing kept along its (longer or shorter) circumference
     """
     rng = _rng(rng)
+    shaped = shape is not None and not shape.circular
+    shape0 = shape.centered((0.0,0.0)) if shaped else None # the sites are generated around the origin
+    if shaped: # angles at equal arc lengths along the shaped rings (the arc length is proportional to rho)
+        theta_fine = np.linspace(0,2*np.pi,3601)
+        speed = shape0.scale(theta_fine)
+        speed = np.sqrt(speed**2 + np.gradient(speed,theta_fine)**2)
+        arc = np.concatenate(([0.0],np.cumsum((speed[1:] + speed[:-1])/2*np.diff(theta_fine))))
+    def ring_points(rho,npoint):
+        if shaped:
+            t = np.interp(np.arange(npoint)*arc[-1]/max(npoint,1),arc,theta_fine)
+            return np.c_[shape0.point(rho,t)]
+        t = np.linspace(0, 2*np.pi, npoint, endpoint=False)
+        return np.c_[rho * np.cos(t), rho * np.sin(t)]
+    def circumference(rho):
+        return shape0.circumference(rho) if shaped else 2*np.pi*rho
     # generate radii for rings
     radii = np.concatenate(([width_heart],np.tile([width_sparse,width_dense],nrings)))
     noise = rng.normal(1,0.25,len(radii))
@@ -758,12 +913,8 @@ def CellPlacement_Binary_Lloyd(geoName,path,generation_center,r_max,r_min,\
 
     # generate perimeter points for heart region
     PerimeterPoints = []
-    npoint = int(np.ceil(2*np.pi*radii[1]/(2*cellsize_dense)))
-    t = np.linspace(0, 2*np.pi, npoint, endpoint=False)
-    x = radii[1] * np.cos(t)
-    y = radii[1] * np.sin(t)
-    w = cellsize_dense*np.ones(x.shape)
-    PerimeterPoints.append(np.c_[x, y])
+    npoint = int(np.ceil(circumference(radii[1])/(2*cellsize_dense)))
+    PerimeterPoints.append(ring_points(radii[1],npoint))
     PerimeterPointsSites = np.concatenate(PerimeterPoints, axis=0)
     
     #generate internal points for heart region
@@ -793,13 +944,9 @@ def CellPlacement_Binary_Lloyd(geoName,path,generation_center,r_max,r_min,\
         gradual = transition != 'abrupt' and (i % 2) == 1 # the cell size changes within a sparse band
 
         # cells on the outer perimeter of the band: with a gradual transition, the (dense) cell size there
-        OuterPerimeter_npoint = int(np.ceil(2*np.pi*OuterPerimeter_radii/(2*float(cellsize_profile(OuterPerimeter_radii,i)))))
+        OuterPerimeter_npoint = int(np.ceil(circumference(OuterPerimeter_radii)/(2*float(cellsize_profile(OuterPerimeter_radii,i)))))
         
-        t = np.linspace(0, 2*np.pi, OuterPerimeter_npoint, endpoint=False)
-        x = OuterPerimeter_radii * np.cos(t)
-        y = OuterPerimeter_radii * np.sin(t)
-        w = cellsize*np.ones(x.shape)
-        OuterPerimeterPoints.append(np.c_[x, y])
+        OuterPerimeterPoints.append(ring_points(OuterPerimeter_radii,OuterPerimeter_npoint))
         OuterPerimeterPointsSites = np.concatenate(OuterPerimeterPoints, axis=0)
         
         # generate internal points
@@ -816,15 +963,12 @@ def CellPlacement_Binary_Lloyd(geoName,path,generation_center,r_max,r_min,\
             subradii = np.interp(np.arange(nsubrings)*u[-1]/max(nsubrings,1), u, rr)
         subcellsize = cellsize_profile(subradii,i) # cell size of each sub-ring
         
-        subnpoints =np.ceil(2*np.pi*subradii/(2*subcellsize)).astype(int)
+        subnpoints =np.ceil(circumference(subradii)/(2*subcellsize)).astype(int)
         
         circles = [np.zeros((0,2))] # no sub-rings (nsubrings = 0) if the ring is narrower than one cell
         
         for subr, subnpoint in zip(subradii, subnpoints):
-            t = np.linspace(0, 2*np.pi, subnpoint, endpoint=False)
-            x = subr * np.cos(t)
-            y = subr * np.sin(t)
-            circles.append(np.c_[x, y])
+            circles.append(ring_points(subr,subnpoint))
             
         inside_cells = np.concatenate(circles, axis=0)
         
@@ -1945,7 +2089,7 @@ def RidgeMidQuarterPts(voronoi_vertices,nvertex,nvertices_in,voronoi_ridges,\
 def VertexandRidgeinfo(all_pts_2D,all_ridges,npt_per_layer,npt_per_layer_normal,\
                        npt_per_layer_vtk,nridge,geoName,radii,generation_center,\
                        cellwallthickness_sparse,cellwallthickness_dense,path='meshes',\
-                       transition='abrupt',transition_width=1.0,ridge_widths=None):
+                       transition='abrupt',transition_width=1.0,ridge_widths=None,shape=None):
     
     """Generate the vertex and ridge info 
        Vertex info includes: coordinates, ridge indices, indices of another vertex for each ridge, ridge lengths, ridge angles, ridge width
@@ -1955,7 +2099,8 @@ def VertexandRidgeinfo(all_pts_2D,all_ridges,npt_per_layer,npt_per_layer_normal,
        transition, transition_width :: change of the thickness from the sparse to the dense part of a
            ring, see RingProfile(); 'abrupt' is the step change of RingsPy <= 1.3
        ridge_widths :: wall thickness of each ridge (array of nridge values), e.g. measured in a 3D image.
-           Default: the thickness of the growth ring the vertex lies in, the same for all wings of a vertex."""
+           Default: the thickness of the growth ring the vertex lies in, the same for all wings of a vertex.
+       shape :: the shape of the rings (RingShape; default: circles): the thickness follows its ring coordinate"""
 
     
     # Calculate lengths of all Voronoi ridges
@@ -1971,7 +2116,10 @@ def VertexandRidgeinfo(all_pts_2D,all_ridges,npt_per_layer,npt_per_layer_normal,
     vertex_cellwallthickness_2D = np.zeros(npt_per_layer)
     if ridge_widths is None:
         thickness = RingProfile(radii,cellwallthickness_sparse,cellwallthickness_dense,transition,transition_width)
-        vertex_distance2logcenter = np.linalg.norm(all_pts_2D - generation_center, axis=1) # calc distance between vertex and logcenter
+        if shape is not None and not shape.circular:
+            vertex_distance2logcenter = shape.rho(all_pts_2D) # ring coordinate of every vertex
+        else:
+            vertex_distance2logcenter = np.linalg.norm(all_pts_2D - generation_center, axis=1) # calc distance between vertex and logcenter
         vertex_cellwallthickness_2D = np.array(thickness(vertex_distance2logcenter[0:npt_per_layer]),dtype=float)
     else:
         ridge_widths = np.asarray(ridge_widths,dtype=float).reshape(-1)
@@ -3563,7 +3711,7 @@ def LogFile(geoName,iter_max,r_min,r_max,nrings,width_heart,width_sparse,width_d
         nParticles,nbeamElem,skeleton_density,mass,volume,density,porosity,\
         stlFlag,inpFlag,inpType,radial_growth_rule,\
         startTime,placementTime,voronoiTime,RebuildvorTime,BeamTime,FileTime,path='meshes',seed=None,box_polygon=None,\
-        transition=None,transition_width=None,radii=None,graphFlag=False,fibers=None,hardwood=None):
+        transition=None,transition_width=None,radii=None,graphFlag=False,fibers=None,hardwood=None,ring_shape=None):
 
     """Generate the log file (geoName.log file) for the generation procedure.
 
@@ -3622,6 +3770,11 @@ def LogFile(geoName,iter_max,r_min,r_max,nrings,width_heart,width_sparse,width_d
         logfile.write('transition_width:                        ' + str(transition_width) + '\n')
     if radii is not None:
         logfile.write('ring radii:                              ' + str([float(r) for r in radii]) + '\n')
+    if ring_shape is not None and not ring_shape.circular:
+        logfile.write('\n')
+        logfile.write('RING SHAPE:\n')
+        for key in ['ellipticity','ellipse_angle','eccentricity','eccentricity_angle','waviness','wave_order','wave_phase']:
+            logfile.write('{:<41s}'.format('ring_' + key + ':') + str(getattr(ring_shape,key)) + '\n')
 
     if _is_on(merge_operation): 
         logfile.write('merge_tol:                               ' + str(merge_tol) + '\n')

@@ -57,7 +57,7 @@ Since v2.1.0, the same lattice can also be reconstructed from a 3D image of a re
 The first step to generate a cellular geometry is selecting geometry and appropriate parameters. 
 
 ### 1.1. Geometry
-An input file in [TOML](https://toml.io) format, for example [`wood_cube.toml`](https://github.com/kingyin3613/ringspy/tree/main/examples/wood_cube.toml) in the [examples](https://github.com/kingyin3613/ringspy/tree/main/examples/) directory, holds the parameters for the generation of a cubic wood specimen. The other examples there are a wood specimen with more regular cells (`wood_cube_lloyd.toml`), a softwood with a gradual earlywood-latewood transition and rings that differ (`wood_gradual.toml`), a ring-porous and a diffuse-porous hardwood with vessels and rays (`hardwood_ring_porous.toml`, `hardwood_diffuse.toml`), honeycombs clipped by a hexagon or a triangle (`honeycomb_hex.toml`, `honeycomb_tri.toml`), a dog-bone tensile specimen clipped by a polygon (`dogbone.toml`), and a mesh of previously saved cells (`saved_sites.toml`). Copy the one closest to the wanted geometry and edit it.
+An input file in [TOML](https://toml.io) format, for example [`wood_cube.toml`](https://github.com/kingyin3613/ringspy/tree/main/examples/wood_cube.toml) in the [examples](https://github.com/kingyin3613/ringspy/tree/main/examples/) directory, holds the parameters for the generation of a cubic wood specimen. The other examples there are a wood specimen with more regular cells (`wood_cube_lloyd.toml`), a softwood with a gradual earlywood-latewood transition and rings that differ (`wood_gradual.toml`), a ring-porous and a diffuse-porous hardwood with vessels and rays (`hardwood_ring_porous.toml`, `hardwood_diffuse.toml`), reaction wood with an eccentric pith and elliptical, wavy rings (`wood_eccentric.toml`), honeycombs clipped by a hexagon or a triangle (`honeycomb_hex.toml`, `honeycomb_tri.toml`), a dog-bone tensile specimen clipped by a polygon (`dogbone.toml`), and a mesh of previously saved cells (`saved_sites.toml`). Copy the one closest to the wanted geometry and edit it.
 
 *Note: The Mesh Generation Tool accepts the pre-defined boundary geometries triangle, square and hexagon, and any simple polygon given by its vertices (`box_shape = "polygon"`); importing of CAD and/or other 3D model files will be implemented in subsequent versions.*
 
@@ -91,6 +91,15 @@ cellwallthickness_sparse = 0.006
 cellwallthickness_dense = 0.010
 transition = "abrupt"           # abrupt, linear or sigmoid: change from sparse to dense within a ring
 transition_width = 1.0          # fraction of the sparse part of a ring over which it changes (linear, sigmoid)
+
+# Shape of the growth rings (see wood_eccentric.toml): circles by default
+ring_ellipticity = 1.0          # ratio of the long to the short axis of the rings
+ring_ellipse_angle = 0.0        # direction of the long axis (radians)
+ring_eccentricity = 0.0         # rings (1 + this) times wider towards ring_eccentricity_angle, (1 - this) times opposite
+ring_eccentricity_angle = 0.0
+ring_waviness = 0.0             # amplitude of a wavy outline (fraction of the radius)
+ring_wave_order = 3             # crests around the circumference
+ring_wave_phase = 0.0           # angle (radians) of the first crest
 
 # Hardwood features (see hardwood_ring_porous.toml): vessels and rays, placed before the fibers
 vessel_fraction = 0.0           # area fraction of the vessels (0: no vessels, a softwood)
@@ -163,6 +172,7 @@ A parameter that is left out takes its default value, which is its value in `woo
 - `inpType` indicates the software(s) that the mesh generation should generate input files for.
 - `graphFlag` flag can be turned on/off for saving the 2D cell mesh as a graph (`geoName-graph.npz`, see section 5.2).
 - `vessel_fraction`, `vessel_size`, `vessel_arrangement`, `vessel_zone`, `ray_spacing`, `ray_width` and `ray_cell_length` add the vessels and rays of a hardwood (section 1.3).
+- `ring_ellipticity`, `ring_ellipse_angle`, `ring_eccentricity`, `ring_eccentricity_angle`, `ring_waviness`, `ring_wave_order` and `ring_wave_phase` shape the growth rings (section 1.4).
 
 ### 1.3. Hardwood features: vessels and rays
 A hardwood (with the `binary` growth rule) gets its vessels and rays before the fibers are packed around them, so that the fibers keep clear of them and the Voronoi cells of the vessel and ray sites come out with the asked sizes:
@@ -170,6 +180,14 @@ A hardwood (with the `binary` growth rule) gets its vessels and rays before the 
 - `ray_spacing` places rays, radial files of cells, about that far apart around the circumference: rays start at the edge of the heart, and new rays start in between them wherever the spacing has grown to 1.5 times `ray_spacing`, so that the spacing stays between 0.75 and 1.5 times `ray_spacing` out to the outermost ring. The ray cells are `ray_cell_length` long (radially, with a random jitter) and `ray_width` wide; where `ray_width` is smaller than the fibers around the ray, the ray cells come out about as wide as the fibers, so choose `ray_cell_length` a few times the fiber size for visibly elongated ray cells.
 
 The cell type of every site is kept (`result.site_type`: 0 fiber, 1 vessel, 2 ray cell; `save_sites` also writes `geoName_types.npy`, which a `*_sites.npy` growth rule reads back), and the walls and vertices of the vessels and rays are labelled (`result.ridge_vessel`, `result.ridge_ray`, `result.vertex_vessel`, `result.vertex_ray`): the `.vtu` files carry the cell data `Vessel` and `Ray` next to `Ring` and `Dense`, the `.inp` file gets the element sets `VesselBeams`, `VesselTConns`, `VesselLConns` and `RayBeams`, `RayTConns`, `RayLConns` next to the ring sets (section 4.3), the graph file the node and edge features `vessel` and `ray`, and the report log a `HARDWOOD` section with the numbers of vessels, rays and ray cells placed. A wall between a vessel and a ray cell counts as a vessel wall. See [examples/hardwood_ring_porous.toml](./examples/hardwood_ring_porous.toml) and [examples/hardwood_diffuse.toml](./examples/hardwood_diffuse.toml); `fiber_length` (fibers of various lengths) works with them too.
+
+### 1.4. Shape of the growth rings: ellipses, an eccentric pith, wavy rings
+By default the ring boundaries are circles around `generation_center`, at the radii of `r_max`, `nrings` and the ring widths (with their random noise). Three parameters change their shape, which all the rings share, scaled from the generation center:
+- `ring_ellipticity` (at least 1) makes the rings ellipses, the long axis as long as the ring radius and `ring_ellipticity` times the short one, in the direction `ring_ellipse_angle` (radians from the x axis).
+- `ring_eccentricity` makes the rings `1 + ring_eccentricity` times wider towards `ring_eccentricity_angle` and `1 - ring_eccentricity` times wider opposite, so that the rings shift progressively off the pith, as in reaction wood (compression wood on the lower side of a leaning stem, or tension wood on its upper side).
+- `ring_waviness` gives the outline `ring_wave_order` waves around the circumference, of amplitude `ring_waviness` times the radius, the first crest at `ring_wave_phase`.
+
+The shape defines a ring coordinate (`result.ring_shape.rho(points)`, `MeshGenTools.RingShape`) that equals the ring radius on every ring boundary; the cells of the `binary` and `binary_lloyd` rules are placed in the bands of that coordinate (evenly over their area, the Lloyd perimeters and sub-rings following the shape), the vessels and rays of a hardwood follow it, and the wall thickness profile and the ring labels use it in place of the distance to the center. `result.ring_shape.boundary(result.radii[k])` gives the outline of a ring boundary for plotting, and the report log gets a `RING SHAPE` section when the rings are not circles. See [examples/wood_eccentric.toml](./examples/wood_eccentric.toml).
 
 ![growth_rule_binary](<./contents/growth_rule_binary.png>)
 ### 2.1. Run Mesh Generation

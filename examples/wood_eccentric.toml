@@ -1,0 +1,52 @@
+# RingsPy example: reaction wood with an eccentric pith, elliptical and slightly wavy growth rings
+#
+#   ringspy run wood_eccentric.toml
+#
+# All the rings share one shape, scaled from the generation center (see README section 1.4). The cells,
+# the wall thickness and the ring labels follow the ring coordinate of that shape instead of the distance
+# to the center. Lengths in mm. Parameters left out take their default values (those of wood_cube.toml).
+
+geoName = "wood_eccentric"
+path = "meshes"
+seed = 2023
+
+# Cell placement and growth rings
+radial_growth_rule = "binary"
+iter_max = 500
+r_min = 0
+r_max = 4
+nrings = 4
+generation_center = [0, 0]
+cellsize_sparse = 0.02
+cellsize_dense = 0.01
+cellwallthickness_sparse = 0.006
+cellwallthickness_dense = 0.010
+
+# Shape of the rings
+ring_ellipticity = 1.3          # long axis 1.3 times the short one ...
+ring_ellipse_angle = 0.5        # ... at 0.5 rad from the x axis
+ring_eccentricity = 0.3         # rings 1.3 times wider towards ring_eccentricity_angle, 0.7 times opposite (compression wood side)
+ring_eccentricity_angle = -1.57 # the wide side: downwards (-y)
+ring_waviness = 0.03            # a gentle wave of the outline ...
+ring_wave_order = 5             # ... with 5 crests around the circumference
+ring_wave_phase = 0.0
+
+# Clipping box: off the pith, so that the specimen cuts through several rings
+boundaryFlag = true
+box_shape = "square"
+box_center = [0.3, -1.2]
+box_size = 3.0
+
+# Longitudinal direction
+nsegments = 2
+theta_min = 0
+theta_max = 0.05
+z_min = 0
+z_max = 3.0
+
+merge_operation = true
+merge_tol = 0.01
+
+stlFlag = false
+inpFlag = true
+inpType = "Abaqus"

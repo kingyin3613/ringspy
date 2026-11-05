@@ -57,6 +57,8 @@ class Result:
     vertex_ray: np.ndarray       # True for the vertices of a ray cell (and not of a vessel)
     ridge_vessel: np.ndarray     # True for the walls of the vessels
     ridge_ray: np.ndarray        # True for the walls of the ray cells that are not vessel walls
+    ring_shape: object = None    # the shape of the growth rings (MeshGenTools.RingShape): ring_shape.rho(points) is the
+                                 # ring coordinate, ring_shape.boundary(result.radii[k]) the outline of a ring boundary
     graph: Optional[dict] = None # the arrays of geoName-graph.npz when graphFlag is on, see graph_arrays()
 
     @property
@@ -110,6 +112,7 @@ def _generate(c):
     # Place cells with a specific radial growth pattern
     sites, radii, site_type, hardwood_counts = place_cells(c, rng, with_types=True)
     hardwood = bool(np.any(site_type != rpgen.CELL_TYPES['fiber']))
+    shape = c.ring_shape()
 
     placementTime = time.time()
     nParticles = len(sites)
@@ -175,19 +178,19 @@ def _generate(c):
         rpgen.VertexandRidgeinfo(all_pts_2D, all_ridges, npt_per_layer, npt_per_layer_normal,
                                  npt_per_layer_vtk, nridge, geoName, radii, c.generation_center,
                                  c.cellwallthickness_sparse, c.cellwallthickness_dense, path=path,
-                                 transition=c.transition, transition_width=c.transition_width)
+                                 transition=c.transition, transition_width=c.transition_width, shape=shape)
 
     # ==================================================================
     # Growth ring of every vertex (grain) and ridge (cell wall), for the ParaView and Abaqus files: a wall
     # is labelled by its second vertex, whose thickness it takes, and a connector by its wall (ConnectorMeshFile)
-    vertex_band = rpgen.RingBands(all_pts_2D[0:npt_per_layer], radii, c.generation_center)
+    vertex_band = rpgen.RingBands(all_pts_2D[0:npt_per_layer], radii, c.generation_center, shape=shape)
     ridge_band = vertex_band[np.asarray(all_ridges)[0:nridge, 1]]
 
     # the walls and vertices of the vessels and rays of a hardwood (all False for a softwood)
     ridge_vessel, ridge_ray, vertex_vessel, vertex_ray = \
         rpgen.CellTypeLabels(sites, site_type, all_pts_2D, all_ridges, nridge, npt_per_layer)
     cell_labels = {'site_type': site_type, 'vertex_vessel': vertex_vessel, 'vertex_ray': vertex_ray,
-                   'ridge_vessel': ridge_vessel, 'ridge_ray': ridge_ray}
+                   'ridge_vessel': ridge_vessel, 'ridge_ray': ridge_ray, 'ring_shape': shape}
     extra_labels = {'Vessel': (vertex_vessel, ridge_vessel), 'Ray': (vertex_ray, ridge_ray)} if hardwood else None
     hardwood_log = None
     if hardwood or c.vessel_fraction > 0 or c.ray_spacing is not None:
@@ -323,7 +326,7 @@ def _generate(c):
                   startTime, placementTime, voronoiTime, RebuildvorTime, BeamTime, FileTime,
                   path=path, seed=c.seed, box_polygon=c.box_polygon,
                   transition=c.transition, transition_width=c.transition_width, radii=radii, graphFlag=c.graphFlag,
-                  hardwood=hardwood_log)
+                  hardwood=hardwood_log, ring_shape=shape)
 
     result.files = sorted(output_dir.iterdir())
     return result
@@ -479,7 +482,7 @@ def _generate_fibers(c, rng, output_dir, fig, sites, radii, nParticles, x_min, x
                   startTime, placementTime, voronoiTime, RebuildvorTime, BeamTime, FileTime,
                   path=path, seed=c.seed, box_polygon=c.box_polygon,
                   transition=c.transition, transition_width=c.transition_width, radii=radii, graphFlag=c.graphFlag,
-                  fibers=fibers, hardwood=hardwood_log)
+                  fibers=fibers, hardwood=hardwood_log, ring_shape=cell_labels['ring_shape'])
     result.files = sorted(output_dir.iterdir())
     return result
 
@@ -493,6 +496,7 @@ def place_cells(c, rng=None, with_types=False):
     without hardwood features)."""
     geoName, path = c.geoName, c.path
     site_type, counts = None, {}
+    shape = c.ring_shape()
     if c.radial_growth_rule == 'binary' and (c.vessel_fraction > 0 or c.ray_spacing is not None):
         # hardwood: the vessels and rays first, then the fibers packed around them
         sites, radii, site_type, counts = rpgen.CellPlacement_Hardwood(
@@ -500,20 +504,22 @@ def place_cells(c, rng=None, with_types=False):
             c.cellsize_sparse, c.cellsize_dense, c.iter_max, c.print_interval, rng=rng,
             transition=c.transition, transition_width=c.transition_width, vessel_fraction=c.vessel_fraction,
             vessel_size=c.vessel_size, vessel_arrangement=c.vessel_arrangement, vessel_zone=c.vessel_zone,
-            ray_spacing=c.ray_spacing, ray_width=c.ray_width, ray_cell_length=c.ray_cell_length)
+            ray_spacing=c.ray_spacing, ray_width=c.ray_width, ray_cell_length=c.ray_cell_length, shape=shape)
     elif c.radial_growth_rule == 'binary':
         # binary radial growth pattern (e.g. wood microstructure with earlywood-latewood alternations)
         sites, radii = rpgen.CellPlacement_Binary(c.generation_center, c.r_max, c.r_min, c.nrings, c.width_heart,
                                                   c.width_sparse, c.width_dense, c.cellsize_sparse, c.cellsize_dense,
                                                   c.iter_max, c.print_interval, rng=rng,
-                                                  transition=c.transition, transition_width=c.transition_width)
+                                                  transition=c.transition, transition_width=c.transition_width,
+                                                  shape=shape)
     elif c.radial_growth_rule == 'binary_lloyd':
         # binary with Lloyd's algorithm (more regular cell shapes)
         sites, radii = rpgen.CellPlacement_Binary_Lloyd(geoName, path, c.generation_center, c.r_max, c.r_min,
                                                         c.nrings, c.width_heart, c.width_sparse, c.width_dense,
                                                         c.cellsize_sparse, c.cellsize_dense, c.iter_max,
                                                         c.print_interval, rng=rng,
-                                                        transition=c.transition, transition_width=c.transition_width)
+                                                        transition=c.transition, transition_width=c.transition_width,
+                                                        shape=shape)
     elif c.radial_growth_rule == 'regular_hexagonal':
         # hexagonal honeycomb-like geometry
         sites, radii = rpgen.CellPlacement_Honeycomb(c.generation_center, c.r_max, c.r_min, c.nrings,
