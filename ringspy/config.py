@@ -17,6 +17,8 @@ from typing import List, Optional, Tuple, Union, get_args, get_origin
 from .MeshGenTools import (ABAQUS_TYPES, HEXAGON_SHAPES, POLYGON_SHAPES, SQUARE_SHAPES, TRANSITIONS, TRIANGLE_SHAPES,
                            VESSEL_ARRANGEMENTS, polygon_vertices)
 
+OUTLINE_SUFFIXES = ['.svg', '.dxf']
+
 if sys.version_info >= (3, 11):
     import tomllib
 else:
@@ -92,8 +94,12 @@ class Config:
     box_shape: str = 'square'                # square, triangle, hexagon or polygon
     box_center: Tuple[float, float] = (0, 0)
     box_size: float = 4.0
-    box_polygon: Optional[List[Tuple[float, float]]] = None  # vertices [[x, y], ...] of the polygon for
-                                             # box_shape 'polygon' (any simple polygon, also non-convex)
+    box_polygon: Optional[Union[str, List[Tuple[float, float]]]] = None  # vertices [[x, y], ...] of the polygon for
+                                             # box_shape 'polygon' (any simple polygon, also non-convex), or the name
+                                             # of an SVG or DXF file drawn with it (relative to the TOML file's folder)
+    box_polygon_tolerance: Optional[float] = None  # outline file: Douglas-Peucker simplification tolerance (mm);
+                                             # None: no simplification (use merge_tol, so no edge is shorter than it)
+    box_polygon_scale: float = 1.0           # outline file: factor on the coordinates (after the file's units -> mm)
 
     # longitudinal direction
     nsegments: int = 2
@@ -143,13 +149,29 @@ class Config:
                              .format(', '.join(GROWTH_RULES), self.radial_growth_rule))
         if self.box_shape not in BOX_SHAPES:
             raise ValueError("box_shape must be square, triangle, hexagon or polygon, not {!r}".format(self.box_shape))
+        if self.box_polygon_tolerance is not None and self.box_polygon_tolerance <= 0:
+            raise ValueError("box_polygon_tolerance must be positive (or left out)")
+        if self.box_polygon_scale <= 0:
+            raise ValueError("box_polygon_scale must be positive")
         if self.box_shape in POLYGON_SHAPES:
             if self.box_polygon is None:
-                raise ValueError("box_shape 'polygon' needs box_polygon, the vertices [[x, y], ...] of the polygon")
-            try:
-                polygon_vertices(self.box_polygon)
-            except ValueError as e:
-                raise ValueError("box_polygon: {}".format(e)) from None
+                raise ValueError("box_shape 'polygon' needs box_polygon, the vertices [[x, y], ...] of the polygon "
+                                 "or the name of an SVG or DXF file")
+            if isinstance(self.box_polygon, str):
+                if Path(self.box_polygon).suffix.lower() not in OUTLINE_SUFFIXES:
+                    raise ValueError("box_polygon must be a list of vertices or the name of an .svg or .dxf file, not {!r}"
+                                     .format(self.box_polygon))
+                if not Path(self.box_polygon).is_file():
+                    raise ValueError("box_polygon: the outline file {!r} does not exist".format(self.box_polygon))
+                try:
+                    self.polygon_vertices()
+                except ValueError as e:
+                    raise ValueError("box_polygon {!r}: {}".format(self.box_polygon, e)) from None
+            else:
+                try:
+                    polygon_vertices(self.box_polygon)
+                except ValueError as e:
+                    raise ValueError("box_polygon: {}".format(e)) from None
             if self.precrackFlag and self.precrack_nodes is None:
                 raise ValueError("with box_shape 'polygon', give the precracks as precrack_nodes")
         elif self.box_polygon is not None:
@@ -217,6 +239,18 @@ class Config:
         if not 0 <= self.taper_ratio <= 1:
             raise ValueError("taper_ratio must be between 0 and 1")
 
+    def polygon_vertices(self):
+        """The vertices of the clipping polygon as a list: those given, or read from the outline file (SVG or
+        DXF) named by box_polygon, simplified with box_polygon_tolerance, scaled by box_polygon_scale and centred
+        on box_center (see ringspy.outline.read_outline); None without a polygon"""
+        if self.box_polygon is None:
+            return None
+        if isinstance(self.box_polygon, str):
+            from .outline import read_outline
+            return read_outline(self.box_polygon, tolerance=self.box_polygon_tolerance, scale=self.box_polygon_scale,
+                                center=self.box_center).tolist()
+        return [list(v) for v in self.box_polygon]
+
     def ring_shape(self):
         """The shape of the growth rings (MeshGenTools.RingShape) around generation_center"""
         from .MeshGenTools import RingShape
@@ -228,9 +262,12 @@ class Config:
         fractions = {'width_heart': 0.3, 'width_sparse': 0.7, 'width_dense': 0.3}
         values = {name: frac*(self.r_max - self.r_min)/self.nrings  # same expression as the template scripts
                   for name, frac in fractions.items() if getattr(self, name) is None}
+        if isinstance(self.box_polygon, str): # the outline file read once: the pipeline sees the vertices
+            values['box_polygon'] = self.polygon_vertices()
+        polygon = values.get('box_polygon', self.box_polygon)
         if self.z_max is None:
             if self.box_shape in POLYGON_SHAPES:
-                extent = [max(v[i] for v in self.box_polygon) - min(v[i] for v in self.box_polygon) for i in (0, 1)]
+                extent = [max(v[i] for v in polygon) - min(v[i] for v in polygon) for i in (0, 1)]
                 values['z_max'] = self.z_min + max(extent)
             else:
                 values['z_max'] = self.box_size
@@ -266,6 +303,9 @@ class Config:
         sites_dir = params.get('sites_dir', '.')
         if isinstance(sites_dir, str):
             params['sites_dir'] = str(file.parent / sites_dir)  # unchanged if sites_dir is absolute
+        polygon = params.get('box_polygon')
+        if isinstance(polygon, str) and not Path(polygon).is_absolute():
+            params['box_polygon'] = str(file.parent / polygon)  # an outline file next to the TOML file
         try:
             return cls.from_dict(params)
         except (TypeError, ValueError) as e:

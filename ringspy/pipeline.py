@@ -7,6 +7,7 @@ author: king_yin3613
 email: haoyin2022@u.northwestern.edu
 """
 
+import dataclasses
 import json
 import os
 import shutil
@@ -95,6 +96,9 @@ def generate(config, **changes):
     if changes:
         config = config.replace(**changes)
     c = config.resolved()
+    if isinstance(config.box_polygon, str): # the log names the outline file the polygon came from
+        c = dataclasses.replace(c)
+        c.box_polygon_file = config.box_polygon
 
     # close the preview figure afterwards, also on errors (generate() may run many times in one session)
     open_figures = set(plt.get_fignums())
@@ -353,7 +357,8 @@ def _generate(c):
                   startTime, placementTime, voronoiTime, RebuildvorTime, BeamTime, FileTime,
                   path=path, seed=c.seed, box_polygon=c.box_polygon,
                   transition=c.transition, transition_width=c.transition_width, radii=radii, graphFlag=c.graphFlag,
-                  hardwood=hardwood_log, ring_shape=shape, extrusion=extrusion_log, statsFlag=c.statsFlag)
+                  hardwood=hardwood_log, ring_shape=shape, extrusion=extrusion_log, statsFlag=c.statsFlag,
+                  box_polygon_file=getattr(c, 'box_polygon_file', None))
 
     result.files = sorted(output_dir.iterdir())
     return result
@@ -525,7 +530,7 @@ def _generate_fibers(c, rng, output_dir, fig, sites, radii, nParticles, x_min, x
                   path=path, seed=c.seed, box_polygon=c.box_polygon,
                   transition=c.transition, transition_width=c.transition_width, radii=radii, graphFlag=c.graphFlag,
                   fibers=fibers, hardwood=hardwood_log, ring_shape=cell_labels['ring_shape'], extrusion=extrusion_log,
-                  statsFlag=c.statsFlag)
+                  statsFlag=c.statsFlag, box_polygon_file=getattr(c, 'box_polygon_file', None))
     result.files = sorted(output_dir.iterdir())
     return result
 

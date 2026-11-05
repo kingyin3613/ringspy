@@ -3848,7 +3848,7 @@ def LogFile(geoName,iter_max,r_min,r_max,nrings,width_heart,width_sparse,width_d
         stlFlag,inpFlag,inpType,radial_growth_rule,\
         startTime,placementTime,voronoiTime,RebuildvorTime,BeamTime,FileTime,path='meshes',seed=None,box_polygon=None,\
         transition=None,transition_width=None,radii=None,graphFlag=False,fibers=None,hardwood=None,ring_shape=None,\
-        extrusion=None,statsFlag=False):
+        extrusion=None,statsFlag=False,box_polygon_file=None):
 
     """Generate the log file (geoName.log file) for the generation procedure.
 
@@ -3921,7 +3921,9 @@ def LogFile(geoName,iter_max,r_min,r_max,nrings,width_heart,width_sparse,width_d
     logfile.write('box_shape:                               ' + str(box_shape) + '\n')
     logfile.write('box_center:                              ' + str(box_center) + '\n')
     logfile.write('box_size:                                ' + str(box_size) + '\n')
-    if box_polygon is not None:
+    if box_polygon_file is not None:
+        logfile.write('box_polygon:                             ' + str(box_polygon_file) + ' ({:d} vertices)\n'.format(len(box_polygon)))
+    elif box_polygon is not None:
         logfile.write('box_polygon:                             ' + str([[float(x), float(y)] for x, y in box_polygon]) + '\n')
     logfile.write('precrackFlag:                            ' + _flag_text(precrackFlag) + '\n')
     if _is_on(precrackFlag):
