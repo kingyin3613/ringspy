@@ -557,7 +557,8 @@ def write_vtu_files(geoName, lattice, layer_points, all_ridges, nvertex, path='m
     cross-sections, and the connector volumes. With vertex_band and ridge_band (the ring bands of
     the vertices and ridges of the 2D mesh, see MeshGenTools.RingBands), every cell gets the cell
     data 'Ring' and 'Dense' as VisualizationFiles writes them; extra_labels ({name: (values per vertex,
-    values per ridge)}) adds more integer cell data in the same way.
+    values per ridge)}) adds more integer cell data in the same way. Returns the connector volumes
+    ({'points', 'hexahedra'}) for the STL file, as VisualizationFiles does.
     """
     if vtk_format not in ['ascii', 'binary']:
         raise ValueError("vtk_format must be 'ascii' or 'binary', not {!r}".format(vtk_format))
@@ -650,3 +651,5 @@ def write_vtu_files(geoName, lattice, layer_points, all_ridges, nvertex, path='m
                                       point_data, cell_data)
     else:
         rpgen._write_vtu_files_ascii(path, geoName, files)
+    # the connector volumes (hexahedra), for the STL file (MeshGenTools.StlModelFile)
+    return {'points': np.vstack((points, quad_pts, hex_pts)), 'hexahedra': hex_conn}

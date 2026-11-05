@@ -15,6 +15,7 @@ from scipy.spatial import ConvexHull
 from scipy.spatial import Voronoi
 from pathlib import Path
 import datetime
+import re
 
 from . import __version__
 
@@ -2774,7 +2775,8 @@ def VisualizationFiles(geoName,NURBS_degree,nlayers,npt_per_layer_vtk,all_pts_2D
     Write the Paraview files geoName_vertices.vtu, geoName_beams.vtu, geoName_conns.vtu
     and geoName_conns_vol.vtu. vtk_format = 'ascii' (default) writes text files,
     'binary' writes the data arrays as raw binary appended data (faster to write and
-    read, about 3 times smaller).
+    read, about 3 times smaller). Returns the connector volumes of geoName_conns_vol.vtu,
+    {'points': (n, 3) array, 'hexahedra': (m, 8) array of point indices}, for StlModelFile.
 
     extra_labels :: more integer cell data, {name: (values per vertex, values per ridge)}, written
         after Ring and Dense in the same way (e.g. 'Vessel' and 'Ray' of a hardwood, see CellTypeLabels).
@@ -2977,9 +2979,10 @@ def VisualizationFiles(geoName,NURBS_degree,nlayers,npt_per_layer_vtk,all_pts_2D
     if vtk_format == 'binary':
         for suffix, points, cells, types, point_data, cell_data in files:
             _write_vtu_appended(Path(path, geoName, geoName + suffix + '.vtu'),np.vstack(points),cells,types,point_data,cell_data)
-        return
-
-    _write_vtu_files_ascii(path,geoName,files)
+    else:
+        _write_vtu_files_ascii(path,geoName,files)
+    # the connector volumes (hexahedra), for the STL file (StlModelFile)
+    return {'points': np.vstack((VTKvertices,quad_conn_vertices,hex_conn_vertices)), 'hexahedra': hex_conn_connectivity}
 
 
 def _write_vtu_files_ascii(path,geoName,files):
@@ -3750,55 +3753,102 @@ def ReadSavedSites(sites_path, radial_growth_rule, with_types=False):
     raise FileNotFoundError('Could not find files: {:s} and {:s}, please check if the existing site files are under the same directory with the input script.'.format(sitesfile,radiifile))
 
 
-def StlModelFile(geoName,path='meshes'):
+HEX_FACES = np.array([[0,3,2,1],[4,5,6,7],[0,1,5,4],[1,2,6,5],[2,3,7,6],[3,0,4,7]]) # the 6 faces of a VTK hexahedron
 
-    """Generate the 3D model file (geoName.stl file, binary) for the generated geometry
-    from the connector volume file (geoName_conns_vol.vtu).
+
+def HexahedraSurface(points,hexahedra):
+    """
+    The outer surface of hexahedra (VTK vertex order: a quad, then the quad above it) as triangles,
+    an (ntriangles, 3, 3) array of vertex coordinates: the faces that two hexahedra share (the same
+    four point indices) are left out, every other face is split along its first diagonal into two
+    triangles (consecutive in the array), oriented outwards (counter-clockwise seen from outside,
+    with the hexahedron's centroid inside). The same surface as VTK's vtkDataSetSurfaceFilter and
+    vtkTriangleFilter give, with the normals made consistent.
+    """
+    points = np.asarray(points,dtype=float).reshape(-1,3)
+    hexahedra = np.asarray(hexahedra,dtype=np.int64).reshape(-1,8)
+    if len(hexahedra) == 0:
+        return np.zeros((0,3,3))
+    faces = hexahedra[:,HEX_FACES].reshape(-1,4) # (6*nhex, 4), face k of hexahedron h at row 6*h + k
+    key = np.sort(faces,axis=1)
+    _, first, counts = np.unique(key,axis=0,return_index=True,return_counts=True)
+    outer = np.sort(first[counts == 1]) # faces of one hexahedron only, in the order of the hexahedra
+    quads = points[faces[outer]] # (nouter, 4, 3)
+    centroids = points[hexahedra[outer//6]].mean(axis=1) # of the hexahedra the faces belong to
+    normal = np.cross(quads[:,2] - quads[:,0],quads[:,3] - quads[:,1]) # of the quad (its diagonals)
+    inward = np.einsum('ij,ij->i',normal,quads.mean(axis=1) - centroids) < 0
+    quads[inward] = quads[inward][:,::-1] # reverse the order of the vertices: the normal flips
+    triangles = np.empty((2*len(quads),3,3))
+    triangles[0::2] = quads[:,[0,1,2]]
+    triangles[1::2] = quads[:,[0,2,3]]
+    return triangles
+
+
+def WriteStl(file,triangles,header=b'RingsPy binary STL'):
+    """Write triangles (an (n, 3, 3) array of vertex coordinates) as a binary STL file, the normal of
+    each from the order of its vertices (counter-clockwise seen from outside)"""
+    triangles = np.asarray(triangles,dtype=float).reshape(-1,3,3)
+    normal = np.cross(triangles[:,1] - triangles[:,0],triangles[:,2] - triangles[:,0])
+    length = np.linalg.norm(normal,axis=1,keepdims=True)
+    normal = normal/np.where(length > 0,length,1.0)
+    records = np.zeros(len(triangles),dtype=np.dtype([('normal','<f4',3),('vertices','<f4',(3,3)),('attribute','<u2')]))
+    records['normal'] = normal
+    records['vertices'] = triangles
+    with open(file,'wb') as f:
+        f.write(bytes(header[:80]).ljust(80,b'\0'))
+        f.write(np.array(len(triangles),dtype='<u4').tobytes())
+        f.write(records.tobytes())
+
+
+def ReadVtuCells(file):
+    """
+    Points and cells of an unstructured grid file written by RingsPy (ASCII, or binary appended
+    data): the points as an (n, 3) array, and the cells as an array of point indices when all the
+    cells have the same number of points (one row per cell), else a list of index arrays.
+    """
+    data = Path(file).read_bytes()
+    head, sep, appended = data.partition(b'<AppendedData encoding="raw">')
+    text = head.decode('ascii','replace')
+    arrays = {}
+    if sep: # binary: every DataArray gives the offset of its block (a UInt64 byte count, then the bytes)
+        raw = appended[appended.index(b'_') + 1:]
+        for m in re.finditer(r'<DataArray type="(\w+)"(?: NumberOfComponents="(\d+)")?(?: Name="(\w+)")?[^>]*offset="(\d+)"',text):
+            dtype = {'Float64': '<f8','Float32': '<f4','Int32': '<i4','Int64': '<i8','UInt8': 'u1'}[m.group(1)]
+            offset = int(m.group(4))
+            nbytes = int(np.frombuffer(raw[offset:offset + 8],dtype='<u8')[0])
+            arrays[m.group(3) or 'points'] = np.frombuffer(raw[offset + 8:offset + 8 + nbytes],dtype=dtype)
+    else:
+        for m in re.finditer(r'<DataArray type="(\w+)"(?: NumberOfComponents="(\d+)")?(?: Name="(\w+)")?[^>]*format="ascii">(.*?)</DataArray>',text,re.S):
+            values = m.group(4).split()
+            arrays[m.group(3) or 'points'] = np.array(values,dtype=float if m.group(1).startswith('Float') else int)
+    points = arrays['points'].reshape(-1,3).astype(float)
+    connectivity = arrays['connectivity'].astype(np.int64)
+    offsets = arrays['offsets'].astype(np.int64)
+    starts = np.concatenate(([0],offsets[:-1]))
+    sizes = offsets - starts
+    if len(sizes) and np.all(sizes == sizes[0]):
+        return points, connectivity.reshape(-1,int(sizes[0]))
+    return points, [connectivity[s:e] for s, e in zip(starts,offsets)]
+
+
+def StlModelFile(geoName,path='meshes',points=None,hexahedra=None):
+    """Generate the 3D model file (geoName.stl file, binary) of the generated geometry: the outer
+    surface of the connector volumes (HexahedraSurface, WriteStl), given as points and hexahedra
+    (as VisualizationFiles returns them) or read from the connector volume file
+    geoName_conns_vol.vtu written by RingsPy. No VTK needed.
 
     Arguments:
     ---------
     geoName :: string, geometry name.
     path :: folder containing the geoName folder.
+    points, hexahedra :: the connector volumes, {'points': (n, 3), 'hexahedra': (m, 8)} of VisualizationFiles.
     """
-
-    try:
-        # only the VTK modules used here ('import vtk' loads all of VTK, which takes seconds)
-        from vtkmodules.vtkIOXML import vtkXMLUnstructuredGridReader
-        from vtkmodules.vtkFiltersGeometry import vtkDataSetSurfaceFilter
-        from vtkmodules.vtkFiltersCore import vtkTriangleFilter
-        from vtkmodules.vtkIOGeometry import vtkSTLWriter
-    except ImportError:
-        try:
-            from vtk import vtkXMLUnstructuredGridReader, vtkDataSetSurfaceFilter, vtkTriangleFilter, vtkSTLWriter
-        except ImportError as e:
-            raise ImportError("STL export (stlFlag = 'on') needs the optional package vtk: pip install 'ringspy[vtk]'") from e
-
-    file_name = str(Path(path, geoName, geoName + '_conns_vol'+'.vtu'))
-    stlfilename = str(Path(path, geoName, geoName + '.stl'))
-
-    # create a new 'XML Unstructured Grid Reader'
-    reader = vtkXMLUnstructuredGridReader()
-    reader.SetFileName(file_name)
-    reader.Update()
-    output = reader.GetOutputPort()
-
-    # Extract the outer (polygonal) surface.
-    surface = vtkDataSetSurfaceFilter()
-    surface.SetInputConnection(0, output)
-    surface.Update()
-
-    # Split the quads of the surface into triangles. vtkSTLWriter would do the same
-    # split itself, but about 100 times slower.
-    triangles = vtkTriangleFilter()
-    triangles.SetInputConnection(surface.GetOutputPort())
-    triangles.Update()
-
-    # Write the stl file to disk
-    stlWriter = vtkSTLWriter()
-    stlWriter.SetFileTypeToBinary() # ASCII STL files are ~3x larger
-    stlWriter.SetFileName(stlfilename)
-    stlWriter.SetInputConnection(triangles.GetOutputPort())
-    stlWriter.Write()
+    if points is None or hexahedra is None:
+        points, hexahedra = ReadVtuCells(Path(path, geoName, geoName + '_conns_vol.vtu'))
+        hexahedra = np.asarray(hexahedra)
+        if hexahedra.ndim != 2 or hexahedra.shape[1] != 8:
+            raise ValueError('{}_conns_vol.vtu does not hold hexahedra'.format(geoName))
+    WriteStl(Path(path, geoName, geoName + '.stl'),HexahedraSurface(points,hexahedra))
 
 
 def ModelInfo(box_shape,boundary_points,z_min,z_max,skeleton_density,MeshData,polygon=None):

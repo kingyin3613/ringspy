@@ -1227,7 +1227,7 @@ def _reconstruct(c, volume):
         [mass, bulk_volume, bulk_density, porosity] = \
             rpgen.ModelInfo('square', boundary_points, z_min, z_max, c.skeleton_density, lat.Meshdata, polygon=boundary_points)
         rplat.write_iga_file(geoName, lat, path=path)
-        rplat.write_vtu_files(geoName, lat, layer_points, all_ridges, ref.nvertex, path=path, vtk_format=c.vtk_format)
+        volumes = rplat.write_vtu_files(geoName, lat, layer_points, all_ridges, ref.nvertex, path=path, vtk_format=c.vtk_format)
         fibers = {'fiber_ends': c.fiber_ends, 'nelem': nelem}
         if c.fiber_ends == 'random':
             fibers.update({'fiber_length': c.fiber_length, 'fiber_length_cov': c.fiber_length_cov,
@@ -1263,7 +1263,7 @@ def _reconstruct(c, volume):
         rpgen.BezierBeamFile(geoName, NURBS_DEGREE, nctrlpt_per_beam, nconnector_t_per_beam, npatch, knotVec, path=path)
         tangents = connector_tangents(IGAvertices, np.vstack((connector_t_bot_connectivity, connector_t_reg_connectivity,
                                                                connector_t_top_connectivity)), npt_per_layer, nctrlpt_per_beam)
-        rpgen.VisualizationFiles(geoName, NURBS_DEGREE, nlayers, npt_per_layer_vtk, all_pts_2D, segment_length, theta,
+        volumes = rpgen.VisualizationFiles(geoName, NURBS_DEGREE, nlayers, npt_per_layer_vtk, all_pts_2D, segment_length, theta,
                                  z_coord, c.nsegments, ref.nridge, ref.ridges, (0.0, 0.0), all_ridges, ref.nvertex,
                                  nconnector_t, nconnector_l, nctrlpt_per_beam, ConnMeshData, conn_l_tangents,
                                  all_vertices_2D, max_wings, flattened_all_vertices_2D, path=path, vtk_format=c.vtk_format,
@@ -1282,7 +1282,7 @@ def _reconstruct(c, volume):
                  ridges=ref.ridges, wall_thickness=ref.thickness, kind=ref.kind, fiber_ends=end_pairs,
                  z_grid=z_min + np.arange(nelem + 1)*h)
     if c.stlFlag:
-        rpgen.StlModelFile(geoName, path=path)
+        rpgen.StlModelFile(geoName, path=path, **volumes)
     if c.inpFlag:
         if fibers_on:
             rpgen.AbaqusFile(geoName, NURBS_DEGREE, lat.npatch, lat.nodes, lat.beam_connectivity, lat.connector_t_bot,

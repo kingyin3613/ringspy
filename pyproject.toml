@@ -33,11 +33,11 @@ classifiers = [
 ringspy = "ringspy.cli:main"
 
 [project.optional-dependencies]
-vtk = ["vtk"]                       # STL export (stlFlag = true)
+vtk = ["vtk"]                       # no longer needed: the STL file is written without VTK since v2.2 (kept for old commands)
 hex = ["hexalattice>=1.2.1"]        # radial_growth_rule = 'regular_hexagonal'
 image = ["tifffile"]                # ringspy reconstruct: 3D images as .tif stacks
-all = ["vtk", "hexalattice>=1.2.1", "tifffile"]
-test = ["pytest>=7", "pytest-cov", "vtk", "hexalattice>=1.2.1", "tifffile"]
+all = ["hexalattice>=1.2.1", "tifffile"]
+test = ["pytest>=7", "pytest-cov", "hexalattice>=1.2.1", "tifffile"]
 
 [project.urls]
 Homepage = "https://github.com/kingyin3613/ringspy"
