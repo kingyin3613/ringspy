@@ -244,7 +244,7 @@ The Lloyd's relaxation (a.k.a. Lloyd's algorithm) has been integrated with the m
 ```toml
 radial_growth_rule = "binary_lloyd"
 ``` 
-This allows a rapid radial generation of more regular centroidal Voronoi cells from the `generation_center` (see the difference between `wood_binary` and `wood_binary_lloyd` in the preview of 2D cross-sections in section 2.2). For more detail of the algorithm, see [Wiki - Lloyd's algorithm](https://en.wikipedia.org/wiki/Lloyd's_algorithm)).
+This allows a rapid radial generation of more regular centroidal Voronoi cells from the `generation_center` (see the difference between `wood_cube` and `wood_cube_lloyd` in the previews of 2D cross-sections in section 2.2). For more detail of the algorithm, see [Wiki - Lloyd's algorithm](https://en.wikipedia.org/wiki/Lloyd's_algorithm)).
 
 ![lloyd](<./contents/lloyd.gif>)
 
@@ -275,7 +275,9 @@ The following files should be generated in the `.\meshes\geoName` directory with
 The growth ring of every cell is written to the files: the `.vtu` files carry the cell data `Ring` (0 for the heart, then 1, 2, ...) and `Dense` (1 in the heart and in the dense part of a ring, 0 in the sparse part), the `.inp` file has an element set per ring (section 4.3), and the report log lists the radii of the rings. A hardwood's files also carry `Vessel` and `Ray` (section 1.3). A beam and the wing quads around it take the ring of their vertex; a cell wall (and its transverse connectors) takes the ring of the vertex whose thickness it has, its second vertex; a longitudinal connector takes the ring of the wall of its wing, whose width it has. So the ring labels of the connectors always go with their `Connector_width`.
 
 
-![Model2DPreview](<./contents/Model2DPreview.png>)
+Previews of the 2D cross-sections of the examples, drawn with `result.plot()` (section 2.3), coloured by growth ring, by cell type (the hardwood), by earlywood and latewood (the eccentric rings) and by wall thickness (the dog-bone from an SVG drawing):
+
+![Model2DPreview: previews of the 2D cross-sections of seven examples](<./contents/Model2DPreview.png>)
 
 ### 2.3. Quick 2D Preview
 
@@ -344,7 +346,9 @@ A scientific visualization application `ParaView` can directly visualize the gen
         - File > Save Screenshot
         - Enter a file name > OK
         - Leave new window as-is or increase resolution > OK
-![ModelVisualization](<./contents/ModelVisualization.png>)
+(a) the beams and connectors of `wood_cube` coloured by `Connector_width`, (b) the connector volumes of `hardwood_ring_porous` with the `Vessel` and `Ray` cell data in their own colours, and (c) the connector volumes of `wood_spiral`, coloured by `Ring`, with the taper and the spiral grain:
+
+![ModelVisualization: the components of wood_cube coloured by connector width, the connector volumes of the hardwood example with vessels and rays, and the tapered, spiral-grained volumes of wood_spiral coloured by ring](<./contents/ModelVisualization.png>)
 
 ### 4. (Optional) Numerical Simulation
 The mesh generation tool can also prepare the input files for the numerical simulations of the cellular solid in other softwares. By now (version 1.x), the input file format, `.inp`, that is used in a finite element method (FEM) software `Abaqus` is supported, if the INP flag is on. `Abaqus` is a commerical software suite for integrated computer-aided engineering (CAE) and finite element analysis, own by `Dassault Systèmes`. One may refer to its [Wiki](https://en.wikipedia.org/wiki/Abaqus) for more about `Abaqus`, and to [Introduction](https://bertoldi.seas.harvard.edu/files/bertoldi/files/abaqusinputfilemanualv1.pdf?m=1444417191) for the introduction of Abaqus input files.

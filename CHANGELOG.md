@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- `ringspy.preview()` (and `previewFlag`) no longer draws the lines of the clipped tessellation into the caller's current Matplotlib axes: the preview gets its own figure, closed afterwards, like a full run.
+
+### Changed
+- README screenshots regenerated with v2.2.0: the previews of the 2D cross-sections of seven examples and the 3D views of the wood cube, the hardwood and the tapered, spiral-grained specimen.
+
 ## v2.2.0
 
 Hardwood features: vessels, ring-porous or diffuse-porous, and rays. Growth rings that are ellipses, wider on one side (an eccentric pith, as in reaction wood) or wavy. A taper of the specimen and a spiral grain that changes from the pith outwards. Statistics of the cells, walls and rings. Clipping outlines read from SVG and DXF drawings. STL files without VTK. A quick 2D preview.

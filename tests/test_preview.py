@@ -68,8 +68,13 @@ def test_preview_other_files_and_paths(tmp_path):
     polygon = ringspy.preview(dict(SMALL, geoName="d", path=str(tmp_path), box_shape="polygon",
                                    box_polygon=[[0, -0.4], [0.8, -0.4], [0.8, 0.4], [0.4, 0.1], [0, 0.4]]))
     assert len(polygon.boundary_points) == 5
-    # the figure of the preview is closed afterwards
+    # the figure of the preview is closed afterwards, and a figure of the caller is left alone
     assert plt.get_fignums() == []
+    fig, ax = plt.subplots()
+    ringspy.preview(dict(SMALL, geoName="q", path=str(tmp_path)))
+    assert plt.get_fignums() == [fig.number] and plt.gca() is ax
+    assert len(ax.lines) == 0 and len(ax.collections) == 0 and len(ax.patches) == 0
+    plt.close(fig)
 
 
 def toml_text(params):
