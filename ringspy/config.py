@@ -140,6 +140,9 @@ class Config:
                                              # of the cells (area, neighbours, shape), rings (2D porosity) and walls
     graphFlag: bool = False                  # also save geoName-graph.npz, the cell mesh as a graph (nodes: vertices,
                                              # edges: cell walls) in the layout of PyTorch Geometric
+    previewFlag: bool = False                # only the 2D cell mesh (ringspy run --preview): stop after the tessellation
+                                             # and clipping, save geoName.png (the walls coloured by growth ring) and
+                                             # skip the extrusion and the mesh files, to try parameters quickly
 
     def __post_init__(self):
         for f in dataclasses.fields(self):

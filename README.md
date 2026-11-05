@@ -143,6 +143,7 @@ inpType = "Abaqus"
 save_sites = false              # also save wood_cube_sites.npy and wood_cube_radii.npy, to reuse the cells later
 graphFlag = false               # also save wood_cube-graph.npz, the cell mesh as a graph (PyTorch Geometric layout)
 statsFlag = false               # also save wood_cube-cells.csv, -rings.csv, -walls.csv (statistics of the cells)
+previewFlag = false             # only the 2D cell mesh and wood_cube.png, no extrusion, no mesh files (section 2.3)
 ```
 
 A parameter that is left out takes its default value, which is its value in `wood_cube.toml`; a misspelled parameter name is an error. Flags take `true`/`false` (the `'on'`/`'off'` strings of earlier versions also work).
@@ -176,6 +177,7 @@ A parameter that is left out takes its default value, which is its value in `woo
 - `inpType` indicates the software(s) that the mesh generation should generate input files for.
 - `graphFlag` flag can be turned on/off for saving the 2D cell mesh as a graph (`geoName-graph.npz`, see section 5.2).
 - `statsFlag` flag can be turned on/off for saving the statistics of the cells, walls and rings as CSV files (section 5.3).
+- `previewFlag` flag stops the generation after the tessellation and clipping and saves the figure of the 2D cell mesh, without the extrusion and the mesh files (section 2.3); `ringspy run --preview` does the same.
 - `vessel_fraction`, `vessel_size`, `vessel_arrangement`, `vessel_zone`, `ray_spacing`, `ray_width` and `ray_cell_length` add the vessels and rays of a hardwood (section 1.3).
 - `ring_ellipticity`, `ring_ellipse_angle`, `ring_eccentricity`, `ring_eccentricity_angle`, `ring_waviness`, `ring_wave_order` and `ring_wave_phase` shape the growth rings (section 1.4).
 
@@ -212,7 +214,7 @@ Open a Command Prompt or Terminal window, set the current directory to [examples
 ```bash
 ringspy run wood_cube.toml
 ```
-(`python -m ringspy run wood_cube.toml` does the same.) The options `--seed`, `--path` and `--geoName` override the values in the file, e.g. `ringspy run wood_cube.toml --seed 7 --geoName wood_cube_7`.
+(`python -m ringspy run wood_cube.toml` does the same.) The options `--seed`, `--path` and `--geoName` override the values in the file, e.g. `ringspy run wood_cube.toml --seed 7 --geoName wood_cube_7`. To try parameters quickly, `ringspy run wood_cube.toml --preview` draws the 2D cell mesh and stops (section 2.3).
 
 Functions in `MeshGenTools` library will be called to create the initial mesh, wood cell particles following certain cell size distribution will be placed, then `Scipy.voronoi` function will be called to form the initial 2D Voronoi tessellation, additional code reforms the tesselation and generates the desired files. A successful generation will end with the line "Mesh files written to ..." in the Terminal window.
 
@@ -274,7 +276,33 @@ The growth ring of every cell is written to the files: the `.vtu` files carry th
 
 
 ![Model2DPreview](<./contents/Model2DPreview.png>)
-	
+
+### 2.3. Quick 2D Preview
+
+Most of the time of a run goes into the extrusion and the writing of the mesh files, which do not matter while the cells themselves are being tuned. A preview stops after the tessellation and the clipping:
+```bash
+ringspy run wood_cube.toml --preview
+```
+or `previewFlag = true` in the file, or from Python:
+```python
+result = ringspy.preview("wood_cube.toml", cellsize_sparse=0.03, seed=1)   # generate(..., previewFlag=True)
+print(result.summary())                                                   # ncells, mean_cell_area, porosity_2d, ...
+```
+The cells are placed and clipped exactly as in a full run (the same seed gives the same cells), and the output folder gets only `wood_cube.png`, the 2D mesh files `wood_cube-vertex.mesh` and `wood_cube-ridge.mesh`, and, if asked for, the sites (`save_sites`), the statistics (`statsFlag`) and the graph (`graphFlag`, without the 3D properties). The figure shows the cell walls coloured by growth ring (the dense part of a ring darker), with their thickness as line width, the ring boundaries dashed and the clipping outline; the vessels and rays of a hardwood get their own colours. The `Result` has the 2D mesh with its labels and statistics as usual, and `None` for the properties of the 3D model (`nbeamElem`, `mass`, `bulk_volume`, `bulk_density`, `porosity`); `result.preview` tells the two apart. `ringspy batch ... --preview` previews every run of a batch (section 5.1).
+
+![wood_cube_preview: the cell walls of wood_cube coloured by growth ring](<./contents/wood_cube_preview.png>)
+
+The same figure can be drawn from the `Result` of any run, in any Matplotlib axes, with other colourings:
+```python
+import matplotlib.pyplot as plt
+
+fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+result.plot(ax=axes[0])                          # or ringspy.plot_mesh(result, ax=axes[0]): by growth ring
+result.plot(ax=axes[1], color="dense")           # earlywood light, latewood dark
+result.plot(ax=axes[2], color="thickness")       # wall thickness, with a colour bar
+```
+`color` is `"ring"`, `"dense"`, `"thickness"`, `"type"` (fibers, vessels and rays) or `None`; `linewidth` is `"thickness"` or a width in points; `sites=True` marks the cell sites; `rings`, `boundary`, `legend` and `title` switch those parts off.
+
 ### 3. Visualization
 A scientific visualization application `ParaView` can directly visualize the generated vtk files; It can also visualize generated 3D model STL files if the STL flag is on. `Paraview` is a free software, it can be downloaded from its official website: [https://www.paraview.org/download/](https://www.paraview.org/download/), latest version is recommeded.
 
@@ -361,7 +389,7 @@ Both are made for parameter studies and for building data sets, e.g. to train a 
 ```bash
 ringspy batch wood_cube.toml --seeds 0-9 --set cellsize_sparse=0.02,0.03 --set stlFlag=false --jobs 4
 ```
-`--seeds` takes integers and ranges (`0-9` is 0 to 9), `--set NAME=V1,V2,...` the values of a parameter to sweep (TOML syntax: lists in brackets, e.g. `--set "cellwallthickness_dense=[0.01,0.01],[0.01,0.02]"`; a single value just changes the parameter in all runs), `--jobs` the number of runs in parallel, and `--path`/`--geoName` override the file. Run i is named `<geoName>_<i>` (`wood_cube_000`, `wood_cube_001`, ...) and gets the usual folder of files, with the first swept parameter varying slowest and the seeds fastest. The table `<path>/<geoName>-batch.csv` has one row per run with its seed, the swept parameters, and `nParticles`, `nvertex`, `nridge`, `nbeamElem`, `mass`, `bulk_volume`, `bulk_density` and `porosity`, plus the error message of a run that failed (the other runs are still generated; the command then exits with status 1). From Python:
+`--seeds` takes integers and ranges (`0-9` is 0 to 9), `--set NAME=V1,V2,...` the values of a parameter to sweep (TOML syntax: lists in brackets, e.g. `--set "cellwallthickness_dense=[0.01,0.01],[0.01,0.02]"`; a single value just changes the parameter in all runs), `--jobs` the number of runs in parallel, `--preview` previews every run instead of generating its mesh (section 2.3; the table then has the statistics of the cells, section 5.3, but no mass, volume or density), and `--path`/`--geoName` override the file. Run i is named `<geoName>_<i>` (`wood_cube_000`, `wood_cube_001`, ...) and gets the usual folder of files, with the first swept parameter varying slowest and the seeds fastest. The table `<path>/<geoName>-batch.csv` has one row per run with its seed, the swept parameters, and `nParticles`, `nvertex`, `nridge`, `nbeamElem`, `mass`, `bulk_volume`, `bulk_density` and `porosity`, plus the error message of a run that failed (the other runs are still generated; the command then exits with status 1). From Python:
 ```python
 results = ringspy.batch("wood_cube.toml", seeds=range(10), sweep={"cellsize_sparse": [0.02, 0.03]},
                         jobs=4, stlFlag=False)        # a list of Results, None for a failed run

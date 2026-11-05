@@ -25,25 +25,28 @@ from . import MeshGenTools as rpgen
 from . import lattice as rplat
 from . import stats as rpstats
 from .config import Config
+from .plot import plot_mesh
 
 NURBS_DEGREE = 2
+PREVIEW_FIGSIZE = (8, 8)     # inches, and dots per inch, of the figure of a preview
+PREVIEW_DPI = 200
 
 
 @dataclass
 class Result:
     """What generate() made: the output folder and files, the cell sites, the clipped 2D cell mesh
-    with its growth ring labels, and model properties"""
+    with its growth ring labels, and model properties (None in a preview, which has no 3D model)"""
     config: Config               # with the defaults filled in (Config.resolved())
     output_dir: Path
     files: List[Path]
     sites: np.ndarray            # cell sites, one row (x, y, cell size) per cell
     radii: np.ndarray            # radii of the growth rings: 0, the heart, then the sparse and dense part of each ring
     nParticles: int
-    nbeamElem: int
-    mass: float
-    bulk_volume: float
-    bulk_density: float
-    porosity: float
+    nbeamElem: Optional[int]
+    mass: Optional[float]
+    bulk_volume: Optional[float]
+    bulk_density: Optional[float]
+    porosity: Optional[float]
     vertices: np.ndarray         # (nvertex, 2) vertices of the clipped (and merged) 2D cell mesh: the grains, one beam each
     ridges: np.ndarray           # (nridge, 2) vertex indices of the cell walls: the transverse connectors
     vertex_ring: np.ndarray      # growth ring of each vertex: 0 the heart, 1 ... nrings (nrings+1 beyond the last ring)
@@ -61,6 +64,7 @@ class Result:
     ridge_ray: np.ndarray        # True for the walls of the ray cells that are not vessel walls
     ring_shape: object = None    # the shape of the growth rings (MeshGenTools.RingShape): ring_shape.rho(points) is the
                                  # ring coordinate, ring_shape.boundary(result.radii[k]) the outline of a ring boundary
+    boundary_points: Optional[np.ndarray] = None  # (n, 2) corners of the clipping outline, in order around it
     graph: Optional[dict] = None # the arrays of geoName-graph.npz when graphFlag is on, see graph_arrays()
     cell_stats: Optional[dict] = None  # one value per cell: area, neighbours, aspect ratio, ... (stats.cell_statistics)
     ring_stats: Optional[dict] = None  # one value per band of the rings: cell counts, 2D porosity, ... (stats.ring_statistics)
@@ -77,6 +81,25 @@ class Result:
     @property
     def nridge(self):
         return len(self.ridges)
+
+    @property
+    def preview(self):
+        """True for the result of a preview: the 2D cell mesh alone, no 3D model, no mesh files"""
+        return self.nbeamElem is None
+
+    def plot(self, ax=None, **options):
+        """Draw the 2D cell mesh in a Matplotlib axes (see plot_mesh: color='ring', 'dense', 'thickness', 'type')"""
+        return plot_mesh(self, ax=ax, **options)
+
+
+def preview(config, **changes):
+    """Only the 2D cell mesh of a generation, quickly: generate() with previewFlag, which stops after the
+    tessellation and clipping (no extrusion, no mesh files). The Result has the mesh, its labels and
+    statistics, and its figure is saved as geoName.png (the walls coloured by growth ring, plot_mesh()).
+
+    config, changes :: as for generate(), e.g. ``preview('wood_cube.toml', cellsize_sparse=0.03)``.
+    """
+    return generate(config, previewFlag=True, **changes)
 
 
 def generate(config, **changes):
@@ -142,21 +165,24 @@ def _generate(c):
         rpgen.Clipping_Box(c.box_shape, c.box_center, c.box_size, c.boundaryFlag, polygon=c.box_polygon)
     box_corners = boundary_points
 
-    # Visualize the original 2D Voronoi diagram
+    # Visualize the original 2D Voronoi diagram (a preview draws the clipped mesh instead, plot_mesh)
     vor = Voronoi(sites[:, 0:2])
-    voronoi_plot_2d(vor, show_vertices=False, line_width=0.5, line_alpha=0.6, point_size=2)
-    fig = plt.gcf()
-    plt.xlim(x_min-0.1*abs(x_max-x_min), x_max+0.1*abs(x_max-x_min))
-    plt.ylim(y_min-0.1*abs(y_max-y_min), y_max+0.1*abs(y_max-y_min))
-    plt.plot(boundary_points[:, 0], boundary_points[:, 1], 'bo')
+    fig = None
+    if not c.previewFlag:
+        voronoi_plot_2d(vor, show_vertices=False, line_width=0.5, line_alpha=0.6, point_size=2)
+        fig = plt.gcf()
+        plt.xlim(x_min-0.1*abs(x_max-x_min), x_max+0.1*abs(x_max-x_min))
+        plt.ylim(y_min-0.1*abs(y_max-y_min), y_max+0.1*abs(y_max-y_min))
+        plt.plot(boundary_points[:, 0], boundary_points[:, 1], 'bo')
 
     voronoiTime = time.time()
     print('Original Voronoi tessellation generated in {:.3f} seconds'.format(voronoiTime - placementTime))
 
-    ax = plt.gca()
-    boundarylines = patches.Polygon(boundary_points, closed=True, linewidth=2, edgecolor='k', facecolor='none')
-    ax.set_aspect('equal', adjustable='box')
-    ax.add_patch(boundarylines)
+    if not c.previewFlag:
+        ax = plt.gca()
+        boundarylines = patches.Polygon(boundary_points, closed=True, linewidth=2, edgecolor='k', facecolor='none')
+        ax.set_aspect('equal', adjustable='box')
+        ax.add_patch(boundarylines)
 
     # ==================================================================
     # Rebuild the Voronoi mesh
@@ -212,6 +238,23 @@ def _generate(c):
         hardwood_log.update(hardwood_counts)
         hardwood_log.update({'nvessel_walls': int(ridge_vessel.sum()), 'nray_walls': int(ridge_ray.sum())})
 
+    mesh = dict(c=c, output_dir=output_dir, sites=sites, radii=radii, nParticles=nParticles, all_pts_2D=all_pts_2D,
+                all_ridges=all_ridges, npt_per_layer=npt_per_layer, nridge=nridge, all_vertices_2D=all_vertices_2D,
+                max_wings=max_wings, vertex_band=vertex_band, ridge_band=ridge_band, box_corners=box_corners,
+                boundaries=boundaries, cell_labels=cell_labels)
+
+    if c.previewFlag:
+        # the 2D cell mesh is all that is wanted: its Result and its figure, no extrusion, no mesh files
+        result = _mesh_result(**mesh)
+        fig, ax = plt.subplots(figsize=PREVIEW_FIGSIZE)
+        plot_mesh(result, ax=ax)
+        fig.savefig(Path(output_dir, geoName + '.png'), dpi=PREVIEW_DPI, bbox_inches='tight')
+        FileTime = time.time()
+        print('Preview of the 2D cell mesh drawn in {:.3f} seconds ({:d} vertices, {:d} walls in the box)'.format(
+            FileTime - RebuildvorTime, result.nvertex, result.nridge))
+        result.files = sorted(output_dir.iterdir())
+        return result
+
     if c.fiber_length is not None:
         # fibers of various lengths: every grain its own sequence of fibers (lattice module)
         return _generate_fibers(c, rng, output_dir, fig, sites, radii, nParticles, x_min, x_max, y_min, y_max,
@@ -219,7 +262,7 @@ def _generate(c):
                                 npt_per_layer_normal, npt_per_layer_vtk, nvertex, nvertices_in, nboundary_pts_featured,
                                 nridge, all_vertices_2D, max_wings, flattened_all_vertices_2D, vertex_band, ridge_band,
                                 [startTime, placementTime, voronoiTime, RebuildvorTime], cell_labels, extra_labels,
-                                hardwood_log)
+                                hardwood_log, mesh)
 
     # ==================================================================
     # Extrude in the parallel-to-grain (longitudinal) direction: a rigid twist by theta, or, with a taper or a
@@ -324,22 +367,8 @@ def _generate(c):
 
     # ==================================================================
     # The 2D cell mesh with its ring labels, and as a graph
-    vertices = np.array(all_pts_2D[0:npt_per_layer], dtype=float)
-    ridges = np.array(all_ridges, dtype=int)[0:nridge, 0:2]
-    vertex_ring, vertex_dense = rpgen.RingLabels(vertex_band)
-    ridge_ring, ridge_dense = rpgen.RingLabels(ridge_band)
-    vertex_boundary = rpgen.OnBoundary(vertices, box_corners)
-    result = Result(config=c, output_dir=output_dir, files=[], sites=sites, radii=radii,
-                    nParticles=nParticles, nbeamElem=nbeamElem, mass=mass, bulk_volume=bulk_volume,
-                    bulk_density=bulk_density, porosity=porosity, vertices=vertices, ridges=ridges,
-                    vertex_ring=vertex_ring, vertex_dense=vertex_dense, vertex_boundary=vertex_boundary,
-                    vertex_thickness=np.array(all_vertices_2D[:, 3 + 3*max_wings], dtype=float),  # width of the first wing
-                    ridge_ring=ridge_ring, ridge_dense=ridge_dense,
-                    ridge_boundary=vertex_boundary[ridges[:, 0]] & vertex_boundary[ridges[:, 1]], **cell_labels)
-    if c.graphFlag:
-        result.graph = graph_arrays(result)
-        rpgen.GraphFile(geoName, result.graph, path=path)
-    _add_statistics(result, boundaries, c.statsFlag)
+    result = _mesh_result(nbeamElem=nbeamElem, mass=mass, bulk_volume=bulk_volume, bulk_density=bulk_density,
+                          porosity=porosity, **mesh)
 
     FileTime = time.time()
     print('Files generated in {:.3f} seconds'.format(FileTime - BeamTime))
@@ -361,6 +390,31 @@ def _generate(c):
                   box_polygon_file=getattr(c, 'box_polygon_file', None))
 
     result.files = sorted(output_dir.iterdir())
+    return result
+
+
+def _mesh_result(c, output_dir, sites, radii, nParticles, all_pts_2D, all_ridges, npt_per_layer, nridge,
+                 all_vertices_2D, max_wings, vertex_band, ridge_band, box_corners, boundaries, cell_labels,
+                 nbeamElem=None, mass=None, bulk_volume=None, bulk_density=None, porosity=None):
+    """The Result of a run: the clipped 2D cell mesh with its ring labels, the model properties of a full
+    run (None in a preview), the graph (and its file, graphFlag) and the statistics (statsFlag: their files)"""
+    vertices = np.array(all_pts_2D[0:npt_per_layer], dtype=float)
+    ridges = np.array(all_ridges, dtype=int)[0:nridge, 0:2]
+    vertex_ring, vertex_dense = rpgen.RingLabels(vertex_band)
+    ridge_ring, ridge_dense = rpgen.RingLabels(ridge_band)
+    vertex_boundary = rpgen.OnBoundary(vertices, box_corners)
+    result = Result(config=c, output_dir=output_dir, files=[], sites=sites, radii=radii,
+                    nParticles=nParticles, nbeamElem=nbeamElem, mass=mass, bulk_volume=bulk_volume,
+                    bulk_density=bulk_density, porosity=porosity, vertices=vertices, ridges=ridges,
+                    vertex_ring=vertex_ring, vertex_dense=vertex_dense, vertex_boundary=vertex_boundary,
+                    vertex_thickness=np.array(all_vertices_2D[:, 3 + 3*max_wings], dtype=float),  # width of the first wing
+                    ridge_ring=ridge_ring, ridge_dense=ridge_dense,
+                    ridge_boundary=vertex_boundary[ridges[:, 0]] & vertex_boundary[ridges[:, 1]],
+                    boundary_points=np.array(box_corners, dtype=float), **cell_labels)
+    if c.graphFlag:
+        result.graph = graph_arrays(result)
+        rpgen.GraphFile(c.geoName, result.graph, path=c.path)
+    _add_statistics(result, boundaries, c.statsFlag)
     return result
 
 
@@ -394,6 +448,7 @@ def graph_arrays(result):
       ray (1 for the walls of a vessel or of a ray cell)
     - ``sites`` (nParticles, 3), ``radii``, ``generation_center``: the cells and growth rings behind the mesh
     - ``nParticles``, ``nbeamElem``, ``mass``, ``bulk_volume``, ``bulk_density``, ``porosity``: model properties
+      (a preview has only ``nParticles``: no 3D model)
     - ``config``: the parameters of the run as a JSON string
 
     To load it: ``g = np.load(file); Data(x=torch.from_numpy(g['x']), edge_index=torch.from_numpy(g['edge_index']),
@@ -413,21 +468,24 @@ def graph_arrays(result):
                                  np.tile(ridge_thickness, 2), np.tile(result.ridge_ring, 2),
                                  np.tile(result.ridge_dense, 2), np.tile(result.ridge_boundary, 2),
                                  np.tile(result.ridge_vessel, 2), np.tile(result.ridge_ray, 2))).astype(float)
-    return {'pos': pos, 'x': x, 'edge_index': edge_index, 'edge_attr': edge_attr,
-            'node_features': np.array(NODE_FEATURES), 'edge_features': np.array(EDGE_FEATURES),
-            'sites': np.asarray(result.sites, dtype=float), 'radii': np.asarray(result.radii, dtype=float),
-            'generation_center': np.asarray(result.config.generation_center, dtype=float),
-            'nParticles': np.int64(result.nParticles), 'nbeamElem': np.int64(result.nbeamElem),
-            'mass': np.float64(result.mass), 'bulk_volume': np.float64(result.bulk_volume),
-            'bulk_density': np.float64(result.bulk_density), 'porosity': np.float64(result.porosity),
-            'config': np.array(json.dumps(result.config.to_dict()))}
+    arrays = {'pos': pos, 'x': x, 'edge_index': edge_index, 'edge_attr': edge_attr,
+              'node_features': np.array(NODE_FEATURES), 'edge_features': np.array(EDGE_FEATURES),
+              'sites': np.asarray(result.sites, dtype=float), 'radii': np.asarray(result.radii, dtype=float),
+              'generation_center': np.asarray(result.config.generation_center, dtype=float),
+              'nParticles': np.int64(result.nParticles)}
+    for name, tp in [('nbeamElem', np.int64), ('mass', np.float64), ('bulk_volume', np.float64),
+                     ('bulk_density', np.float64), ('porosity', np.float64)]:
+        if getattr(result, name) is not None:  # a preview has no 3D model
+            arrays[name] = tp(getattr(result, name))
+    arrays['config'] = np.array(json.dumps(result.config.to_dict()))
+    return arrays
 
 
 def _generate_fibers(c, rng, output_dir, fig, sites, radii, nParticles, x_min, x_max, y_min, y_max, boundary_points,
                      box_corners, boundaries, all_pts_2D, all_ridges, npt_per_layer, npt_per_layer_normal,
                      npt_per_layer_vtk, nvertex, nvertices_in, nboundary_pts_featured, nridge, all_vertices_2D,
                      max_wings, flattened_all_vertices_2D, vertex_band, ridge_band, times, cell_labels, extra_labels,
-                     hardwood_log):
+                     hardwood_log, mesh):
     """The rest of _generate for fiber_length: the cells end at random heights, tapering to their ends, and
     the 2D mesh is extruded into fibers of various lengths (one fiber end on a grain per end of its cells)"""
     startTime, placementTime, voronoiTime, RebuildvorTime = times
@@ -495,22 +553,8 @@ def _generate_fibers(c, rng, output_dir, fig, sites, radii, nParticles, x_min, x
                                          for name, (vv, rv) in (extra_labels or {}).items()})
 
     # the 2D cell mesh with its ring labels, and as a graph
-    vertices = np.array(all_pts_2D[0:npt_per_layer], dtype=float)
-    ridges = np.array(all_ridges, dtype=int)[0:nridge, 0:2]
-    vertex_ring, vertex_dense = rpgen.RingLabels(vertex_band)
-    ridge_ring, ridge_dense = rpgen.RingLabels(ridge_band)
-    vertex_boundary = rpgen.OnBoundary(vertices, box_corners)
-    result = Result(config=c, output_dir=output_dir, files=[], sites=sites, radii=radii,
-                    nParticles=nParticles, nbeamElem=nbeamElem, mass=mass, bulk_volume=bulk_volume,
-                    bulk_density=bulk_density, porosity=porosity, vertices=vertices, ridges=ridges,
-                    vertex_ring=vertex_ring, vertex_dense=vertex_dense, vertex_boundary=vertex_boundary,
-                    vertex_thickness=np.array(all_vertices_2D[:, 3 + 3*max_wings], dtype=float),
-                    ridge_ring=ridge_ring, ridge_dense=ridge_dense,
-                    ridge_boundary=vertex_boundary[ridges[:, 0]] & vertex_boundary[ridges[:, 1]], **cell_labels)
-    if c.graphFlag:
-        result.graph = graph_arrays(result)
-        rpgen.GraphFile(geoName, result.graph, path=path)
-    _add_statistics(result, boundaries, c.statsFlag)
+    result = _mesh_result(nbeamElem=nbeamElem, mass=mass, bulk_volume=bulk_volume, bulk_density=bulk_density,
+                          porosity=porosity, **mesh)
     FileTime = time.time()
     print('Files generated in {:.3f} seconds'.format(FileTime - BeamTime))
 
