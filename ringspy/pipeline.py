@@ -16,19 +16,18 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
 
-import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.spatial import Voronoi, voronoi_plot_2d
+from scipy.spatial import Voronoi
 
 from . import MeshGenTools as rpgen
 from . import lattice as rplat
 from . import stats as rpstats
 from .config import Config
-from .plot import plot_mesh
+from .plot import STYLE as PLOT_STYLE, plot_mesh
 
 NURBS_DEGREE = 2
-PREVIEW_FIGSIZE = (8, 8)     # inches, and dots per inch, of the figure of a preview
+PREVIEW_FIGSIZE = (8, 8)     # inches, and dots per inch, of the figure geoName.png (of a preview and a full run)
 PREVIEW_DPI = 200
 
 
@@ -103,7 +102,9 @@ def preview(config, **changes):
 
 
 def generate(config, **changes):
-    """Generate a mesh, with the same steps and output files as the template scripts of RingsPy <= 1.1.
+    """Generate a mesh, with the same steps and output files as the template scripts of RingsPy <= 1.1
+    (but the figure geoName.png shows the clipped 2D cell mesh, as that of a preview, plot_mesh(), instead
+    of the original Voronoi diagram).
 
     config :: a Config, a TOML file name, or a dict of parameters.
     changes :: parameters to override, e.g. ``generate('wood_cube.toml', seed=1, stlFlag=False)``.
@@ -164,27 +165,18 @@ def _generate(c):
     x_min, x_max, y_min, y_max, boundaries, boundary_points, boundarylines = \
         rpgen.Clipping_Box(c.box_shape, c.box_center, c.box_size, c.boundaryFlag, polygon=c.box_polygon)
     box_corners = boundary_points
+    # the line segments of the precracks: cut in a full run, and drawn in the figure
+    precrack_nodes = np.array(c.precrack_nodes if c.precrack_nodes is not None
+                              else default_precrack_nodes(c, x_min)) if c.precrackFlag else None
 
-    # Visualize the original 2D Voronoi diagram (a preview draws the clipped mesh instead, plot_mesh)
+    # The original 2D Voronoi diagram. RebuildVoronoi (and insert_precracks) draw lines in the current axes, as the
+    # template scripts of RingsPy <= 1.1 expect: they go to a figure of their own, not to one of the caller, and
+    # generate() closes it afterwards. The figure saved, geoName.png, is drawn from the clipped mesh (plot_mesh).
     vor = Voronoi(sites[:, 0:2])
-    # (a preview draws nothing here, but gets its own figure so that the lines RebuildVoronoi draws in the
-    # current axes do not land in a figure of the caller; generate() closes it afterwards)
-    fig = plt.figure() if c.previewFlag else None
-    if not c.previewFlag:
-        voronoi_plot_2d(vor, show_vertices=False, line_width=0.5, line_alpha=0.6, point_size=2)
-        fig = plt.gcf()
-        plt.xlim(x_min-0.1*abs(x_max-x_min), x_max+0.1*abs(x_max-x_min))
-        plt.ylim(y_min-0.1*abs(y_max-y_min), y_max+0.1*abs(y_max-y_min))
-        plt.plot(boundary_points[:, 0], boundary_points[:, 1], 'bo')
+    plt.figure()
 
     voronoiTime = time.time()
     print('Original Voronoi tessellation generated in {:.3f} seconds'.format(voronoiTime - placementTime))
-
-    if not c.previewFlag:
-        ax = plt.gca()
-        boundarylines = patches.Polygon(boundary_points, closed=True, linewidth=2, edgecolor='k', facecolor='none')
-        ax.set_aspect('equal', adjustable='box')
-        ax.add_patch(boundarylines)
 
     # ==================================================================
     # Rebuild the Voronoi mesh
@@ -248,9 +240,7 @@ def _generate(c):
     if c.previewFlag:
         # the 2D cell mesh is all that is wanted: its Result and its figure, no extrusion, no mesh files
         result = _mesh_result(**mesh)
-        fig, ax = plt.subplots(figsize=PREVIEW_FIGSIZE)
-        plot_mesh(result, ax=ax)
-        fig.savefig(Path(output_dir, geoName + '.png'), dpi=PREVIEW_DPI, bbox_inches='tight')
+        _save_figure(result, precrack_nodes)
         FileTime = time.time()
         print('Preview of the 2D cell mesh drawn in {:.3f} seconds ({:d} vertices, {:d} walls in the box)'.format(
             FileTime - RebuildvorTime, result.nvertex, result.nridge))
@@ -259,8 +249,8 @@ def _generate(c):
 
     if c.fiber_length is not None:
         # fibers of various lengths: every grain its own sequence of fibers (lattice module)
-        return _generate_fibers(c, rng, output_dir, fig, sites, radii, nParticles, x_min, x_max, y_min, y_max,
-                                boundary_points, box_corners, boundaries, all_pts_2D, all_ridges, npt_per_layer,
+        return _generate_fibers(c, rng, output_dir, precrack_nodes, sites, radii, nParticles, x_min, x_max, y_min,
+                                y_max, boundary_points, box_corners, boundaries, all_pts_2D, all_ridges, npt_per_layer,
                                 npt_per_layer_normal, npt_per_layer_vtk, nvertex, nvertices_in, nboundary_pts_featured,
                                 nridge, all_vertices_2D, max_wings, flattened_all_vertices_2D, vertex_band, ridge_band,
                                 [startTime, placementTime, voronoiTime, RebuildvorTime], cell_labels, extra_labels,
@@ -297,8 +287,6 @@ def _generate(c):
     # ==================================================================
     # Insert precracks
     if c.precrackFlag:
-        precrack_nodes = np.array(c.precrack_nodes if c.precrack_nodes is not None
-                                  else default_precrack_nodes(c, x_min))
         [precrack_elem, nconnector_t_precrack, nconnector_l_precrack] = \
             rpgen.insert_precracks(all_pts_2D, all_ridges, nridge, npt_per_layer,
                                    npt_per_layer_normal, npt_per_layer_vtk,
@@ -346,8 +334,6 @@ def _generate(c):
                                                          connector_t_top_connectivity)), npt_per_layer, nctrlpt_per_beam)
                              if extruded else None)
 
-    fig.savefig(Path(output_dir, geoName + '.png'))
-
     # ==================================================================
     # Generate 3D model files
     if c.stlFlag:
@@ -368,9 +354,10 @@ def _generate(c):
                          wing_ridge=flattened_all_vertices_2D[0, :].astype(int), extra_labels=extra_labels)
 
     # ==================================================================
-    # The 2D cell mesh with its ring labels, and as a graph
+    # The 2D cell mesh with its ring labels, and as a graph; its figure
     result = _mesh_result(nbeamElem=nbeamElem, mass=mass, bulk_volume=bulk_volume, bulk_density=bulk_density,
                           porosity=porosity, **mesh)
+    _save_figure(result, precrack_nodes)
 
     FileTime = time.time()
     print('Files generated in {:.3f} seconds'.format(FileTime - BeamTime))
@@ -393,6 +380,17 @@ def _generate(c):
 
     result.files = sorted(output_dir.iterdir())
     return result
+
+
+def _save_figure(result, precrack_nodes=None):
+    """Save geoName.png of a run (a preview or a full run) in its output folder: its clipped 2D cell mesh
+    drawn by plot_mesh (the walls coloured by growth ring), with its precracks (line segments [[x1, y1,
+    x2, y2], ...], or None)"""
+    with plt.rc_context(PLOT_STYLE):
+        fig, ax = plt.subplots(figsize=PREVIEW_FIGSIZE)
+        plot_mesh(result, ax=ax, precracks=precrack_nodes)
+        fig.savefig(Path(result.output_dir, result.config.geoName + '.png'), dpi=PREVIEW_DPI, bbox_inches='tight')
+    plt.close(fig)
 
 
 def _mesh_result(c, output_dir, sites, radii, nParticles, all_pts_2D, all_ridges, npt_per_layer, nridge,
@@ -483,8 +481,8 @@ def graph_arrays(result):
     return arrays
 
 
-def _generate_fibers(c, rng, output_dir, fig, sites, radii, nParticles, x_min, x_max, y_min, y_max, boundary_points,
-                     box_corners, boundaries, all_pts_2D, all_ridges, npt_per_layer, npt_per_layer_normal,
+def _generate_fibers(c, rng, output_dir, precrack_nodes, sites, radii, nParticles, x_min, x_max, y_min, y_max,
+                     boundary_points, box_corners, boundaries, all_pts_2D, all_ridges, npt_per_layer, npt_per_layer_normal,
                      npt_per_layer_vtk, nvertex, nvertices_in, nboundary_pts_featured, nridge, all_vertices_2D,
                      max_wings, flattened_all_vertices_2D, vertex_band, ridge_band, times, cell_labels, extra_labels,
                      hardwood_log, mesh):
@@ -522,8 +520,6 @@ def _generate_fibers(c, rng, output_dir, fig, sites, radii, nParticles, x_min, x
     print('{:d} beam elements of {:d} fibers generated in {:.3f} seconds'.format(nbeamElem, lat.npatch, BeamTime - RebuildvorTime))
 
     if c.precrackFlag:
-        precrack_nodes = np.array(c.precrack_nodes if c.precrack_nodes is not None
-                                  else default_precrack_nodes(c, x_min))
         [precrack_elem, nconnector_t_precrack, nconnector_l_precrack] = \
             rpgen.insert_precracks(all_pts_2D, all_ridges, nridge, npt_per_layer, npt_per_layer_normal,
                                    npt_per_layer_vtk, nhalf, precrack_nodes, c.precrack_widths,
@@ -539,7 +535,6 @@ def _generate_fibers(c, rng, output_dir, fig, sites, radii, nParticles, x_min, x
     wing_ridge = flattened_all_vertices_2D[0, :].astype(int)
     volumes = rplat.write_vtu_files(geoName, lat, layer_points, all_ridges, nvertex, path=path, vertex_band=vertex_band,
                                     ridge_band=ridge_band, extra_labels=extra_labels)
-    fig.savefig(Path(output_dir, geoName + '.png'))
     if c.stlFlag:
         rpgen.StlModelFile(geoName, path=path, **volumes)
     if c.inpFlag:
@@ -557,6 +552,7 @@ def _generate_fibers(c, rng, output_dir, fig, sites, radii, nParticles, x_min, x
     # the 2D cell mesh with its ring labels, and as a graph
     result = _mesh_result(nbeamElem=nbeamElem, mass=mass, bulk_volume=bulk_volume, bulk_density=bulk_density,
                           porosity=porosity, **mesh)
+    _save_figure(result, precrack_nodes)
     FileTime = time.time()
     print('Files generated in {:.3f} seconds'.format(FileTime - BeamTime))
 

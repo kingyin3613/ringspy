@@ -46,13 +46,16 @@ def without_ring_labels(name, data):
     return data, False
 
 
-def assert_same_files(dir_a, dir_b, ignore_ring_labels=False):
+def assert_same_files(dir_a, dir_b, ignore_ring_labels=False, skip_content=()):
     """The two output folders hold the same files with the same content (report logs: except run times).
-    ignore_ring_labels: the files of dir_b may carry the growth ring labels (and must, where they have them)"""
+    ignore_ring_labels: the files of dir_b may carry the growth ring labels (and must, where they have them)
+    skip_content: endings of the file names whose content is not compared (the files must still be in both)"""
     names_a = sorted(p.name for p in Path(dir_a).iterdir())
     names_b = sorted(p.name for p in Path(dir_b).iterdir())
     assert names_a == names_b
     for name in names_a:
+        if skip_content and name.endswith(tuple(skip_content)):
+            continue
         a, b = Path(dir_a, name), Path(dir_b, name)
         data_a, data_b = a.read_bytes(), b.read_bytes()
         if ignore_ring_labels:

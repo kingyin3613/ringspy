@@ -259,7 +259,7 @@ The following files should be generated in the `.\meshes\geoName` directory with
     - Grain-ridge data file: `wood_cube-vertex.mesh`
     - Ridge data file: `wood_cube-ridge.mesh`
 - Visualization files
-    - Cross-sectional image file for initial 2D configuration: `wood_cube.png`
+    - Cross-sectional image of the 2D cell mesh, the same figure as a preview's (section 2.3): `wood_cube.png`
     - Paraview vtk file for initial vertex configuration: `wood_cube_vertices.vtu`
     - Paraview vtk file for initial grain solid configuration: `wood_cube_beams.vtu`
     - Paraview vtk file of initial cell ridge configuration: `wood_cube_conns.vtu`
@@ -290,7 +290,7 @@ or `previewFlag = true` in the file, or from Python:
 result = ringspy.preview("wood_cube.toml", cellsize_sparse=0.03, seed=1)   # generate(..., previewFlag=True)
 print(result.summary())                                                   # ncells, mean_cell_area, porosity_2d, ...
 ```
-The cells are placed and clipped exactly as in a full run (the same seed gives the same cells), and the output folder gets only `wood_cube.png`, the 2D mesh files `wood_cube-vertex.mesh` and `wood_cube-ridge.mesh`, and, if asked for, the sites (`save_sites`), the statistics (`statsFlag`) and the graph (`graphFlag`, without the 3D properties). The figure shows the cell walls coloured by growth ring (the dense part of a ring darker), with their thickness as line width, the ring boundaries dashed and the clipping outline; the vessels and rays of a hardwood get their own colours. The `Result` has the 2D mesh with its labels and statistics as usual, and `None` for the properties of the 3D model (`nbeamElem`, `mass`, `bulk_volume`, `bulk_density`, `porosity`); `result.preview` tells the two apart. `ringspy batch ... --preview` previews every run of a batch (section 5.1).
+The cells are placed and clipped exactly as in a full run (the same seed gives the same cells), and the output folder gets only `wood_cube.png`, the 2D mesh files `wood_cube-vertex.mesh` and `wood_cube-ridge.mesh`, and, if asked for, the sites (`save_sites`), the statistics (`statsFlag`) and the graph (`graphFlag`, without the 3D properties). The figure shows the cell walls coloured by growth ring (the dense part of a ring darker), with their thickness as line width, the ring boundaries dashed, the clipping outline and the pre-cracks (`precrackFlag`) as dark cuts; the vessels and rays of a hardwood get their own colours. A full run saves the same figure. The `Result` has the 2D mesh with its labels and statistics as usual, and `None` for the properties of the 3D model (`nbeamElem`, `mass`, `bulk_volume`, `bulk_density`, `porosity`); `result.preview` tells the two apart. `ringspy batch ... --preview` previews every run of a batch (section 5.1).
 
 ![wood_cube_preview: the cell walls of wood_cube coloured by growth ring](<./contents/wood_cube_preview.png>)
 
@@ -303,7 +303,9 @@ result.plot(ax=axes[0])                          # or ringspy.plot_mesh(result, 
 result.plot(ax=axes[1], color="dense")           # earlywood light, latewood dark
 result.plot(ax=axes[2], color="thickness")       # wall thickness, with a colour bar
 ```
-`color` is `"ring"`, `"dense"`, `"thickness"`, `"type"` (fibers, vessels and rays) or `None`; `linewidth` is `"thickness"` or a width in points; `sites=True` marks the cell sites; `rings`, `boundary`, `legend` and `title` switch those parts off.
+`color` is `"ring"`, `"dense"`, `"thickness"`, `"type"` (fibers, vessels and rays) or `None`; `linewidth` is `"thickness"` or a width in points; `sites=True` marks the cell sites; `precracks=[[x1, y1, x2, y2], ...]` draws pre-cracks; `rings`, `boundary`, `legend` and `title` switch those parts off.
+
+All RingsPy figures, and the figures and animation of this README, share one palette: earlywood in sand and latewood in walnut, vessels in teal and rays in violet, and the growth rings in copper, sky, olive and lavender (repeated after the fourth ring), the dense part of a ring in a darker shade of its hue. The colours were checked with simulated colour vision deficiencies, so that neighbouring rings, the vessels and rays, and the wood tones stay apart for colour-blind readers too. They are in `ringspy.plot` (`COLORS`, `RING_COLORS`, `THICKNESS_CMAP`), and `ringspy.plot.STYLE` holds the Matplotlib settings of the figures RingsPy saves itself (`geoName.png` of a run or a preview, and the reconstruction figure), e.g. `with plt.rc_context(ringspy.plot.STYLE): ...` to draw your own figures in the same style.
 
 ### 3. Visualization
 A scientific visualization application `ParaView` can directly visualize the generated vtk files; It can also visualize generated 3D model STL files if the STL flag is on. `Paraview` is a free software, it can be downloaded from its official website: [https://www.paraview.org/download/](https://www.paraview.org/download/), latest version is recommeded.
@@ -346,7 +348,7 @@ A scientific visualization application `ParaView` can directly visualize the gen
         - File > Save Screenshot
         - Enter a file name > OK
         - Leave new window as-is or increase resolution > OK
-(a) the beams and connectors of `wood_cube` coloured by `Connector_width`, (b) the connector volumes of `hardwood_ring_porous` with the `Vessel` and `Ray` cell data in their own colours, and (c) the connector volumes of `wood_spiral`, coloured by `Ring`, with the taper and the spiral grain:
+(a) the beams and connectors of `wood_cube` coloured by `Connector_width`, (b) the connector volumes of `hardwood_ring_porous` with the `Vessel` and `Ray` cell data in their own colours, and (c) the connector volumes of `wood_spiral`, coloured by `Ring` (the dense part of a ring, `Dense`, in the darker shade), with the taper and the spiral grain:
 
 ![ModelVisualization: the components of wood_cube coloured by connector width, the connector volumes of the hardwood example with vessels and rays, and the tapered, spiral-grained volumes of wood_spiral coloured by ring](<./contents/ModelVisualization.png>)
 

@@ -145,6 +145,18 @@ def test_plot_mesh_from_a_full_result_and_options(tmp_path):
         plot_mesh(res, color="rings")
 
 
+def test_figure_with_precracks(tmp_path):
+    res = ringspy.preview(dict(SMALL, geoName="c", path=str(tmp_path)))
+    ax = res.plot(precracks=[[0.1, 0.0, 0.3, 0.0], [0.5, -0.2, 0.6, -0.1]])
+    assert len(ax.lines) == len(res.radii) - 1 + 2  # the ring boundaries and the two cracks
+    assert [t.get_text() for t in ax.get_legend().get_texts()][-1] == "pre-cracks"
+    plt.close(ax.figure)
+    # the saved figure of a run with precrackFlag has its crack (the cells are the same without it)
+    cracked = ringspy.preview(dict(SMALL, geoName="c", path=str(tmp_path / "cracked"), precrackFlag=True))
+    np.testing.assert_array_equal(cracked.ridges, res.ridges)
+    assert (tmp_path / "cracked" / "c" / "c.png").read_bytes() != (tmp_path / "c" / "c.png").read_bytes()
+
+
 def test_preview_of_the_examples_is_the_full_mesh(tmp_path):
     for name in ["wood_cube", "dogbone"]:
         full = ringspy.generate(EXAMPLES_DIR / (name + ".toml"), path=str(tmp_path / "full"), stlFlag=False,
@@ -153,3 +165,6 @@ def test_preview_of_the_examples_is_the_full_mesh(tmp_path):
         np.testing.assert_array_equal(quick.vertices, full.vertices)
         np.testing.assert_array_equal(quick.ridges, full.ridges)
         np.testing.assert_array_equal(quick.ridge_ring, full.ridge_ring)
+        # and the full run saves the same figure as its preview
+        figure = name + ".png"
+        assert (full.output_dir / figure).read_bytes() == (quick.output_dir / figure).read_bytes(), name

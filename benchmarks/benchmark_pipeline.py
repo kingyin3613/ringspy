@@ -7,8 +7,8 @@ Wall time per stage of ringspy.generate() for an example configuration
 
 Generates the mesh once per iter_max value, writing to a temporary folder (or --out),
 and prints the time spent in each MeshGenTools function, the Voronoi tessellation and
-the preview plot, plus the total wall time. Not a test: it is meant for comparing
-versions of RingsPy on the same machine.
+the figure geoName.png (plot_mesh, savefig), plus the total wall time. Not a test: it
+is meant for comparing versions of RingsPy on the same machine.
 """
 
 import argparse
@@ -50,7 +50,7 @@ def run(config, iter_max, seed, out):
     times = {}
     originals = {}
     patches = [(rpgen, name) for name in STAGES] + \
-              [(ringspy.pipeline, "Voronoi"), (ringspy.pipeline, "voronoi_plot_2d"), (matplotlib.figure.Figure, "savefig")]
+              [(ringspy.pipeline, "Voronoi"), (ringspy.pipeline, "plot_mesh"), (matplotlib.figure.Figure, "savefig")]
     for owner, name in patches:
         originals[(owner, name)] = getattr(owner, name)
         setattr(owner, name, timed(name, getattr(owner, name), times))
