@@ -5,12 +5,14 @@ Build the README animation contents/ringspy_hero.gif from real RingsPy output.
     python contents/make_hero_gif.py prepare --data <folder>   # generate the mesh, keep what the frames need
     python contents/make_hero_gif.py render  --data <folder>   # render the frames and write the GIF
 
-prepare runs ringspy.generate() with contents/hero_log.toml (a hardwood log of 40k cells with vessels and
-rays, eccentric wavy rings, a taper and a spiral grain; a few minutes and 3 GB of memory, the temporary
-mesh files take ~1 GB) and writes ~250 MB of compact data to <folder>. render needs vtk, scipy and Pillow
-and an OpenGL context for off-screen rendering (OSMesa or Xvfb will do; about a minute with a GPU, some
-ten minutes with software rendering); it writes the frames to <folder>/frames/ and the GIF next to this
-script, and checks the GIF (decoded frames, size).
+prepare runs ringspy.generate() with contents/hero_log.toml (a hardwood log of 35k cells with vessels and
+rays, eccentric wavy rings, a taper and a spiral grain; about three minutes and 5 GB of memory, the
+temporary mesh files take ~1 GB) and writes ~300 MB of compact data to <folder>. render needs vtk, scipy
+and Pillow and an OpenGL context for off-screen rendering (about a minute with a GPU; on a machine without
+one, the vtk-osmesa wheel from https://wheels.vtk.org renders in software, some ten minutes on 8 cores);
+it writes the frames to <folder>/frames/ and the GIF next to this script, and checks the GIF (decoded
+frames, size). The colours are the RingsPy palette (ringspy/plot.py) stepped for a dark background, the
+text the first installed of ringspy.plot.FONTS.
 
 Story of the loop: the finished tapered, twisted log orbits while it is wiped from the .vtu colours to
 the .stl solid and the .inp mesh, where the orbit comes to rest; the rays and vessels are placed, then
@@ -57,16 +59,20 @@ CAPTION_BOX = tuple(round(v*K) for v in (12, 6, 322, 172))     # wordmark and ca
 LEGEND_BOX = tuple(round(v) for v in (12*K, H - 112*K, 322*K, H - 2*K))  # colour key; the object
                                                                    # must stay clear of both
 
-BG = (0x2B, 0x2F, 0x3D)
-EARLY = (0xA9, 0xC1, 0xEE)        # thin cell walls (Connector_width = smaller value)
-LATE = (0xE0, 0x55, 0x45)         # thick cell walls (Connector_width = larger value)
-VESSEL = (0xF2, 0xB7, 0x3C)       # walls of the vessels (Vessel cell data)
-RAY = (0x6F, 0xD0, 0x8E)          # walls of the ray cells (Ray cell data)
-GUIDE = (0x4A, 0x50, 0x68)
-LIGHT = (0xE6, 0xE9, 0xF0)
-CAPTION = (0xB8, 0xBF, 0xD0)
-IVORY = (0xEC, 0xE3, 0xCF)
-BEAM = (0x8E, 0x96, 0xAB)
+# The RingsPy palette (ringspy/plot.py) stepped for a dark background: wood on charcoal. Earlywood sand and
+# latewood copper, the vessels teal and the rays a light lavender, close to the earlywood in lightness so
+# that they read as fine radial grain; every pair of the four stays apart under simulated protanopia and
+# deuteranopia (OKLab Delta E >= 11.7).
+BG = (0x14, 0x12, 0x10)           # charcoal
+EARLY = (0xDA, 0xC0, 0x9D)        # thin cell walls (Connector_width = smaller value): sand
+LATE = (0xB3, 0x6C, 0x3E)         # thick cell walls (Connector_width = larger value): copper
+VESSEL = (0x0D, 0x92, 0x98)       # walls of the vessels (Vessel cell data): teal
+RAY = (0xBD, 0xA5, 0xDA)          # walls of the ray cells (Ray cell data): lavender
+GUIDE = (0x34, 0x30, 0x2B)        # growth ring boundaries
+LIGHT = (0xEF, 0xEA, 0xE2)        # wordmark, outlines
+CAPTION = (0xAF, 0xAA, 0xA3)      # captions and the colour key
+IVORY = (0xE4, 0xDD, 0xD1)        # the .stl solid
+BEAM = (0x84, 0x7F, 0x7A)         # the .inp grains
 KEY_COLORS = [BG, EARLY, LATE, VESSEL, RAY, GUIDE, LIGHT, CAPTION, IVORY, BEAM]
 SHAPE_PARAMS = ['ring_ellipticity', 'ring_ellipse_angle', 'ring_eccentricity', 'ring_eccentricity_angle',
                 'ring_waviness', 'ring_wave_order', 'ring_wave_phase']
@@ -854,35 +860,47 @@ def render_frames(data, frames_dir):
 
 
 def load_fonts():
+    """The first installed of ringspy.plot.FONTS (as matplotlib finds it), in the weights the captions use"""
     from matplotlib import font_manager
     from PIL import ImageFont
-    bold = font_manager.findfont(font_manager.FontProperties(family='DejaVu Sans', weight='bold'))
-    regular = font_manager.findfont(font_manager.FontProperties(family='DejaVu Sans'))
-    return dict(wordmark=ImageFont.truetype(bold, round(30*K)), caption=ImageFont.truetype(regular, round(26*K)),
-                label=ImageFont.truetype(bold, round(25*K)), legend=ImageFont.truetype(regular, round(19*K)))
+    from ringspy.plot import FONTS
+    find = lambda weight: font_manager.findfont(font_manager.FontProperties(family=FONTS, weight=weight))
+    bold, semibold, regular = find('bold'), find('semibold'), find('regular')
+    return dict(wordmark=ImageFont.truetype(bold, round(31*K)), caption=ImageFont.truetype(regular, round(25*K)),
+                step=ImageFont.truetype(bold, round(25*K)), label=ImageFont.truetype(semibold, round(24*K)),
+                legend=ImageFont.truetype(regular, round(18*K)))
 
 
 def annotate(image, caption, fonts, backdrop=False, legend=False, file_label=False):
-    """Wordmark and caption lines at the top left (with file_label, the last line is the file type, in
-    bold), the colour key at the bottom left; each group on a darkened backdrop when the object fills
-    the canvas. All text must fit in CAPTION_BOX / LEGEND_BOX."""
+    """Wordmark and caption lines at the top left (a leading step number in copper; with file_label, the
+    last line is the file type, in semibold), the colour key at the bottom left; each group on a darkened
+    backdrop when the object fills the canvas. All text must fit in CAPTION_BOX / LEGEND_BOX."""
     from PIL import Image, ImageDraw
     image = image.copy()
     draw = ImageDraw.Draw(image)
     x = round(22*K)
     texts = [((x, round(14*K)), 'RingsPy', fonts['wordmark'], LIGHT)]
+    step, _, rest = caption[0].partition('  ') if caption else ('', '', '')
+    numbered = step.isdigit() and bool(rest)          # '1  Rays and vessels,': the number in copper, and the
+    indent = round(26*K) if numbered else 0           # caption lines indented after it
     for i, line in enumerate(caption):
         bold = file_label and i == len(caption) - 1
-        texts.append(((x, round((56 + 32*i + (6 if bold else 0))*K)), line,
-                      fonts['label' if bold else 'caption'], LIGHT if bold else CAPTION))
+        y = round((58 + 31*i + (6 if bold else 0))*K)
+        if i == 0 and numbered:
+            texts.append(((x, y), step, fonts['step'], LATE))
+            line = rest
+        texts.append(((x + indent, y), line, fonts['label' if bold else 'caption'], LIGHT if bold else CAPTION))
     swatches = []
     if legend:
         key = [(LATE, 'latewood: thick walls'), (EARLY, 'earlywood: thin walls'), (VESSEL, 'vessels'),
                (RAY, 'rays')]
         for i, (color, text) in enumerate(key):
-            y = H - round((106 - 25*i)*K)
-            texts.append(((x + round(24*K), y), text, fonts['legend'], CAPTION))
-            swatches.append(((x, y + round(4*K), x + round(15*K), y + round(19*K)), color))
+            y = H - round((104 - 24*i)*K)
+            texts.append(((x + round(28*K), y), text, fonts['legend'], CAPTION))
+            # a short thick stroke, like a cell wall, centred on the text
+            middle = draw.textbbox((x, y), 'x', font=fonts['legend'])
+            middle = (middle[1] + middle[3])/2
+            swatches.append(((x, round(middle - 2.5*K), x + round(18*K), round(middle + 2.5*K)), color))
     boxes = np.array([draw.textbbox(xy, text, font=font) for xy, text, font, _ in texts] +
                      [box for box, _ in swatches]).reshape(-1, 4)
     lower = boxes[:, 1] > H/2
@@ -898,7 +916,7 @@ def annotate(image, caption, fonts, backdrop=False, legend=False, file_label=Fal
                 region = image.crop((x0, y0, x1, y1))
                 image.paste(Image.blend(region, Image.new('RGB', region.size, BG), 0.85), (int(x0), int(y0)))
     for box, color in swatches:
-        draw.rectangle(box, fill=color)
+        draw.rounded_rectangle(box, radius=max(1, round(2*K)), fill=color)
     for xy, text, font, color in texts:
         draw.text(xy, text, font=font, fill=color)
     return image

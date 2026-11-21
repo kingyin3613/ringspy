@@ -1364,47 +1364,57 @@ def _preview_figure(file, walls2d, ref, layer_vertices, z_coord, inclination, vo
     """geoName.png: the reference cross-section with its cell corners and walls, and the top view of the grains"""
     import matplotlib.pyplot as plt
     from matplotlib.collections import LineCollection
+    from matplotlib.colors import LinearSegmentedColormap
+    from .plot import ANGLE_CMAP, COLORS, STYLE, THICKNESS_CMAP
     x0, x1, y0, y1 = ref.box
-    fig, axes = plt.subplots(1, 2, figsize=(13, 6))
-    ax = axes[0]
-    ax.imshow(walls2d.T, origin='lower', cmap='Greys', vmin=0, vmax=1.6, extent=[x0, x1, y0, y1], interpolation='nearest')
-    segments = ref.vertices[ref.ridges]
-    lines = LineCollection(segments, array=ref.thickness, cmap='viridis', linewidths=1.2)
-    ax.add_collection(lines)
-    fig.colorbar(lines, ax=ax, fraction=0.046, pad=0.04, label='wall thickness (mm)')
-    inside = ref.kind == 0
-    ax.plot(ref.vertices[inside, 0], ref.vertices[inside, 1], 'r.', markersize=3)
-    ax.plot(ref.vertices[~inside, 0], ref.vertices[~inside, 1], 'b.', markersize=3)
-    ax.plot([x0, x1, x1, x0, x0], [y0, y0, y1, y1, y0], 'k-', linewidth=2)
-    ax.set_xlim(x0 - 0.05*(x1 - x0), x1 + 0.05*(x1 - x0))
-    ax.set_ylim(y0 - 0.05*(y1 - y0), y1 + 0.05*(y1 - y0))
-    ax.set_aspect('equal', adjustable='box')
-    ax.set_title('reference cross-section (slice {:d}, z = {:.4g} mm)\n{:d} cell corners, {:d} cell walls'
-                 .format(k_ref, origin[2] + (k_ref + 0.5)*voxel[2], ref.nvertex, ref.nridge))
-    ax.set_xlabel('x (mm)')
-    ax.set_ylabel('y (mm)')
+    box = ([x0, x1, x1, x0, x0], [y0, y0, y1, y1, y0])
+    with plt.rc_context(STYLE):
+        fig, axes = plt.subplots(1, 2, figsize=(13, 6))
+        ax = axes[0]
+        # the thresholded image underneath, pale, so that the network found in it reads on top
+        image = LinearSegmentedColormap.from_list('ringspy_image', ['#ffffff', '#ddd6cc'])
+        ax.imshow(walls2d.T, origin='lower', cmap=image, vmin=0, vmax=1, extent=[x0, x1, y0, y1], interpolation='nearest')
+        segments = ref.vertices[ref.ridges]
+        lines = LineCollection(segments, array=ref.thickness, cmap=THICKNESS_CMAP, linewidths=1.2, capstyle='round')
+        ax.add_collection(lines)
+        bar = fig.colorbar(lines, ax=ax, fraction=0.046, pad=0.04, aspect=30, label='wall thickness (mm)')
+        bar.outline.set_visible(False)
+        bar.ax.tick_params(length=0)
+        inside = ref.kind == 0
+        ax.plot(ref.vertices[inside, 0], ref.vertices[inside, 1], '.', color=COLORS['boundary'], markersize=2.5)
+        ax.plot(ref.vertices[~inside, 0], ref.vertices[~inside, 1], '.', color=COLORS['muted'], markersize=2.5)
+        ax.plot(*box, color=COLORS['boundary'], linewidth=1.0)
+        ax.set_xlim(x0 - 0.05*(x1 - x0), x1 + 0.05*(x1 - x0))
+        ax.set_ylim(y0 - 0.05*(y1 - y0), y1 + 0.05*(y1 - y0))
+        ax.set_aspect('equal', adjustable='box')
+        ax.set_title('reference cross-section (slice {:d}, z = {:.4g} mm)\n{:d} cell corners, {:d} cell walls'
+                     .format(k_ref, origin[2] + (k_ref + 0.5)*voxel[2], ref.nvertex, ref.nridge))
+        ax.set_xlabel('x (mm)')
+        ax.set_ylabel('y (mm)')
 
-    ax = axes[1]
-    rows = np.nonzero(ref.kind < 2)[0]
-    tracks = np.transpose(layer_vertices[:, rows, :], (1, 0, 2))  # (nvertex, nlayers, 2)
-    if len(rows):
-        paths = LineCollection(tracks, array=inclination, cmap='plasma', linewidths=1.0)
-        ax.add_collection(paths)
-        fig.colorbar(paths, ax=ax, fraction=0.046, pad=0.04, label='grain inclination (degrees)')
-        ax.plot(tracks[:, 0, 0], tracks[:, 0, 1], 'k.', markersize=2)
-    ax.plot([x0, x1, x1, x0, x0], [y0, y0, y1, y1, y0], 'k-', linewidth=2)
-    ax.set_xlim(x0 - 0.05*(x1 - x0), x1 + 0.05*(x1 - x0))
-    ax.set_ylim(y0 - 0.05*(y1 - y0), y1 + 0.05*(y1 - y0))
-    ax.set_aspect('equal', adjustable='box')
-    title = 'grains followed from z = {:.4g} to {:.4g} mm (top view)'.format(z_coord[0], z_coord[-1])
-    if field is not None:
-        title += '\nfiber direction field: grain angle {:.2f} deg, dispersion {:.2f} deg'.format(field.grain_angle_deg,
-                                                                                                 field.dispersion_deg)
-    ax.set_title(title)
-    ax.set_xlabel('x (mm)')
-    ax.set_ylabel('y (mm)')
-    fig.tight_layout()
-    fig.savefig(file, dpi=150)
+        ax = axes[1]
+        rows = np.nonzero(ref.kind < 2)[0]
+        tracks = np.transpose(layer_vertices[:, rows, :], (1, 0, 2))  # (nvertex, nlayers, 2)
+        if len(rows):
+            paths = LineCollection(tracks, array=inclination, cmap=ANGLE_CMAP, linewidths=1.0, capstyle='round')
+            ax.add_collection(paths)
+            bar = fig.colorbar(paths, ax=ax, fraction=0.046, pad=0.04, aspect=30, label='grain inclination (degrees)')
+            bar.outline.set_visible(False)
+            bar.ax.tick_params(length=0)
+            ax.plot(tracks[:, 0, 0], tracks[:, 0, 1], '.', color=COLORS['boundary'], markersize=2)
+        ax.plot(*box, color=COLORS['boundary'], linewidth=1.0)
+        ax.set_xlim(x0 - 0.05*(x1 - x0), x1 + 0.05*(x1 - x0))
+        ax.set_ylim(y0 - 0.05*(y1 - y0), y1 + 0.05*(y1 - y0))
+        ax.set_aspect('equal', adjustable='box')
+        title = 'grains followed from z = {:.4g} to {:.4g} mm (top view)'.format(z_coord[0], z_coord[-1])
+        if field is not None:
+            title += '\nfiber direction field: grain angle {:.2f} deg, dispersion {:.2f} deg'.format(
+                field.grain_angle_deg, field.dispersion_deg)
+        ax.set_title(title)
+        ax.set_xlabel('x (mm)')
+        ax.set_ylabel('y (mm)')
+        fig.tight_layout()
+        fig.savefig(file, dpi=150)
     plt.close(fig)
 
 

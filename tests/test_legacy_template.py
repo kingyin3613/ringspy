@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 Template scripts of RingsPy <= 1.1 keep working, and ringspy.generate() gives the same files
-(plus the growth ring labels in the .vtu and .inp files and the report log, since v1.4)
+(plus the growth ring labels in the .vtu and .inp files and the report log, since v1.4), but for the
+figure geoName.png: a template draws the original Voronoi diagram itself, generate() the clipped mesh
 """
 
 import importlib.util
@@ -35,4 +36,4 @@ def test_legacy_template_matches_generate(tmp_path, monkeypatch):
     out = Path("meshes", "legacy")
     assert (tmp_path / "legacy" / out / "legacy.stl").is_file()
     assert "nconnector_t_precrack" in (tmp_path / "legacy" / out / "legacy-report.log").read_text()
-    assert_same_files(tmp_path / "legacy" / out, tmp_path / "new" / out, ignore_ring_labels=True)
+    assert_same_files(tmp_path / "legacy" / out, tmp_path / "new" / out, ignore_ring_labels=True, skip_content=[".png"])
